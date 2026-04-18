@@ -561,6 +561,46 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
   </div>
 </div>
 
+<!-- ADD INDIVIDUAL DISQ MODAL -->
+<div class="overlay" id="add-disq-individual-modal">
+  <div class="modal" style="width:480px">
+    <h2 class="modal-t">⛔ 新增個人扣考</h2>
+    <div class="fg" style="margin-bottom:12px">
+      <label>搜尋學生（姓名或帳號）</label>
+      <input type="text" id="adim-search" placeholder="輸入姓名或帳號搜尋..." oninput="adimSearch()">
+    </div>
+    <div id="adim-results" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px"></div>
+    <div id="adim-selected" style="display:none;background:var(--cream);border-radius:var(--r);padding:10px 14px;margin-bottom:12px;font-size:13px"></div>
+    <div class="lf" id="adim-reason-area" style="display:none">
+      <label style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">扣考原因（必填）</label>
+      <input id="adim-reason" type="text" placeholder="例：曠課超過三分之一、違反考試規定…">
+    </div>
+    <div class="lf" id="adim-note-area" style="display:none">
+      <label style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">備註（選填）</label>
+      <input id="adim-note" type="text" placeholder="其他說明">
+    </div>
+    <div class="login-err" id="adim-err" style="min-height:16px;margin-bottom:4px"></div>
+    <div class="modal-ft">
+      <button class="btn btn-s" onclick="closeOverlay('add-disq-individual-modal')">取消</button>
+      <button class="btn btn-d" onclick="saveDisqIndividual()">確認扣考</button>
+    </div>
+  </div>
+</div>
+
+<!-- FIRST LOGIN CHANGE PASSWORD MODAL -->
+<div class="overlay" id="first-login-modal">
+  <div class="modal" style="width:380px">
+    <h2 class="modal-t">🔑 首次登入 — 請設定新密碼</h2>
+    <p style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:16px;line-height:1.7">為了帳號安全，請在首次登入後設定您的專屬密碼。</p>
+    <div class="lf"><label style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">新密碼</label><input id="fl-new" type="password" placeholder="請輸入新密碼"></div>
+    <div class="lf"><label style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">確認新密碼</label><input id="fl-confirm" type="password" placeholder="再次輸入新密碼"></div>
+    <div class="login-err" id="fl-err" style="min-height:16px;margin-bottom:4px"></div>
+    <div class="modal-ft">
+      <button class="btn btn-p" onclick="saveFirstPassword()">設定密碼 →</button>
+    </div>
+  </div>
+</div>
+
 <!-- CHANGE PASSWORD MODAL -->
 <div class="overlay" id="chpwd-modal">
   <div class="modal" style="width:360px">
@@ -729,8 +769,12 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
 
           <!-- Step 2: 選學生 -->
           <div id="tea-s2" style="display:none">
-            <div class="fg" style="max-width:260px"><label>選擇學生</label>
+            <div class="fg" style="max-width:320px"><label>選擇學生</label>
               <select id="tea-wiz-stu" onchange="teaWizPickStu()"><option value="">— 請選 —</option></select>
+            </div>
+            <div class="fg" style="max-width:320px;margin-top:8px"><label>或直接輸入姓名搜尋</label>
+              <input type="text" id="tea-wiz-name-search" placeholder="輸入姓名…" oninput="teaWizNameSearch()">
+              <div id="tea-wiz-name-hint" style="font-family:'DM Mono',monospace;font-size:10px;margin-top:4px;color:var(--muted)"></div>
             </div>
             <div style="margin-top:8px">
               <button class="btn btn-s btn-sm" onclick="teaWizBack(1)">← 返回</button>
@@ -741,6 +785,16 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
           <div id="tea-s3" style="display:none">
             <p style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:10px">請選擇要填寫的修課類別</p>
             <div id="tea-wiz-type-btns" class="bg"></div>
+            <div style="margin-top:12px">
+              <div class="fg" style="max-width:220px"><label>或直接選擇修別</label>
+                <select id="tea-wiz-type-sel" onchange="if(this.value)teaWizPickType(this.value)">
+                  <option value="">— 請選修別 —</option>
+                  <option value="major">主修</option>
+                  <option value="minor">副修</option>
+                  <option value="elective">選修加考</option>
+                </select>
+              </div>
+            </div>
             <div style="margin-top:8px">
               <button class="btn btn-s btn-sm" onclick="teaWizBack(2)">← 返回</button>
             </div>
@@ -803,6 +857,26 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
       </div>
     </div>
 
+    <!-- ══ TEACHER: SCHEDULE VIEW ══ -->
+    <div class="pg" id="pg-tea-schedule">
+      <div class="ph"><h1>考試順序查詢</h1><span>Schedule for Teachers</span></div>
+      <div id="tea-schedule-access-msg" style="display:none">
+        <div class="card"><div id="tea-schedule-msg-text" style="font-family:'DM Mono',monospace;font-size:13px;color:var(--muted);padding:8px 0;line-height:1.9"></div></div>
+      </div>
+      <div id="tea-schedule-content" style="display:none">
+        <div class="card" style="margin-bottom:14px">
+          <div class="card-t">選擇考場查看</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap" id="tea-schedule-room-btns"></div>
+        </div>
+        <div id="tea-schedule-table-wrap">
+          <div class="tw"><table>
+            <thead><tr><th>序</th><th>考場</th><th>地點</th><th>班級</th><th>姓名</th><th>樂器</th><th>別</th><th>指定曲</th><th>自選曲</th></tr></thead>
+            <tbody id="tea-sched-tbody"></tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>
+
     <!-- ══ JURY MODULE ══ -->
     <div class="pg" id="pg-jury">
       <!-- 考場大標題 -->
@@ -846,10 +920,10 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
       <div class="ph"><h1>考試排程</h1><span>Exam Schedule</span></div>
       <div class="card" style="margin-bottom:14px">
         <div class="card-t">篩選與排序設定</div>
-        <!-- 篩選列 -->
+        <!-- 考場選擇 -->
         <div class="fr" style="margin-bottom:10px;flex-wrap:wrap;gap:10px;align-items:flex-end">
           <div class="fg" style="min-width:110px"><label>考場</label>
-            <select id="sch-room" onchange="renderSchedule()"><option value="">全部考場</option></select>
+            <select id="sch-room" onchange="onSchRoomChange()"><option value="">全部考場</option></select>
           </div>
           <div class="fg" style="min-width:100px"><label>班級</label>
             <select id="sch-class" onchange="renderSchedule()"><option value="">全部班級</option></select>
@@ -861,6 +935,18 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
               <option value="minor">副修</option>
               <option value="elective">選修</option>
             </select>
+          </div>
+        </div>
+        <!-- 每個考場的樂器大項/細項篩選 -->
+        <div id="sch-room-inst-filter" style="display:none;background:var(--cream);border-radius:var(--r);padding:12px;margin-bottom:10px">
+          <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--gold);margin-bottom:8px;text-transform:uppercase">此考場樂器篩選（複選）</div>
+          <div style="margin-bottom:8px">
+            <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:5px;letter-spacing:1px">樂器大項</div>
+            <div id="sch-room-cat-checkboxes" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+          </div>
+          <div>
+            <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:5px;letter-spacing:1px">細項樂器</div>
+            <div id="sch-room-inst-checkboxes" style="display:flex;flex-wrap:wrap;gap:6px"></div>
           </div>
         </div>
         <!-- 排序列：每個欄位可選升/降序 -->
@@ -881,6 +967,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
         <div class="card-t" style="display:flex;align-items:center;justify-content:space-between">
           <span>⛔ 扣考名單</span>
           <div class="bg">
+            <button class="btn btn-g btn-sm" onclick="openAddDisqIndividual()">＋ 新增個人</button>
             <button class="btn btn-o btn-sm" onclick="importDisqCSV()">↑ 匯入 CSV</button>
             <a class="btn btn-s btn-sm" href="#" onclick="downloadDisqSample(event)">↓ 範例檔</a>
             <button class="btn btn-b btn-sm" onclick="exportDisqCSV()">↓ 匯出</button>
@@ -928,6 +1015,9 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
             <a class="btn btn-s btn-sm" href="#" onclick="downloadSample(event,'student')">↓ 範例檔</a>
             <select id="admin-class-filter" onchange="renderAdminStudents()" style="padding:4px 9px;border:1px solid var(--border);background:var(--paper);border-radius:var(--r);font-size:12px;outline:none">
               <option value="">全部班級</option>
+            </select>
+            <select id="admin-inst-filter" onchange="renderAdminStudents()" style="padding:4px 9px;border:1px solid var(--border);background:var(--paper);border-radius:var(--r);font-size:12px;outline:none">
+              <option value="">全部樂器</option>
             </select>
           </div>
           <div class="tw"><table>
@@ -1017,7 +1107,10 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
             <div class="card-t">去頭去尾規則（各項目分別套用）</div>
             <p style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:10px">音階、指定曲、自選曲三項各自套用此規則</p>
             <div id="trim-list"></div>
-            <button class="btn btn-s btn-sm" style="margin-top:8px" onclick="addTrim()">＋ 新增規則</button>
+            <div class="bg" style="margin-top:8px">
+              <button class="btn btn-s btn-sm" onclick="addTrim()">＋ 新增規則</button>
+              <button class="btn btn-p btn-sm" onclick="saveTrimRules()">儲存規則</button>
+            </div>
           </div>
         </div>
       </div>
@@ -1194,7 +1287,8 @@ const DB = {
     },
     // access control per role: {pageId: true/false}
     studentAccess:{rep:true,scores:true,'stu-schedule':true},
-    teacherAccess:{teacher:true},
+    teacherAccess:{teacher:true,'stu-schedule':false},
+    teacherScheduleClosedMsg:'考試排程尚未開放查看，請等候管理員公告。',
   }
 };
 
@@ -1243,7 +1337,17 @@ function doLogin(){
   const pass=document.getElementById('l-pass').value.trim()||'000';
   const u=DB.users.find(u=>u.account===acc&&u.pass===pass);
   if(!u){document.getElementById('l-err').textContent='帳號或密碼錯誤';return;}
-  ST.user=u;ST.role=u.role;launchApp();
+  ST.user=u;ST.role=u.role;
+  launchApp();
+  // 首次登入（密碼仍為預設 000）提示修改
+  if(pass==='000'&&u.role!=='jury'){
+    setTimeout(()=>{
+      document.getElementById('fl-new').value='';
+      document.getElementById('fl-confirm').value='';
+      document.getElementById('fl-err').textContent='';
+      openOverlay('first-login-modal');
+    },600);
+  }
 }
 window.doLogin=doLogin;
 // Event listeners wrapped safely
@@ -1325,7 +1429,19 @@ function openChPwd(){
 }
 window.openChPwd=openChPwd;
 
-function doChangePassword(){
+function saveFirstPassword(){
+  const newVal=document.getElementById('fl-new').value;
+  const cfmVal=document.getElementById('fl-confirm').value;
+  const errEl=document.getElementById('fl-err');
+  if(!newVal||newVal.length<1){errEl.textContent='請輸入新密碼';return;}
+  if(newVal==='000'){errEl.textContent='新密碼不可與預設密碼相同';return;}
+  if(newVal!==cfmVal){errEl.textContent='兩次輸入不一致';return;}
+  ST.user.pass=newVal;
+  fbSet('users',ST.user.id,{pass:newVal});
+  closeOverlay('first-login-modal');
+  showToast('密碼已設定完成 ✓','ok');
+}
+window.saveFirstPassword=saveFirstPassword;
   const oldVal=document.getElementById('chpwd-old').value;
   const newVal=document.getElementById('chpwd-new').value;
   const cfmVal=document.getElementById('chpwd-confirm').value;
@@ -1348,8 +1464,10 @@ function fbSet(col, docId, data){
   const {db,serverTimestamp}=window._FB;
   // ★ 等 Auth 就緒後再寫入，確保安全規則通過
   (window._fbAuthReady||Promise.resolve()).then(()=>{
+    // Remove undefined values to prevent Firestore errors
+    const clean=JSON.parse(JSON.stringify({...data}));
     db.collection(col).doc(docId)
-      .set({...data, _updatedAt:serverTimestamp()},{merge:true})
+      .set({...clean, _updatedAt:serverTimestamp()},{merge:true})
       .catch(e=>console.warn('[FB write]',col,docId,e));
   });
 }
@@ -1383,10 +1501,16 @@ function loadAllFromFirebase(done){
   fbLoad('users',docs=>{
     if(docs.length){
       // 用 Firebase 資料覆蓋，但保留程式碼裡沒有的欄位
+      // ★ 修正：確保所有欄位都被合併，不遺漏
       docs.forEach(fd=>{
         const local=DB.users.find(u=>u.id===fd.id);
-        if(local){Object.assign(local,fd);}
-        else{DB.users.push(fd);}
+        if(local){
+          // Merge FB fields into local, keeping local fields not in FB
+          Object.keys(fd).forEach(k=>{if(k!=='_updatedAt')local[k]=fd[k];});
+        } else {
+          const {_updatedAt,...rest}=fd;
+          DB.users.push(rest);
+        }
       });
     } else {
       // 第一次：把預設 users 全部寫進 Firebase
@@ -1410,6 +1534,7 @@ function loadAllFromFirebase(done){
       if(rest.repHint)DB.config.repHint=rest.repHint;
       if(rest.tyTitle)DB.config.tyTitle=rest.tyTitle;
       if(rest.tyText)DB.config.tyText=rest.tyText;
+      if(rest.teacherScheduleClosedMsg!==undefined)DB.config.teacherScheduleClosedMsg=rest.teacherScheduleClosedMsg;
     } else {
       fbSet('config','main',{
         weights:DB.config.weights,trimRules:DB.config.trimRules,
@@ -1567,7 +1692,7 @@ const NAV_MAP = {
     {label:'成績查閱',page:'scores'},
     {label:'考試順序',page:'stu-schedule'},
   ],
-  teacher:[{label:'平時評量',page:'teacher'}],
+  teacher:[{label:'平時評量',page:'teacher'},{label:'考試順序',page:'tea-schedule'}],
   jury:[{label:'現場評分',page:'jury'}],
   admin:[
     {label:'管理後台',page:'admin'},
@@ -1604,7 +1729,11 @@ function buildNav(){
 }
 
 function navFirst(){const f=document.querySelector('.nb');if(f)f.click();}
-function showPage(id){document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));document.getElementById('pg-'+id)?.classList.add('on');}
+function showPage(id){
+  document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));
+  document.getElementById('pg-'+id)?.classList.add('on');
+  if(id==='tea-schedule')renderTeaSchedulePage();
+}
 
 // ════════════════════════════════════════════════
 // DROPDOWNS INIT
@@ -1629,11 +1758,15 @@ function initDropdowns(){
   if(tc){const _v=tc.value;while(tc.options.length>1)tc.remove(1);DB.classes.forEach(c=>tc.appendChild(new Option(c,c)));tc.value=_v;}
   // Admin class filter
   const acf=document.getElementById('admin-class-filter');
-  if(acf){const _v=acf.value;while(acf.options.length>1)acf.remove(1);DB.classes.forEach(c=>acf.appendChild(new Option(c,c)));acf.value=_v;renderAdminStudents();}
+  if(acf){const _v=acf.value;while(acf.options.length>1)acf.remove(1);DB.classes.forEach(c=>acf.appendChild(new Option(c,c)));acf.value=_v;}
+  // Admin instrument filter
+  const aif=document.getElementById('admin-inst-filter');
+  if(aif){const _v=aif.value;aif.innerHTML='<option value="">全部樂器</option>';DB.instruments.items.forEach(i=>aif.appendChild(new Option(i.name,i.id)));aif.value=_v;}
+  renderAdminStudents();
   // Room selects
   ['sch-room','result-room'].forEach(id=>{
     const s=document.getElementById(id);
-    if(s){s.innerHTML='<option value="">選擇考場</option>';DB.rooms.forEach(r=>s.appendChild(new Option(r.name,r.id)));}
+    if(s){const _v=s.value;s.innerHTML='<option value="">'+( id==='sch-room'?'全部考場':'選擇考場')+'</option>';DB.rooms.forEach(r=>s.appendChild(new Option(r.name,r.id)));s.value=_v;}
   });
   // Schedule class filter
   const schCls=document.getElementById('sch-class');
@@ -1645,7 +1778,6 @@ function initDropdowns(){
   if(ST.role==='jury'&&ST.juryRoom){
     document.getElementById('jury-room-disp').textContent=ST.juryRoom.name;
     document.getElementById('jury-name-disp').textContent=ST.juryName;
-    // 顯示地點
     const locEl=document.getElementById('jury-location-disp');
     if(locEl)locEl.textContent=ST.juryRoom.location?('📍 '+ST.juryRoom.location):'';
   }
@@ -1674,6 +1806,7 @@ function renderAll(){
   renderCatList();renderInstDropdown();renderRooms();renderClassList();renderTiming();
   renderTrimRules();schInitSortBar();renderSchedule();renderDisqList();renderResults();renderScoresPage();renderStuSchedule();
   renderJuryTable();renderAccessControl();updateStats();
+  if(ST.role==='teacher')renderTeaSchedulePage();
 }
 
 // ════════════════════════════════════════════════
@@ -1820,36 +1953,39 @@ function editRep(){
   }
 }
 function submitRep(){
-  if(ST.user){
-    // Collect form data
-    const data={
-      major:document.getElementById('r-major-inst').value,
-      major_ac:document.getElementById('r-major-ac').value,
-      major_at:document.getElementById('r-major-at').value,
-      major_fc:document.getElementById('r-major-fc').value,
-      major_ft:document.getElementById('r-major-ft').value,
-      minor:document.getElementById('r-minor-inst').value,
-      minor_ac:document.getElementById('r-minor-ac').value,
-      minor_at:document.getElementById('r-minor-at').value,
-      minor_fc:document.getElementById('r-minor-fc').value,
-      minor_ft:document.getElementById('r-minor-ft').value,
-      elective:document.getElementById('r-elec-tog').checked?document.getElementById('r-elec-inst').value:'',
-      elec_ac:document.getElementById('r-elec-ac').value,
-      elec_at:document.getElementById('r-elec-at').value,
-      elec_fc:document.getElementById('r-elec-fc').value,
-      elec_ft:document.getElementById('r-elec-ft').value,
-      repDone:true,
-    };
-    Object.assign(ST.user, data);
-    // Write to Firestore
-    fbSet('users',ST.user.id,ST.user);
-    showToast('曲目填報已送出並同步 ✓','ok');
-  }
+  const u=ST.user;if(!u)return;
+  const majorInst=document.getElementById('r-major-inst').value;
+  if(!majorInst){showToast('請選擇主修樂器','err');return;}
+  // Save ALL rep fields in one atomic write
+  u.major=majorInst;
+  u.major_ac=document.getElementById('r-major-ac').value;
+  u.major_at=document.getElementById('r-major-at').value;
+  u.major_fc=document.getElementById('r-major-fc').value;
+  u.major_ft=document.getElementById('r-major-ft').value;
+  const minorInst=document.getElementById('r-minor-inst').value;
+  u.minor=minorInst||null;
+  u.minor_ac=minorInst?document.getElementById('r-minor-ac').value:'';
+  u.minor_at=minorInst?document.getElementById('r-minor-at').value:'';
+  u.minor_fc=minorInst?document.getElementById('r-minor-fc').value:'';
+  u.minor_ft=minorInst?document.getElementById('r-minor-ft').value:'';
+  const hasElec=document.getElementById('r-elec-tog').checked;
+  const elecInst=hasElec?document.getElementById('r-elec-inst').value:'';
+  u.elective=elecInst||null;
+  u.elec_ac=elecInst?document.getElementById('r-elec-ac').value:'';
+  u.elec_at=elecInst?document.getElementById('r-elec-at').value:'';
+  u.elec_fc=elecInst?document.getElementById('r-elec-fc').value:'';
+  u.elec_ft=elecInst?document.getElementById('r-elec-ft').value:'';
+  u.repDone=true;
+  // ★ Write the COMPLETE user object to avoid partial-write data loss
+  fbSet('users',u.id,u);
   document.getElementById('rep-form-area').style.display='none';
   document.getElementById('rep-preview').style.display='none';
   document.getElementById('rep-done-card').style.display='block';
   renderRepDoneInfo();
+  renderAdminStudents();updateStats();
+  showToast('曲目填報已送出 ✓','ok');
 }
+
 
 // ════════════════════════════════════════════════
 // STUDENT: SCORES
@@ -2048,9 +2184,43 @@ function teaWizPickClass(){
   const stus=getMyStudents().filter(s=>s.class===cls).sort((a,b)=>a.seat-b.seat);
   const sel=document.getElementById('tea-wiz-stu');
   sel.innerHTML='<option value="">— 請選學生 —</option>'+stus.map(s=>`<option value="${s.id}">${s.name}（座${s.seat}）</option>`).join('');
+  const ns=document.getElementById('tea-wiz-name-search');if(ns)ns.value='';
+  const nh=document.getElementById('tea-wiz-name-hint');if(nh)nh.textContent='';
   teaWizShowStep(2);
 }
 window.teaWizPickClass=teaWizPickClass;
+
+function teaWizNameSearch(){
+  const q=(document.getElementById('tea-wiz-name-search')?.value||'').trim();
+  const hint=document.getElementById('tea-wiz-name-hint');
+  const sel=document.getElementById('tea-wiz-stu');
+  if(!q){if(hint)hint.textContent='';return;}
+  // Search across all my students regardless of class filter
+  const allStus=getMyStudents();
+  const found=allStus.filter(s=>s.name.includes(q));
+  if(!found.length){
+    if(hint)hint.innerHTML='<span style="color:var(--rust)">查無此人，請確認姓名是否正確</span>';
+    return;
+  }
+  if(found.length===1){
+    const s=found[0];
+    // switch class if needed
+    TWZ.cls=s.class;
+    document.getElementById('tea-wiz-class').value=s.class;
+    // repopulate student dropdown for that class
+    const classStus=getMyStudents().filter(ss=>ss.class===s.class).sort((a,b)=>a.seat-b.seat);
+    sel.innerHTML='<option value="">— 請選學生 —</option>'+classStus.map(ss=>`<option value="${ss.id}">${ss.name}（座${ss.seat}）</option>`).join('');
+    sel.value=s.id;
+    if(hint)hint.innerHTML=`<span style="color:var(--sage)">✓ 找到：${s.name}（${s.class}·座${s.seat}）</span>`;
+    TWZ.sid=s.id;
+    teaWizPickStu();
+  } else {
+    if(hint)hint.innerHTML='<span style="color:var(--muted)">找到 '+found.length+' 位，請從下拉選單選擇</span>';
+    // filter dropdown to matching students
+    sel.innerHTML='<option value="">— 請選學生 —</option>'+found.map(s=>`<option value="${s.id}">${s.name}（${s.class}·座${s.seat}）</option>`).join('');
+  }
+}
+window.teaWizNameSearch=teaWizNameSearch;
 
 function teaWizPickStu(){
   const sid=document.getElementById('tea-wiz-stu').value;
@@ -2067,6 +2237,12 @@ function teaWizPickStu(){
     const done=DB.teacherComments[sid]?.[t.key];
     return `<button class="btn ${done?'btn-g':'btn-p'} btn-sm" onclick="teaWizPickType('${t.key}')">${t.label}${done?' ✓':''}</button>`;
   }).join('');
+  // update the type dropdown to only show types this student has
+  const typeSel=document.getElementById('tea-wiz-type-sel');
+  if(typeSel){
+    typeSel.innerHTML='<option value="">— 請選修別 —</option>';
+    types.forEach(t=>typeSel.appendChild(new Option(t.label,t.key)));
+  }
   teaWizShowStep(3);
 }
 window.teaWizPickStu=teaWizPickStu;
@@ -2099,8 +2275,11 @@ function teaWizSave(){
   if(s){
     const types=['major','minor','elective'].filter(k=>s[k]);
     s.teaDone=types.every(k=>DB.teacherComments[sid]?.[k]?.score!==undefined);
+    // ★ write complete user record to prevent data loss
+    fbSet('users',s.id,s);
   }
-  fbSet('teacherComments',sid,DB.teacherComments[sid]||{});
+  // ★ write complete comments record
+  fbSet('teacherComments',sid,{...DB.teacherComments[sid]});
   renderTeaTable();
 }
 
@@ -2478,6 +2657,54 @@ function calcFinal(scoreArr){
 // ════════════════════════════════════════════════
 function generateSchedule(){renderSchedule();showToast('已自動生成出場順序 ✓','ok');}
 
+// ── 每個考場的樂器篩選狀態 ──
+const SCH_ROOM_FILTERS={}; // {roomId: {cats:Set, items:Set}}
+
+function onSchRoomChange(){
+  const roomId=document.getElementById('sch-room')?.value||'';
+  const filterArea=document.getElementById('sch-room-inst-filter');
+  const catBox=document.getElementById('sch-room-cat-checkboxes');
+  const instBox=document.getElementById('sch-room-inst-checkboxes');
+  if(!roomId||!filterArea){if(filterArea)filterArea.style.display='none';renderSchedule();return;}
+  const room=DB.rooms.find(r=>r.id===roomId);
+  const allowedCats=room?(room.allowedCats||room.cats||[]):DB.instruments.categories.map(c=>c.id);
+  const cats=DB.instruments.categories.filter(c=>allowedCats.includes(c.id));
+  if(!SCH_ROOM_FILTERS[roomId])SCH_ROOM_FILTERS[roomId]={cats:new Set(allowedCats),items:new Set()};
+  const rf=SCH_ROOM_FILTERS[roomId];
+  // render category checkboxes
+  catBox.innerHTML=cats.map(c=>`
+    <label style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid var(--border);border-radius:20px;cursor:pointer;background:${rf.cats.has(c.id)?'var(--gold)':'var(--white)'};font-family:'DM Mono',monospace;font-size:9px;transition:all .15s">
+      <input type="checkbox" value="${c.id}" ${rf.cats.has(c.id)?'checked':''} style="display:none" onchange="schRoomCatToggle('${roomId}','${c.id}',this.checked)">
+      ${c.name}
+    </label>`).join('');
+  // render item checkboxes for all cats in this room
+  const items=DB.instruments.items.filter(i=>allowedCats.includes(i.cat)).sort((a,b)=>a.order-b.order);
+  instBox.innerHTML=items.map(i=>`
+    <label style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid var(--border);border-radius:20px;cursor:pointer;background:${rf.items.has(i.id)?'var(--steel);color:#fff':'var(--white)'};font-family:'DM Mono',monospace;font-size:9px;transition:all .15s">
+      <input type="checkbox" value="${i.id}" ${rf.items.has(i.id)?'checked':''} style="display:none" onchange="schRoomInstToggle('${roomId}','${i.id}',this.checked)">
+      ${i.name}
+    </label>`).join('');
+  filterArea.style.display='block';
+  renderSchedule();
+}
+window.onSchRoomChange=onSchRoomChange;
+
+function schRoomCatToggle(roomId,catId,checked){
+  if(!SCH_ROOM_FILTERS[roomId])SCH_ROOM_FILTERS[roomId]={cats:new Set(),items:new Set()};
+  if(checked)SCH_ROOM_FILTERS[roomId].cats.add(catId);
+  else SCH_ROOM_FILTERS[roomId].cats.delete(catId);
+  onSchRoomChange();
+}
+window.schRoomCatToggle=schRoomCatToggle;
+
+function schRoomInstToggle(roomId,instId,checked){
+  if(!SCH_ROOM_FILTERS[roomId])SCH_ROOM_FILTERS[roomId]={cats:new Set(),items:new Set()};
+  if(checked)SCH_ROOM_FILTERS[roomId].items.add(instId);
+  else SCH_ROOM_FILTERS[roomId].items.delete(instId);
+  onSchRoomChange();
+}
+window.schRoomInstToggle=schRoomInstToggle;
+
 // ── 排序鍵狀態 ──
 const SCH_SORT_DEFS=[
   {key:'room',label:'考場'},
@@ -2535,6 +2762,17 @@ function renderSchedule(){
   if(classF)entries=entries.filter(e=>e.class===classF);
   if(typeF)entries=entries.filter(e=>e.type===typeF);
 
+  // Apply per-room instrument/cat filters
+  if(roomId&&SCH_ROOM_FILTERS[roomId]){
+    const rf=SCH_ROOM_FILTERS[roomId];
+    // If specific items are selected, filter by them; otherwise filter by selected cats
+    if(rf.items.size>0){
+      entries=entries.filter(e=>rf.items.has(e.instId));
+    } else if(rf.cats.size>0){
+      entries=entries.filter(e=>rf.cats.has(e.catId));
+    }
+  }
+
   // 多鍵排序
   const activeKeys=schSortKeys.filter(k=>k.active);
   if(activeKeys.length){
@@ -2552,7 +2790,6 @@ function renderSchedule(){
       return 0;
     });
   }
-  // 初始化排序按鈕（若尚未初始化）
   if(!document.querySelector('.sort-key'))schInitSortBar();
 
   entries.forEach((e,i)=>e._displayOrder=i+1);
@@ -2717,7 +2954,10 @@ function publishSchedule(){showToast('已公告至學生考試順序查詢頁 �
 function renderAdminStudents(){
   const tbody=document.getElementById('admin-stu-tbody');if(!tbody)return;
   const cf=document.getElementById('admin-class-filter')?.value||'';
-  const stus=students().filter(s=>!cf||s.class===cf).sort((a,b)=>DB.classes.indexOf(a.class)-DB.classes.indexOf(b.class)||a.seat-b.seat);
+  const instF=document.getElementById('admin-inst-filter')?.value||'';
+  let stus=students().filter(s=>!cf||s.class===cf);
+  if(instF)stus=stus.filter(s=>s.major===instF||s.minor===instF||s.elective===instF);
+  stus=stus.sort((a,b)=>a.seat-b.seat||DB.classes.indexOf(a.class)-DB.classes.indexOf(b.class));
   tbody.innerHTML=stus.map(s=>`<tr>
     <td>${s.class}</td><td>${s.seat}</td><td><strong>${s.name}</strong></td>
     <td>${iname(s.major)}</td><td>${iname(s.minor)}</td><td>${iname(s.elective)}</td>
@@ -2749,7 +2989,7 @@ function renderAdminAdmins(){
   tbody.innerHTML=admins().map(a=>`<tr>
     <td><strong>${a.name}</strong></td>
     <td style="font-family:'DM Mono',monospace;font-size:11px">${a.account}</td>
-    <td><div class="bg"><button class="btn btn-s btn-xs" onclick="editUser('${a.id}')">編輯</button><button class="btn btn-s btn-xs" onclick="resetUserPwd('${a.id}')">重置密碼</button></div></td>
+    <td><div class="bg"><button class="btn btn-s btn-xs" onclick="editUser('${a.id}')">編輯</button><button class="btn btn-s btn-xs" onclick="resetUserPwd('${a.id}')">重置密碼</button><button class="btn btn-d btn-xs" onclick="deleteUser('${a.id}')">刪除</button></div></td>
   </tr>`).join('');
 }
 
@@ -3037,7 +3277,9 @@ function renderTrimRules(){
       <button class="btn btn-d btn-xs" style="margin-top:16px" onclick="DB.config.trimRules.splice(${i},1);renderTrimRules()">✕</button>
     </div>`).join('');
 }
-function addTrim(){DB.config.trimRules.push({id:Date.now(),minJ:0,maxJ:0,trimH:0,trimT:0});fbSet('config','main',{weights:DB.config.weights,trimRules:DB.config.trimRules,pages:DB.config.pages,studentAccess:DB.config.studentAccess,teacherAccess:DB.config.teacherAccess,repHint:DB.config.repHint,tyTitle:DB.config.tyTitle,tyText:DB.config.tyText});renderTrimRules();}
+function addTrim(){DB.config.trimRules.push({id:Date.now(),minJ:0,maxJ:0,trimH:0,trimT:0});renderTrimRules();}
+function saveTrimRules(){fbSet('config','main',{weights:DB.config.weights,trimRules:DB.config.trimRules,pages:DB.config.pages,studentAccess:DB.config.studentAccess,teacherAccess:DB.config.teacherAccess,repHint:DB.config.repHint,tyTitle:DB.config.tyTitle,tyText:DB.config.tyText});showToast('去頭去尾規則已儲存 ✓','ok');}
+window.saveTrimRules=saveTrimRules;
 function saveWeights(){
   const s=+document.getElementById('w-scale').value,a=+document.getElementById('w-assigned').value,f=+document.getElementById('w-free').value;
   if(s+a+f!==100){showToast('三項必須合計 100%','err');return;}
@@ -3049,7 +3291,7 @@ function saveWeights(){
 // ════════════════════════════════════════════════
 function renderAccessControl(){
   const studentPages=[{id:'rep',label:'曲目填寫'},{id:'scores',label:'成績查閱'},{id:'stu-schedule',label:'考試順序查詢'}];
-  const teacherPages=[{id:'teacher',label:'平時評量'}];
+  const teacherPages=[{id:'teacher',label:'平時評量'},{id:'stu-schedule',label:'考試順序查看'}];
   const render=(pages,configKey,containerId)=>{
     const el=document.getElementById(containerId);if(!el)return;
     el.innerHTML=pages.map(p=>`
@@ -3062,8 +3304,22 @@ function renderAccessControl(){
   };
   render(studentPages,'studentAccess','access-student');
   render(teacherPages,'teacherAccess','access-teacher');
+  // Teacher schedule closed message
+  const tsmEl=document.getElementById('access-teacher-schedule-msg');
+  if(!tsmEl){
+    const el=document.getElementById('access-teacher');
+    if(el){
+      const wrap=document.createElement('div');wrap.id='access-teacher-schedule-msg';wrap.style.cssText='margin-top:12px;padding-top:12px;border-top:1px solid var(--cream)';
+      wrap.innerHTML=`<div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);margin-bottom:6px">尚未開放時，教師看到的文字</div>
+        <input type="text" id="tea-schedule-closed-msg" value="${DB.config.teacherScheduleClosedMsg||'考試排程尚未開放查看，請等候管理員公告。'}" style="width:100%;padding:8px 12px;border:1px solid var(--border);background:var(--paper);border-radius:var(--r);font-size:13px;outline:none" onchange="DB.config.teacherScheduleClosedMsg=this.value">
+        <button class="btn btn-s btn-sm" style="margin-top:6px" onclick="saveTeaScheduleMsg()">儲存提示文字</button>`;
+      el.appendChild(wrap);
+    }
+  }
 }
-function setAccess(configKey,pageId,val){DB.config[configKey][pageId]=val;fbSet('config','main',{weights:DB.config.weights,trimRules:DB.config.trimRules,pages:DB.config.pages,studentAccess:DB.config.studentAccess,teacherAccess:DB.config.teacherAccess,repHint:DB.config.repHint,tyTitle:DB.config.tyTitle,tyText:DB.config.tyText});renderAccessControl();showToast(`已${val?'公開':'關閉'} · 重新登入後生效`,'ok');}
+function setAccess(configKey,pageId,val){DB.config[configKey][pageId]=val;fbSet('config','main',{weights:DB.config.weights,trimRules:DB.config.trimRules,pages:DB.config.pages,studentAccess:DB.config.studentAccess,teacherAccess:DB.config.teacherAccess,repHint:DB.config.repHint,tyTitle:DB.config.tyTitle,tyText:DB.config.tyText,teacherScheduleClosedMsg:DB.config.teacherScheduleClosedMsg||''});renderAccessControl();if(ST.role==='teacher')renderTeaSchedulePage();showToast(`已${val?'公開':'關閉'} · 重新載入後生效`,'ok');}
+function saveTeaScheduleMsg(){DB.config.teacherScheduleClosedMsg=document.getElementById('tea-schedule-closed-msg')?.value||'';fbSet('config','main',{weights:DB.config.weights,trimRules:DB.config.trimRules,pages:DB.config.pages,studentAccess:DB.config.studentAccess,teacherAccess:DB.config.teacherAccess,repHint:DB.config.repHint,tyTitle:DB.config.tyTitle,tyText:DB.config.tyText,teacherScheduleClosedMsg:DB.config.teacherScheduleClosedMsg});showToast('提示文字已儲存 ✓','ok');}
+window.saveTeaScheduleMsg=saveTeaScheduleMsg;
 
 // ════════════════════════════════════════════════
 // ADMIN - CONTENT
@@ -3230,6 +3486,120 @@ function exportResultsCSV(){
 }
 
 // ════════════════════════════════════════════════
+// DISQ - ADD INDIVIDUAL
+// ════════════════════════════════════════════════
+let _adimSelectedSid=null,_adimSelectedType=null;
+function openAddDisqIndividual(){
+  _adimSelectedSid=null;_adimSelectedType=null;
+  document.getElementById('adim-search').value='';
+  document.getElementById('adim-results').innerHTML='';
+  document.getElementById('adim-selected').style.display='none';
+  document.getElementById('adim-reason-area').style.display='none';
+  document.getElementById('adim-note-area').style.display='none';
+  document.getElementById('adim-reason').value='';
+  document.getElementById('adim-note').value='';
+  document.getElementById('adim-err').textContent='';
+  openOverlay('add-disq-individual-modal');
+  setTimeout(()=>document.getElementById('adim-search').focus(),200);
+}
+window.openAddDisqIndividual=openAddDisqIndividual;
+
+function adimSearch(){
+  const q=(document.getElementById('adim-search').value||'').trim();
+  const res=document.getElementById('adim-results');
+  if(!q){res.innerHTML='';return;}
+  const found=students().filter(s=>s.name.includes(q)||s.account.includes(q));
+  if(!found.length){res.innerHTML='<div style="padding:12px;font-family:\'DM Mono\',monospace;font-size:11px;color:var(--muted)">查無學生</div>';return;}
+  res.innerHTML=found.slice(0,15).map(s=>{
+    const types=[];
+    if(s.major)types.push({key:'major',label:'主修·'+iname(s.major)});
+    if(s.minor)types.push({key:'minor',label:'副修·'+iname(s.minor)});
+    if(s.elective)types.push({key:'elective',label:'選修·'+iname(s.elective)});
+    return types.map(t=>`
+      <div onclick="adimSelect('${s.id}','${t.key}','${s.name}','${t.label}')"
+        style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--cream);transition:background .15s"
+        onmouseover="this.style.background='var(--gold-bg)'" onmouseout="this.style.background=''">
+        <strong>${s.name}</strong>
+        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:6px">${s.class}·座${s.seat}·${s.account}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:9px;margin-left:8px;color:var(--steel)">${t.label}</span>
+      </div>`).join('');
+  }).join('');
+}
+window.adimSearch=adimSearch;
+
+function adimSelect(sid,type,name,label){
+  _adimSelectedSid=sid;_adimSelectedType=type;
+  document.getElementById('adim-selected').style.display='block';
+  document.getElementById('adim-selected').innerHTML=`<strong>${name}</strong> <span style="color:var(--muted);font-size:12px">${label}</span> <span style="color:var(--sage);font-size:12px">✓ 已選擇</span>`;
+  document.getElementById('adim-results').innerHTML='';
+  document.getElementById('adim-reason-area').style.display='block';
+  document.getElementById('adim-note-area').style.display='block';
+}
+window.adimSelect=adimSelect;
+
+function saveDisqIndividual(){
+  if(!_adimSelectedSid||!_adimSelectedType){document.getElementById('adim-err').textContent='請先選擇學生';return;}
+  const reason=document.getElementById('adim-reason').value.trim();
+  if(!reason){document.getElementById('adim-err').textContent='請填寫扣考原因';return;}
+  const note=document.getElementById('adim-note').value.trim();
+  const entryKey=_adimSelectedSid+'_'+_adimSelectedType;
+  DB.disqualified[entryKey]={reason,note};
+  fbSet('disqualified',entryKey,{reason,note});
+  closeOverlay('add-disq-individual-modal');
+  renderDisqList();renderSchedule();
+  showToast('已設定扣考 ✓','warn');
+}
+window.saveDisqIndividual=saveDisqIndividual;
+
+// ════════════════════════════════════════════════
+// TEACHER SCHEDULE PAGE
+// ════════════════════════════════════════════════
+function renderTeaSchedulePage(){
+  const msgDiv=document.getElementById('tea-schedule-access-msg');
+  const contentDiv=document.getElementById('tea-schedule-content');
+  if(!msgDiv||!contentDiv)return;
+  const hasAccess=DB.config.teacherAccess['stu-schedule']!==false;
+  if(!hasAccess){
+    msgDiv.style.display='block';contentDiv.style.display='none';
+    const txt=document.getElementById('tea-schedule-msg-text');
+    const msg=DB.config.teacherScheduleClosedMsg||DB.config.pages['schedule']?.announce||'考試排程尚未開放查看，請等候管理員公告。';
+    if(txt)txt.textContent=msg;
+    return;
+  }
+  msgDiv.style.display='none';contentDiv.style.display='block';
+  const btnContainer=document.getElementById('tea-schedule-room-btns');
+  if(btnContainer){
+    btnContainer.innerHTML='<button class="btn btn-p btn-sm" onclick="teaSchSelectRoom(\'\',this)">全部考場</button>'+
+      DB.rooms.map(r=>`<button class="btn btn-s btn-sm" onclick="teaSchSelectRoom('${r.id}',this)">${r.name}</button>`).join('');
+  }
+  teaSchSelectRoom('',null);
+}
+window.renderTeaSchedulePage=renderTeaSchedulePage;
+
+let _teaSchActiveRoom='';
+function teaSchSelectRoom(roomId,btn){
+  _teaSchActiveRoom=roomId;
+  // highlight button
+  const bc=document.getElementById('tea-schedule-room-btns');
+  if(bc){bc.querySelectorAll('button').forEach(b=>{b.className='btn btn-s btn-sm';});if(btn){btn.className='btn btn-p btn-sm';} else {const first=bc.querySelector('button');if(first)first.className='btn btn-p btn-sm';}}
+  const tbody=document.getElementById('tea-sched-tbody');if(!tbody)return;
+  let entries=getScheduleEntries();
+  if(roomId)entries=entries.filter(e=>e.roomId===roomId);
+  tbody.innerHTML=entries.map(e=>`<tr>
+    <td style="font-family:'DM Mono',monospace;color:var(--ink);font-weight:600">${e.order}</td>
+    <td style="color:var(--ink)">${e.roomName}</td>
+    <td style="color:var(--ink);font-family:'DM Mono',monospace;font-size:11px">${e.roomLocation||'—'}</td>
+    <td style="color:var(--ink)">${e.class}</td>
+    <td style="color:var(--ink);font-weight:600">${e.name}</td>
+    <td style="color:var(--ink)">${e.instName}</td>
+    <td>${typeBadge(e.type)}</td>
+    <td style="font-size:12px;color:var(--ink)">${e.ac?e.ac+' — <em>'+e.at+'</em>':'—'}</td>
+    <td style="font-size:12px;color:var(--ink)">${e.fc?e.fc+' — <em>'+e.ft+'</em>':'—'}</td>
+  </tr>`).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;font-family:\'DM Mono\',monospace;font-size:12px">查無資料</td></tr>';
+}
+window.teaSchSelectRoom=teaSchSelectRoom;
+
+// ════════════════════════════════════════════════
 // STATS
 // ════════════════════════════════════════════════
 function updateStats(){
@@ -3321,17 +3691,19 @@ const _expose = [
   'closeOverlay','openOverlay','showToast',
   'filterRepInst','toggleElective','previewRep','backToRepForm','submitRep','editRep','renderRepDoneInfo','renderRepPage',
   'doLookup','clearLookup',
-  'openTeaModal','swTeaTab','saveTeaComment','teaWizStart','teaWizPickClass','teaWizPickStu','teaWizPickType','teaWizBack','teaWizSaveAndNext','teaWizSubmitAll','teaWizOpenDirect','openTeaStuModal','tsmFilterClass','saveTeaStu',
+  'openTeaModal','swTeaTab','saveTeaComment','teaWizStart','teaWizPickClass','teaWizPickStu','teaWizPickType','teaWizBack','teaWizSaveAndNext','teaWizSubmitAll','teaWizOpenDirect','openTeaStuModal','tsmFilterClass','saveTeaStu','teaWizNameSearch',
   'checkJuryBeforeSubmit','submitJuryAll','confirmSubmitJury','toggleAbsent','saveJCell',
-  'generateSchedule','exportScheduleCSV','publishSchedule','schResetFilters','schInitSortBar','schToggleSortKey','openDisqModal','saveDisq','removeDisq','importDisqCSV','exportDisqCSV','downloadDisqSample','renderDisqList',
+  'generateSchedule','exportScheduleCSV','publishSchedule','schResetFilters','schInitSortBar','schToggleSortKey','openDisqModal','saveDisq','removeDisq','importDisqCSV','exportDisqCSV','downloadDisqSample','renderDisqList','onSchRoomChange','schRoomCatToggle','schRoomInstToggle',
+  'openAddDisqIndividual','adimSearch','adimSelect','saveDisqIndividual',
+  'renderTeaSchedulePage','teaSchSelectRoom',
   'swAdminTab','swUserTab',
   'showAddUser','editUser','resetUserPwd','deleteUser','importCSV','downloadSample',
   'addCategory','renameCategory','delCategory','addInstrument','renameInst','delInst',
   'renderInstList',
   'addRoom','editRoom','delRoom','revealCode',
   'addClass','renameClass','delClass',
-  'saveTiming','saveAnnounce','saveWeights','addTrim',
-  'setAccess','saveRepHint','saveTyText','clearData',
+  'saveTiming','saveAnnounce','saveWeights','addTrim','saveTrimRules',
+  'setAccess','saveRepHint','saveTyText','clearData','saveTeaScheduleMsg',
   'renderResults','editJuryScores','exportResultsCSV',
   'npKey','npDel','npConfirm','npBg',
   'openNP',
