@@ -10,8 +10,8 @@ const CACHE_NAME = 'music-exam-v2';
 // ★ 如果你的 GitHub Pages 網址有子路徑（例如 /music-exam/），
 //   請把 '/' 改成 '/music-exam/'，'index.html' 改成 '/music-exam/index.html'
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
+'/music-examjjvs/',
+'/music-examjjvs/index.html',
   // Firebase SDK（確保離線時也能載入）
   'https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js',
   'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js',
