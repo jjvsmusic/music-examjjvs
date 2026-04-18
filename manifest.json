@@ -8,18 +8,5 @@
   "background_color": "#18150f",
   "theme_color": "#b5892a",
   "lang": "zh-TW",
-  "icons": [
-    {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
-  ]
+  
 }
