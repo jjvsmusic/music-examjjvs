@@ -1442,6 +1442,8 @@ function saveFirstPassword(){
   showToast('密碼已設定完成 ✓','ok');
 }
 window.saveFirstPassword=saveFirstPassword;
+
+function doChangePassword(){
   const oldVal=document.getElementById('chpwd-old').value;
   const newVal=document.getElementById('chpwd-new').value;
   const cfmVal=document.getElementById('chpwd-confirm').value;
