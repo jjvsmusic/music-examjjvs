@@ -1336,7 +1336,12 @@ function doLogin(){
   const acc=document.getElementById('l-user').value.trim();
   const pass=document.getElementById('l-pass').value.trim()||'000';
   const u=DB.users.find(u=>u.account===acc&&u.pass===pass);
-  if(!u){document.getElementById('l-err').textContent='帳號或密碼錯誤';return;}
+  if(!u){
+    // Extra debug: check if account exists but pass wrong
+    const accExists=DB.users.find(u=>u.account===acc);
+    if(accExists){document.getElementById('l-err').textContent='密碼錯誤';return;}
+    document.getElementById('l-err').textContent='帳號不存在或密碼錯誤';return;
+  }
   ST.user=u;ST.role=u.role;
   launchApp();
   // 首次登入（密碼仍為預設 000）提示修改
@@ -3005,18 +3010,20 @@ function showAddUser(role){
       <div class="fg"><label>座號</label><input type="number" id="em-seat" min="1" value="1"></div>
     </div>`;
   document.getElementById('edit-modal-body').innerHTML=`
-    <div class="fr"><div class="fg"><label>姓名</label><input type="text" id="em-name" placeholder="姓名"></div><div class="fg"><label>帳號</label><input type="text" id="em-account" placeholder="帳號"></div></div>
+    <div class="fr"><div class="fg"><label>姓名</label><input type="text" id="em-name" placeholder="姓名"></div><div class="fg"><label>帳號（登入用）</label><input type="text" id="em-account" placeholder="帳號（英數字）" autocomplete="off"></div></div>
     ${extra}
-    <div class="fg"><label>初始密碼</label><input type="text" id="em-pass" value="000"></div>`;
+    <div class="fg" style="max-width:220px"><label>初始密碼</label><input type="text" id="em-pass" value="000" autocomplete="off"></div>`;
   document.getElementById('edit-modal-save').onclick=()=>{
     const name=document.getElementById('em-name').value.trim();
     const account=document.getElementById('em-account').value.trim();
-    const pass=document.getElementById('em-pass').value||'000';
+    const pass=document.getElementById('em-pass').value.trim()||'000';
     if(!name||!account){showToast('請填寫姓名及帳號','err');return;}
+    // Check duplicate account
+    if(DB.users.find(u=>u.account===account)){showToast('此帳號已存在，請換一個','err');return;}
     const nu={id:role[0]+Date.now(),name,account,pass,role};
     if(role==='student'){nu.class=document.getElementById('em-class').value;nu.seat=+document.getElementById('em-seat').value;nu.repDone=false;nu.teaDone=false;}
     fbSet('users',nu.id,nu);
-    DB.users.push(nu);closeOverlay('edit-modal');showToast('已新增 '+name+' ✓','ok');renderAll();updateStats();
+    DB.users.push(nu);closeOverlay('edit-modal');showToast('已新增 '+name+'（帳號：'+account+'）✓','ok');renderAll();updateStats();
   };
   openOverlay('edit-modal');setTimeout(()=>document.getElementById('em-name').focus(),200);
 }
@@ -3037,11 +3044,15 @@ function editUser(id){
     </div>`;
   document.getElementById('edit-modal-body').innerHTML=`
     <div class="fr"><div class="fg"><label>姓名</label><input type="text" id="em-name" value="${u.name}"></div><div class="fg"><label>帳號</label><input type="text" id="em-account" value="${u.account}"></div></div>
-    ${extra}`;
+    ${extra}
+    <div class="fg" style="max-width:220px"><label>修改密碼（留空則不變）</label><input type="text" id="em-pass-edit" placeholder="輸入新密碼，留空不改"></div>`;
   document.getElementById('edit-modal-save').onclick=()=>{
     u.name=document.getElementById('em-name').value.trim()||u.name;
     u.account=document.getElementById('em-account').value.trim()||u.account;
+    const newPass=document.getElementById('em-pass-edit').value.trim();
+    if(newPass) u.pass=newPass;
     if(u.role==='student'){u.class=document.getElementById('em-class').value;u.seat=+document.getElementById('em-seat').value;u.major=document.getElementById('em-major').value;u.minor=document.getElementById('em-minor').value;u.elective=document.getElementById('em-elective').value;}
+    // Write complete user object to avoid partial-write issues
     fbSet('users',u.id,u);
     closeOverlay('edit-modal');showToast('已更新 ✓','ok');renderAll();
   };
@@ -3113,10 +3124,22 @@ function renderCatList(){
   const c=document.getElementById('cat-list');if(!c)return;c.innerHTML='';
   DB.instruments.categories.sort((a,b)=>a.order-b.order).forEach((cat,i)=>{
     const div=document.createElement('div');div.className='exam-item';div.draggable=true;
+    div.dataset.catId=cat.id;
     div.innerHTML=`<div class="dh">⠿</div><div class="ei-info"><div class="ei-name">${cat.name}</div></div>
       <button class="btn btn-s btn-xs" onclick="renameCategory('${cat.id}')">改名</button>
       <button class="btn btn-d btn-xs" onclick="delCategory('${cat.id}')">刪</button>`;
-    setupDrag(div,c);c.appendChild(div);
+    div.addEventListener('dragstart',e=>{div.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
+    div.addEventListener('dragend',()=>{
+      div.classList.remove('dragging');
+      // Rebuild order from DOM and save
+      [...c.querySelectorAll('.exam-item')].forEach((el,i)=>{
+        const cat=DB.instruments.categories.find(x=>x.id===el.dataset.catId);
+        if(cat)cat.order=i;
+      });
+      fbSaveInstruments();
+    });
+    div.addEventListener('dragover',e=>{e.preventDefault();const after=getDragAfter(c,e.clientY);const dr=c.querySelector('.dragging');if(after)c.insertBefore(dr,after);else c.appendChild(dr);});
+    c.appendChild(div);
   });
   const sel=document.getElementById('inst-cat-sel');
   if(sel){sel.innerHTML='<option value="">選擇大項</option>';DB.instruments.categories.forEach(cat=>sel.appendChild(new Option(cat.name,cat.id)));}
@@ -3126,10 +3149,21 @@ function renderInstList(){
   const c=document.getElementById('inst-list');if(!c)return;c.innerHTML='';
   DB.instruments.items.filter(i=>i.cat===catId).sort((a,b)=>a.order-b.order).forEach(inst=>{
     const div=document.createElement('div');div.className='exam-item';div.draggable=true;
+    div.dataset.instId=inst.id;
     div.innerHTML=`<div class="dh">⠿</div><div class="ei-info"><div class="ei-name">${inst.name}</div></div>
       <button class="btn btn-s btn-xs" onclick="renameInst('${inst.id}')">改名</button>
       <button class="btn btn-d btn-xs" onclick="delInst('${inst.id}')">刪</button>`;
-    setupDrag(div,c);c.appendChild(div);
+    div.addEventListener('dragstart',e=>{div.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
+    div.addEventListener('dragend',()=>{
+      div.classList.remove('dragging');
+      [...c.querySelectorAll('.exam-item')].forEach((el,i)=>{
+        const inst=DB.instruments.items.find(x=>x.id===el.dataset.instId);
+        if(inst)inst.order=i;
+      });
+      fbSaveInstruments();
+    });
+    div.addEventListener('dragover',e=>{e.preventDefault();const after=getDragAfter(c,e.clientY);const dr=c.querySelector('.dragging');if(after)c.insertBefore(dr,after);else c.appendChild(dr);});
+    c.appendChild(div);
   });
 }
 function renderInstDropdown(){renderCatList();}
@@ -3137,10 +3171,27 @@ function fbSaveInstruments(){
   fbSet('instruments','categories',{list:DB.instruments.categories});
   fbSet('instruments','items',{list:DB.instruments.items});
 }
-function addCategory(){const n=prompt('新增大項名稱：');if(!n)return;DB.instruments.categories.push({id:'cat_'+Date.now(),name:n,order:DB.instruments.categories.length});renderCatList();initDropdowns();showToast('已新增 '+n,'ok');}
-function renameCategory(id){const c=DB.instruments.categories.find(x=>x.id===id);const n=prompt('新名稱：',c?.name);if(n&&c){c.name=n;renderCatList();initDropdowns();showToast('已更新','ok');}}
-function delCategory(id){const idx=DB.instruments.categories.findIndex(c=>c.id===id);if(idx>-1){DB.instruments.categories.splice(idx,1);renderCatList();showToast('已刪除','err');}}
-function addInstrument(){const catId=document.getElementById('inst-cat-sel')?.value;if(!catId){showToast('請先選擇大項','err');return;}const n=prompt('新增樂器名稱：');if(!n)return;DB.instruments.items.push({id:'inst_'+Date.now(),cat:catId,name:n,order:DB.instruments.items.filter(i=>i.cat===catId).length});renderInstList();showToast('已新增 '+n,'ok');}
+function addCategory(){
+  const n=prompt('新增大項名稱：');if(!n)return;
+  DB.instruments.categories.push({id:'cat_'+Date.now(),name:n,order:DB.instruments.categories.length});
+  fbSaveInstruments();renderCatList();initDropdowns();showToast('已新增 '+n,'ok');
+}
+function renameCategory(id){
+  const c=DB.instruments.categories.find(x=>x.id===id);
+  const n=prompt('新名稱：',c?.name);
+  if(n&&c){c.name=n;fbSaveInstruments();renderCatList();initDropdowns();showToast('已更新','ok');}
+}
+function delCategory(id){
+  const idx=DB.instruments.categories.findIndex(c=>c.id===id);
+  if(idx>-1){DB.instruments.categories.splice(idx,1);fbSaveInstruments();renderCatList();showToast('已刪除','err');}
+}
+function addInstrument(){
+  const catId=document.getElementById('inst-cat-sel')?.value;
+  if(!catId){showToast('請先選擇大項','err');return;}
+  const n=prompt('新增樂器名稱：');if(!n)return;
+  DB.instruments.items.push({id:'inst_'+Date.now(),cat:catId,name:n,order:DB.instruments.items.filter(i=>i.cat===catId).length});
+  fbSaveInstruments();renderInstList();showToast('已新增 '+n,'ok');
+}
 function renameInst(id){const inst=DB.instruments.items.find(i=>i.id===id);const n=prompt('新名稱：',inst?.name);if(n&&inst){inst.name=n;fbSaveInstruments();renderInstList();showToast('已更新','ok');}}
 function delInst(id){const idx=DB.instruments.items.findIndex(i=>i.id===id);if(idx>-1){DB.instruments.items.splice(idx,1);fbSaveInstruments();renderInstList();showToast('已刪除','err');}}
 
@@ -3262,8 +3313,21 @@ function renderTiming(){
     <div class="fg" style="margin-bottom:10px"><label>${pageLabels[k]} 公告</label><input type="text" value="${v.announce||''}" placeholder="（留空不顯示）" onchange="DB.config.pages['${k}'].announce=this.value"></div>`).join('')+
     '<button class="btn btn-p" onclick="saveAnnounce()">儲存公告</button>';
 }
-function saveTiming(){fbSet('config','main',{weights:DB.config.weights,trimRules:DB.config.trimRules,pages:DB.config.pages,studentAccess:DB.config.studentAccess,teacherAccess:DB.config.teacherAccess,repHint:DB.config.repHint,tyTitle:DB.config.tyTitle,tyText:DB.config.tyText});showToast('時間設定已儲存 ✓','ok');}
-function saveAnnounce(){fbSet('config','main',{weights:DB.config.weights,trimRules:DB.config.trimRules,pages:DB.config.pages,studentAccess:DB.config.studentAccess,teacherAccess:DB.config.teacherAccess,repHint:DB.config.repHint,tyTitle:DB.config.tyTitle,tyText:DB.config.tyText});showToast('公告已更新 ✓','ok');}
+function fbSaveConfig(){
+  fbSet('config','main',{
+    weights:DB.config.weights,
+    trimRules:DB.config.trimRules,
+    pages:DB.config.pages,
+    studentAccess:DB.config.studentAccess,
+    teacherAccess:DB.config.teacherAccess,
+    repHint:DB.config.repHint,
+    tyTitle:DB.config.tyTitle,
+    tyText:DB.config.tyText,
+    teacherScheduleClosedMsg:DB.config.teacherScheduleClosedMsg||'',
+  });
+}
+function saveTiming(){fbSaveConfig();showToast('時間設定已儲存 ✓','ok');}
+function saveAnnounce(){fbSaveConfig();showToast('公告已更新 ✓','ok');}
 
 // ════════════════════════════════════════════════
 // ADMIN - SCORING
@@ -3280,12 +3344,12 @@ function renderTrimRules(){
     </div>`).join('');
 }
 function addTrim(){DB.config.trimRules.push({id:Date.now(),minJ:0,maxJ:0,trimH:0,trimT:0});renderTrimRules();}
-function saveTrimRules(){fbSet('config','main',{weights:DB.config.weights,trimRules:DB.config.trimRules,pages:DB.config.pages,studentAccess:DB.config.studentAccess,teacherAccess:DB.config.teacherAccess,repHint:DB.config.repHint,tyTitle:DB.config.tyTitle,tyText:DB.config.tyText});showToast('去頭去尾規則已儲存 ✓','ok');}
+function saveTrimRules(){fbSaveConfig();showToast('去頭去尾規則已儲存 ✓','ok');}
 window.saveTrimRules=saveTrimRules;
 function saveWeights(){
   const s=+document.getElementById('w-scale').value,a=+document.getElementById('w-assigned').value,f=+document.getElementById('w-free').value;
   if(s+a+f!==100){showToast('三項必須合計 100%','err');return;}
-  DB.config.weights={scale:s/100,assigned:a/100,free:f/100};fbSet('config','main',{weights:DB.config.weights,trimRules:DB.config.trimRules,pages:DB.config.pages,studentAccess:DB.config.studentAccess,teacherAccess:DB.config.teacherAccess,repHint:DB.config.repHint,tyTitle:DB.config.tyTitle,tyText:DB.config.tyText});showToast('權重已儲存 ✓','ok');
+  DB.config.weights={scale:s/100,assigned:a/100,free:f/100};fbSaveConfig();showToast('權重已儲存 ✓','ok');
 }
 
 // ════════════════════════════════════════════════
@@ -3319,15 +3383,15 @@ function renderAccessControl(){
     }
   }
 }
-function setAccess(configKey,pageId,val){DB.config[configKey][pageId]=val;fbSet('config','main',{weights:DB.config.weights,trimRules:DB.config.trimRules,pages:DB.config.pages,studentAccess:DB.config.studentAccess,teacherAccess:DB.config.teacherAccess,repHint:DB.config.repHint,tyTitle:DB.config.tyTitle,tyText:DB.config.tyText,teacherScheduleClosedMsg:DB.config.teacherScheduleClosedMsg||''});renderAccessControl();if(ST.role==='teacher')renderTeaSchedulePage();showToast(`已${val?'公開':'關閉'} · 重新載入後生效`,'ok');}
-function saveTeaScheduleMsg(){DB.config.teacherScheduleClosedMsg=document.getElementById('tea-schedule-closed-msg')?.value||'';fbSet('config','main',{weights:DB.config.weights,trimRules:DB.config.trimRules,pages:DB.config.pages,studentAccess:DB.config.studentAccess,teacherAccess:DB.config.teacherAccess,repHint:DB.config.repHint,tyTitle:DB.config.tyTitle,tyText:DB.config.tyText,teacherScheduleClosedMsg:DB.config.teacherScheduleClosedMsg});showToast('提示文字已儲存 ✓','ok');}
+function setAccess(configKey,pageId,val){DB.config[configKey][pageId]=val;fbSaveConfig();renderAccessControl();if(ST.role==='teacher')renderTeaSchedulePage();showToast(`已${val?'公開':'關閉'} · 重新載入後生效`,'ok');}
+function saveTeaScheduleMsg(){DB.config.teacherScheduleClosedMsg=document.getElementById('tea-schedule-closed-msg')?.value||'';fbSaveConfig();showToast('提示文字已儲存 ✓','ok');}
 window.saveTeaScheduleMsg=saveTeaScheduleMsg;
 
 // ════════════════════════════════════════════════
 // ADMIN - CONTENT
 // ════════════════════════════════════════════════
-function saveRepHint(){DB.config.repHint=document.getElementById('rep-hint-txt').value;fbSet('config','main',{weights:DB.config.weights,trimRules:DB.config.trimRules,pages:DB.config.pages,studentAccess:DB.config.studentAccess,teacherAccess:DB.config.teacherAccess,repHint:DB.config.repHint,tyTitle:DB.config.tyTitle,tyText:DB.config.tyText});renderRepHint();showToast('已儲存 ✓','ok');}
-function saveTyText(){DB.config.tyTitle=document.getElementById('ty-title-inp').value;DB.config.tyText=document.getElementById('ty-body-inp').value;fbSet('config','main',{weights:DB.config.weights,trimRules:DB.config.trimRules,pages:DB.config.pages,studentAccess:DB.config.studentAccess,teacherAccess:DB.config.teacherAccess,repHint:DB.config.repHint,tyTitle:DB.config.tyTitle,tyText:DB.config.tyText});showToast('已儲存 ✓','ok');}
+function saveRepHint(){DB.config.repHint=document.getElementById('rep-hint-txt').value;fbSaveConfig();renderRepHint();showToast('已儲存 ✓','ok');}
+function saveTyText(){DB.config.tyTitle=document.getElementById('ty-title-inp').value;DB.config.tyText=document.getElementById('ty-body-inp').value;fbSaveConfig();showToast('已儲存 ✓','ok');}
 
 // ════════════════════════════════════════════════
 // ADMIN - DANGER: CLEAR DATA
@@ -3704,7 +3768,7 @@ const _expose = [
   'renderInstList',
   'addRoom','editRoom','delRoom','revealCode',
   'addClass','renameClass','delClass',
-  'saveTiming','saveAnnounce','saveWeights','addTrim','saveTrimRules',
+  'saveTiming','saveAnnounce','saveWeights','addTrim','saveTrimRules','fbSaveConfig',
   'setAccess','saveRepHint','saveTyText','clearData','saveTeaScheduleMsg',
   'renderResults','editJuryScores','exportResultsCSV',
   'npKey','npDel','npConfirm','npBg',
