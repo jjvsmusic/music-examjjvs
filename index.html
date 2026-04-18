@@ -1,0 +1,3298 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>音樂術科期末考評量系統</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#b5892a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="術科評量">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;500;600;700&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#18150f;--paper:#f6f1e7;--cream:#ede7d9;
+  --gold:#b5892a;--gold-l:#d4aa4a;--gold-bg:rgba(181,137,42,0.08);
+  --rust:#8b3322;--sage:#3d5c38;--steel:#3a5068;--muted:#7a7060;
+  --border:#cfc5ae;--white:#fff;--shadow:rgba(24,21,15,.10);--r:3px;
+  --red:#c0392b;--green:#27ae60;--blue:#2471a3;--orange:#ca6f1e;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Noto Serif TC',serif;background:var(--paper);color:var(--ink);display:flex;flex-direction:column}
+body::after{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");pointer-events:none;z-index:9000}
+
+/* LOGIN */
+#login-screen{position:fixed;inset:0;background:var(--ink);display:flex;align-items:center;justify-content:center;z-index:8000;transition:opacity .5s,visibility .5s}
+#login-screen.gone{opacity:0;visibility:hidden}
+.login-wrap{display:flex;box-shadow:0 0 0 1px var(--gold),0 32px 80px rgba(0,0,0,.6)}
+.login-deco{width:180px;background:var(--gold);padding:40px 20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+.login-deco-sym{font-family:'Cormorant Garamond',serif;font-size:72px;color:var(--ink);line-height:1;opacity:.7}
+.login-deco-txt{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:4px;color:var(--ink);opacity:.5;writing-mode:vertical-rl;transform:rotate(180deg);text-transform:uppercase}
+.login-form{background:var(--paper);padding:44px 38px;width:360px}
+.login-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:300;line-height:1.35;margin-bottom:5px}
+.login-sub{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--muted);margin-bottom:28px;text-transform:uppercase}
+.lf{margin-bottom:16px}
+.lf label{display:block;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:6px;text-transform:uppercase}
+.lf input{width:100%;padding:11px 14px;border:1px solid var(--border);background:var(--cream);font-family:'Noto Serif TC',serif;font-size:15px;color:var(--ink);outline:none;border-radius:var(--r);transition:border-color .2s}
+.lf input:focus{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-bg)}
+.login-err{font-family:'DM Mono',monospace;font-size:10px;color:var(--rust);min-height:14px;margin-bottom:10px}
+.login-btn{width:100%;padding:13px;background:var(--ink);color:var(--gold);border:none;cursor:pointer;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:3px;text-transform:uppercase;border-radius:var(--r);transition:all .2s;margin-bottom:8px}
+.login-btn:hover{background:var(--gold);color:var(--ink)}
+.login-btn.jury{background:var(--gold);color:var(--ink);margin-bottom:0}
+.login-btn.jury:hover{background:var(--gold-l)}
+.login-sep{border:none;border-top:1px solid var(--border);margin:18px 0}
+
+/* APP */
+#app{flex:1;display:none;flex-direction:column;overflow:hidden}
+#app.on{display:flex}
+.off-bar{background:var(--rust);color:#fff;padding:6px 24px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-align:center;display:none;flex-shrink:0}
+.off-bar.show{display:block}
+
+/* TOPBAR */
+.topbar{background:var(--ink);height:52px;display:flex;align-items:center;padding:0 20px;gap:0;flex-shrink:0;border-bottom:2px solid var(--gold)}
+.tb-logo{font-family:'Cormorant Garamond',serif;font-size:18px;color:var(--gold);font-weight:300;letter-spacing:1px;white-space:nowrap;padding-right:18px;border-right:1px solid rgba(181,137,42,.3);margin-right:14px}
+.tb-logo em{font-style:italic}
+.tb-nav{display:flex;gap:2px;flex:1;overflow-x:auto;scrollbar-width:none}
+.tb-nav::-webkit-scrollbar{display:none}
+.nb{padding:5px 12px;background:none;border:none;color:var(--muted);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;cursor:pointer;white-space:nowrap;text-transform:uppercase;border-radius:var(--r);transition:all .2s;border-bottom:2px solid transparent}
+.nb:hover{color:var(--paper)}
+.nb.on{color:var(--gold);border-bottom-color:var(--gold)}
+.tb-right{display:flex;align-items:center;gap:9px;padding-left:14px;border-left:1px solid rgba(181,137,42,.3);flex-shrink:0}
+.role-pill{padding:2px 9px;border:1px solid var(--gold);color:var(--gold);font-family:'DM Mono',monospace;font-size:8px;letter-spacing:2px;border-radius:20px}
+.tb-uname{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);white-space:nowrap}
+.logout-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;transition:color .2s;padding:3px}
+.logout-btn:hover{color:var(--rust)}
+
+/* MAIN */
+.main{flex:1;overflow-y:auto;overflow-x:hidden;padding:24px 24px 40px}
+.pg{display:none;animation:fadeUp .3s ease}
+.pg.on{display:block}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.ph{display:flex;align-items:baseline;gap:12px;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.ph h1{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:300}
+.ph span{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px}
+
+/* CARDS */
+.card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:16px;box-shadow:0 2px 6px var(--shadow)}
+.card-t{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--gold);text-transform:uppercase;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--cream)}
+
+/* GRIDS */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media(max-width:900px){.g2,.g3,.g4{grid-template-columns:1fr}}
+
+/* FORM */
+.fr{display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;align-items:flex-end}
+.fg{display:flex;flex-direction:column;gap:5px;flex:1;min-width:140px}
+.fg label{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--muted);text-transform:uppercase}
+.fg input,.fg select,.fg textarea{padding:8px 12px;border:1px solid var(--border);background:var(--paper);font-family:'Noto Serif TC',serif;font-size:14px;color:var(--ink);outline:none;border-radius:var(--r);transition:border-color .2s;width:100%}
+.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-bg)}
+.fg textarea{resize:vertical;min-height:64px;line-height:1.7}
+
+/* BUTTONS */
+.btn{padding:7px 16px;border:none;cursor:pointer;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;border-radius:var(--r);transition:all .2s;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+.btn-p{background:var(--ink);color:var(--gold)}.btn-p:hover{background:var(--gold);color:var(--ink)}
+.btn-s{background:var(--cream);color:var(--ink);border:1px solid var(--border)}.btn-s:hover{background:var(--border)}
+.btn-d{background:var(--rust);color:#fff}.btn-d:hover{background:#6b2519}
+.btn-g{background:var(--sage);color:#fff}.btn-g:hover{background:#2e4428}
+.btn-b{background:var(--steel);color:#fff}.btn-b:hover{background:#2c3e50}
+.btn-o{background:var(--orange);color:#fff}.btn-o:hover{background:#a05918}
+.btn-sm{padding:4px 10px;font-size:8px}
+.btn-xs{padding:3px 7px;font-size:8px}
+.bg{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+
+/* TABLES */
+.tw{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r)}
+table{width:100%;border-collapse:collapse}
+thead{background:var(--ink);color:var(--paper)}
+th{padding:9px 12px;text-align:left;font-family:'DM Mono',monospace;font-size:8px;letter-spacing:2px;font-weight:400;white-space:nowrap}
+tbody tr{border-bottom:1px solid var(--cream);transition:background .15s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:var(--gold-bg)}
+td{padding:9px 12px;font-size:13px;vertical-align:middle}
+.red-score{color:var(--red)!important;font-weight:600}
+
+/* DOTS */
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+.dg{background:var(--green);box-shadow:0 0 5px rgba(39,174,96,.4)}
+.dr{background:var(--red)}.do{background:var(--orange)}.db{background:var(--blue)}
+
+/* TABS */
+.tabs{display:flex;border-bottom:2px solid var(--border);margin-bottom:18px}
+.tab{padding:8px 18px;cursor:pointer;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .2s;text-transform:uppercase}
+.tab:hover{color:var(--ink)}.tab.on{color:var(--gold);border-bottom-color:var(--gold)}
+.tc{display:none}.tc.on{display:block}
+
+/* TOGGLE */
+.tgl{position:relative;display:inline-block;width:40px;height:22px;flex-shrink:0}
+.tgl input{opacity:0;width:0;height:0}
+.tgl-sl{position:absolute;inset:0;cursor:pointer;background:var(--border);border-radius:22px;transition:.3s}
+.tgl-sl::before{content:'';position:absolute;height:16px;width:16px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s}
+.tgl input:checked+.tgl-sl{background:var(--gold)}
+.tgl input:checked+.tgl-sl::before{transform:translateX(18px)}
+
+/* STAT CARD */
+.sc{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:16px;text-align:center}
+.sn{font-family:'Cormorant Garamond',serif;font-size:40px;font-weight:300;color:var(--ink);line-height:1}
+.sl{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--muted);margin-top:4px;text-transform:uppercase}
+
+/* BADGES */
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1px}
+.b-major{background:#fff3cd;color:#856404;border:1px solid #ffc107}
+.b-minor{background:#d1ecf1;color:#0c5460;border:1px solid #17a2b8}
+.b-elective{background:#d4edda;color:#155724;border:1px solid #28a745}
+.b-absent{background:#f8d7da;color:#721c24;border:1px solid #f5c6cb}
+
+/* EXAM ITEMS */
+.exam-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--white);border:1px solid var(--border);border-radius:var(--r);margin-bottom:6px;transition:box-shadow .2s}
+.exam-item:hover{box-shadow:0 2px 10px var(--shadow)}
+.exam-item.dragging{opacity:.35}
+.dh{cursor:grab;color:var(--border);font-size:15px;flex-shrink:0;user-select:none}
+.dh:active{cursor:grabbing}
+.ei-num{font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);min-width:26px}
+.ei-info{flex:1}
+.ei-name{font-size:13px;font-weight:600;margin-bottom:2px}
+.ei-detail{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.3px}
+.ei-rep{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-top:3px;letter-spacing:.3px;line-height:1.7}
+
+/* REG SECTIONS */
+.reg-section{border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:14px}
+.reg-sec-h{background:var(--ink);color:var(--gold);padding:10px 16px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;display:flex;align-items:center;gap:10px}
+.reg-sec-b{padding:16px;background:var(--white)}
+.hint-box{background:var(--cream);border-left:3px solid var(--gold);padding:9px 13px;margin-bottom:12px;font-size:11px;color:var(--muted);line-height:1.8;font-family:'DM Mono',monospace}
+
+/* JURY TABLE */
+.jst{width:100%;border-collapse:collapse;table-layout:fixed;min-width:900px}
+.jst th,.jst td{border:1px solid var(--border);padding:0;vertical-align:middle}
+.jst thead th{background:var(--ink);color:var(--paper);padding:8px 10px;font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1.5px;text-align:center;font-weight:400}
+.jst .s-name-col{text-align:left;padding:8px 12px;width:140px}
+.score-cell{width:70px;text-align:center;padding:3px}
+.comment-cell{min-width:180px;padding:3px}
+.absent-cell{width:50px;text-align:center;padding:3px}
+.piece-cell{overflow:hidden;padding:4px 8px;vertical-align:middle}
+.piece-cell .pc-composer{font-size:10px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.piece-cell .pc-title{font-size:9px;font-style:italic;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.score-inp{width:100%;border:none;background:transparent;font-family:'DM Mono',monospace;font-size:15px;font-weight:600;text-align:center;color:var(--ink);outline:none;padding:6px 2px;cursor:pointer}
+.score-inp:focus{background:var(--gold-bg)}
+.score-inp.empty-warn{background:#fff3f3!important}
+.score-inp.red-score{color:var(--red)}
+.comment-inp{width:100%;border:none;background:transparent;font-family:'Noto Serif TC',serif;font-size:12px;color:var(--ink);outline:none;padding:6px;resize:none;height:52px;min-height:52px;max-height:52px;line-height:1.6;overflow-y:auto}
+.comment-inp:focus{background:var(--gold-bg)}
+.jst-row-a td{background:#fff5f5!important}
+
+/* SCORE DISPLAY */
+.isb{border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:12px}
+.isb-h{background:var(--ink);color:var(--paper);padding:9px 14px;display:flex;align-items:center;justify-content:space-between}
+.isb-h-name{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px}
+.isb-h-score{font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--gold)}
+.isb-b{padding:14px;background:var(--white)}
+
+/* MODAL */
+.overlay{position:fixed;inset:0;background:rgba(24,21,15,.65);z-index:5000;display:flex;align-items:center;justify-content:center;opacity:0;visibility:hidden;transition:all .3s}
+.overlay.on{opacity:1;visibility:visible}
+.modal{background:var(--paper);padding:26px;border-radius:var(--r);box-shadow:0 0 0 1px var(--gold),0 20px 60px rgba(0,0,0,.4);transform:translateY(16px);transition:transform .3s;max-height:90vh;overflow-y:auto;width:540px;max-width:96vw}
+.overlay.on .modal{transform:translateY(0)}
+.modal-t{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:300;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.modal-ft{margin-top:18px;padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:7px}
+
+/* TOAST */
+.toast{position:fixed;top:68px;right:20px;background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:var(--r);font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;z-index:6000;box-shadow:0 4px 20px rgba(0,0,0,.3);transform:translateX(120%);transition:transform .3s;border-left:3px solid var(--gold);max-width:320px}
+.toast.on{transform:translateX(0)}
+.toast.ok{border-left-color:var(--green)}.toast.err{border-left-color:var(--rust)}.toast.warn{border-left-color:var(--orange)}
+
+/* SYNC */
+.sync{position:fixed;bottom:16px;right:16px;background:var(--ink);color:var(--paper);padding:8px 14px;border-radius:var(--r);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;display:flex;align-items:center;gap:7px;box-shadow:0 4px 20px var(--shadow);z-index:5500;opacity:0;transform:translateY(8px);transition:all .3s}
+.sync.on{opacity:1;transform:translateY(0)}
+.sy-dot{width:6px;height:6px;border-radius:50%}
+.sy-sync{background:var(--gold);animation:pulse 1s infinite}
+.sy-ok{background:var(--green)}.sy-pend{background:var(--rust)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
+
+/* NUMPAD */
+.np-overlay{position:fixed;inset:0;z-index:7000;display:flex;align-items:flex-end;justify-content:center;background:rgba(24,21,15,.4);opacity:0;visibility:hidden;transition:all .25s}
+.np-overlay.on{opacity:1;visibility:visible}
+.np{background:var(--paper);padding:14px;width:200px;margin-bottom:16px;border:1px solid var(--border);box-shadow:0 -4px 24px var(--shadow);border-radius:var(--r);transform:translateY(14px);transition:transform .25s}
+.np-overlay.on .np{transform:translateY(0)}
+.np-disp{font-family:'DM Mono',monospace;font-size:24px;text-align:center;padding:8px;border-bottom:2px solid var(--gold);color:var(--ink);margin-bottom:10px;min-height:44px;letter-spacing:3px}
+.np-lbl{text-align:center;font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:2px;margin-bottom:8px}
+.np-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.nk{padding:10px;text-align:center;cursor:pointer;background:var(--white);border:1px solid var(--border);font-family:'DM Mono',monospace;font-size:15px;border-radius:var(--r);transition:all .1s;user-select:none}
+.nk:hover{background:var(--cream)}.nk:active{background:var(--gold);color:var(--ink);transform:scale(.95)}
+.nk-ok{background:var(--ink);color:var(--gold)}.nk-ok:hover{background:var(--gold);color:var(--ink)}
+.nk-del{background:var(--cream);color:var(--rust);font-size:11px}
+
+.sort-key{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border:1px solid var(--border);border-radius:var(--r);background:var(--white);cursor:pointer;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;user-select:none;transition:all .15s}
+.sort-key:hover{border-color:var(--gold);background:var(--gold-bg)}
+.sort-key.active{border-color:var(--gold);background:var(--gold);color:var(--ink)}
+.sort-key .sk-dir{font-size:11px;font-weight:700}
+.sort-key.dragging-key{opacity:.4}
+.tea-step{padding:6px 14px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;color:var(--muted);border-radius:var(--r);text-transform:uppercase;border:1px solid var(--border);background:var(--paper)}
+.tea-step.on{background:var(--ink);color:var(--gold);border-color:var(--ink)}
+.tea-step.done{background:var(--sage);color:#fff;border-color:var(--sage)}
+.tea-step-arrow{font-size:10px;color:var(--border);margin:0 4px}
+
+/* THANK YOU */
+.ty-wrap{text-align:center;padding:32px 24px}
+.ty-sym{font-size:44px;margin-bottom:14px}
+.ty-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:300;margin-bottom:10px}
+.ty-text{font-size:13px;line-height:1.9;color:var(--muted);max-width:340px;margin:0 auto}
+
+/* PROGRESS */
+.prog{height:4px;background:var(--cream);border-radius:3px;overflow:hidden;margin-top:5px}
+.prog-f{height:100%;background:var(--gold);border-radius:3px;transition:width .5s}
+
+/* SCORE RESULT TABLE */
+.result-juror-scores{display:flex;flex-direction:column;gap:2px}
+.rjs-item{font-family:'DM Mono',monospace;font-size:10px;display:flex;justify-content:space-between;padding:2px 6px;border-radius:2px}
+.rjs-item:nth-child(odd){background:var(--cream)}
+.rjs-removed{opacity:.4;text-decoration:line-through}
+
+/* CONFIRM PREVIEW */
+.cp-row{display:flex;border-bottom:1px solid var(--cream)}
+.cp-row:last-child{border-bottom:none}
+.cp-lbl{width:100px;padding:8px 0;font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);flex-shrink:0}
+.cp-val{padding:8px 0;font-size:13px;flex:1}
+
+/* ACCESS CONTROL */
+.access-grid{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--cream)}
+.access-grid:last-child{border-bottom:none}
+.access-label{font-family:'DM Mono',monospace;font-size:11px}
+
+/* COMMENTS FOLDER */
+.comment-folder{border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:8px}
+.comment-folder-h{background:var(--cream);padding:8px 14px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px}
+.comment-folder-b{padding:12px 14px;background:var(--white);display:none}
+.comment-folder-b.open{display:block}
+
+/* LOOKUP */
+.lookup-bar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.lookup-inp{padding:8px 12px;border:1px solid var(--border);background:var(--white);font-family:'Noto Serif TC',serif;font-size:14px;outline:none;border-radius:var(--r);flex:1;min-width:140px;color:var(--ink)}
+.lookup-inp:focus{border-color:var(--gold)}
+
+/* ROOM SELECT BAR */
+.room-bar{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.room-bar label{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted)}
+.room-bar select{padding:7px 12px;border:1px solid var(--border);background:var(--paper);font-family:'Noto Serif TC',serif;font-size:14px;outline:none;border-radius:var(--r)}
+
+/* DEDUCTION */
+.deduct-row{display:grid;grid-template-columns:auto 1fr 1fr auto;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--cream)}
+.deduct-row:last-child{border-bottom:none}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--cream)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* CHECK WARNING */
+.check-warn{background:#fff3f3;border:1px solid #f5c6cb;border-radius:var(--r);padding:10px 14px;font-family:'DM Mono',monospace;font-size:11px;color:var(--rust);margin-top:10px;display:none}
+.check-warn.show{display:block}
+</style>
+
+<!-- ══ SERVICE WORKER 註冊 ══ -->
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('/sw.js')
+      .then(r=>console.log('[SW] 已註冊:',r.scope))
+      .catch(e=>console.warn('[SW] 註冊失敗:',e));
+    navigator.serviceWorker.addEventListener('message',e=>{
+      if(e.data?.type==='SW_SYNC_REQUEST'&&typeof syncPendingToFirebase==='function')syncPendingToFirebase();
+    });
+  });
+}
+</script>
+
+<!-- ══ FIREBASE SDK (compat 版，可與一般 script 共存) ══ -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script>
+// ══════════════════════════════════════════════
+// ★ 請將以下設定換成您的 Firebase 專案設定 ★
+// 取得位置：Firebase Console → 專案設定（齒輪）→ 您的應用程式 → firebaseConfig
+// ══════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyBf6ApINYaNblGk6NScUy48MwjjrUNB_Lk",
+  authDomain: "musicexamjjvs.firebaseapp.com",
+  projectId: "musicexamjjvs",
+  storageBucket: "musicexamjjvs.firebasestorage.app",
+  messagingSenderId: "95917594092",
+  appId: "1:95917594092:web:768a4bc03d23456e1f5cc9"
+};
+
+// 初始化 Firebase（只在有真實設定時才連線）
+if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
+  try {
+    firebase.initializeApp(firebaseConfig);
+    const _db = firebase.firestore();
+    const _auth = firebase.auth();
+
+    // ★ 啟用離線持久化
+    //   synchronizeTabs:false → 確保單一分頁獨佔持久化，避免 failed-precondition
+    //   評審用平板/手機通常只開一個分頁，此設定最穩定
+    _db.enablePersistence({ synchronizeTabs: false })
+      .then(() => {
+        console.log('[Firebase] 離線持久化已啟用 ✓');
+        // 持久化成功後才啟動 online 事件監聽，避免重複同步
+        window.addEventListener('online', () => {
+          ST.isOnline = true;
+          document.getElementById('off-bar').classList.remove('show');
+          if (typeof syncPendingToFirebase === 'function') syncPendingToFirebase();
+        });
+      })
+      .catch(err => {
+        if (err.code === 'failed-precondition') {
+          console.warn('[Firebase] 偵測到多個分頁，離線持久化停用。請只開一個分頁使用系統。');
+        } else if (err.code === 'unimplemented') {
+          console.warn('[Firebase] 此瀏覽器不支援離線持久化，請改用 Chrome 或 Edge。');
+        }
+        // 即使持久化失敗，仍加上 online 事件
+        window.addEventListener('online', () => {
+          ST.isOnline = true;
+          document.getElementById('off-bar').classList.remove('show');
+          if (typeof syncPendingToFirebase === 'function') syncPendingToFirebase();
+        });
+      });
+
+    window._FB = {
+      db: _db,
+      auth: _auth,
+      doc: (db, ...path) => {
+        let ref = db;
+        for (let i = 0; i < path.length; i += 2) {
+          ref = ref.collection(path[i]).doc(path[i+1]);
+        }
+        return ref;
+      },
+      setDoc: (ref, data, opts) => opts?.merge ? ref.set(data, {merge:true}) : ref.set(data),
+      getDoc: (ref) => ref.get(),
+      collection: (db, ...path) => {
+        let ref = db;
+        for (let i = 0; i < path.length; i++) {
+          ref = i % 2 === 0 ? ref.collection(path[i]) : ref.doc(path[i]);
+        }
+        return ref;
+      },
+      getDocs: (ref) => ref.get(),
+      onSnapshot: (ref, cb) => ref.onSnapshot(cb),
+      serverTimestamp: () => firebase.firestore.FieldValue.serverTimestamp(),
+      deleteDoc: (ref) => ref.delete(),
+    };
+
+    // ★ 匿名登入：確保每個使用者都有 Firebase UID，
+    //   Firestore 安全規則才能用 request.auth != null 來擋外部攻擊
+    window._fbAuthReady = new Promise((resolve) => {
+      // onAuthStateChanged 會在 SDK 初始化後第一次確認身分狀態
+      // 用 unsubscribe 確保只處理一次，避免重複 resolve
+      const unsub = _auth.onAuthStateChanged(user => {
+        unsub(); // 取消後續監聽，只取第一次結果
+        if (user) {
+          // 已有匿名 session（持久化），強制刷新 token 確保 Firestore 能認證
+          user.getIdToken(true)
+            .then(() => {
+              console.log('[Firebase Auth] 已有匿名 session UID:', user.uid);
+              window._fbUid = user.uid;
+              resolve(user);
+            })
+            .catch(() => {
+              // token 刷新失敗（離線），仍 resolve 讓程式繼續靠快取運作
+              window._fbUid = user.uid;
+              resolve(user);
+            });
+        } else {
+          // 沒有 session，進行匿名登入
+          _auth.signInAnonymously()
+            .then(cred => {
+              console.log('[Firebase Auth] 匿名登入成功 ✓ UID:', cred.user.uid);
+              window._fbUid = cred.user.uid;
+              resolve(cred.user);
+            })
+            .catch(e => {
+              console.warn('[Firebase Auth] 匿名登入失敗（離線？）:', e.message);
+              resolve(null); // 仍允許繼續，靠持久化快取運作
+            });
+        }
+      });
+    });
+
+    console.log('[Firebase] 連線成功 ✓');
+
+    // 啟動後即時監聽評審分數變動（涵蓋所有考場）
+    window._startJuryListener = function(){
+      try {
+        DB.rooms.forEach(room => {
+          const roomId = room.id; // ★ 修正：在外層 forEach 捕捉 roomId，避免 snapshot callback 內找不到 roomDoc
+          _db.collection('juryScores').doc(roomId)
+            .collection('entries').onSnapshot(snapshot => {
+                  snapshot.forEach(entryDoc => {
+                    const entryKey = entryDoc.id;
+                    if (!window.DB) return;
+                    if (!window.DB.juryScores[roomId]) window.DB.juryScores[roomId] = {};
+                    // 過濾掉內部欄位 (_updatedAt 等)
+                    const raw = entryDoc.data();
+                    const jurors = {};
+                    Object.keys(raw).forEach(k => { if(!k.startsWith('_')) jurors[k] = raw[k]; });
+                    window.DB.juryScores[roomId][entryKey] = jurors;
+                  });
+                  if (document.getElementById('pg-results')?.classList.contains('on')) {
+                    if (typeof renderResults === 'function') renderResults();
+                  }
+                });
+        });
+      } catch(e) { console.warn('[Firebase] 監聽失敗:', e); }
+    };
+    // launchApp 後再啟動監聽（等 DB.rooms 載入完成）
+  } catch(e) {
+    console.warn('[Firebase] 初始化失敗:', e);
+  }
+} else {
+  console.warn('[Firebase] 尚未填入設定，使用本機模式');
+}
+</script>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-wrap">
+    <div class="login-deco">
+      <div class="login-deco-sym">♩</div>
+      <div class="login-deco-txt">Music Examination System</div>
+    </div>
+    <div class="login-form">
+      <h1 class="login-title">音樂術科<br>期末考評量系統</h1>
+      <p class="login-sub">Music Examination Platform</p>
+      <div class="lf"><label>帳號</label><input id="l-user" type="text" placeholder="學號 / 帳號" autocomplete="username"></div>
+      <div class="lf"><label>密碼</label><input id="l-pass" type="password" placeholder="預設：000" autocomplete="current-password"></div>
+      <div class="login-err" id="l-err"></div>
+      <button class="login-btn" onclick="doLogin()">登入系統</button>
+      <hr class="login-sep">
+      <div class="lf" style="margin-bottom:10px"><label>評審考場代碼（評審專用）</label>
+        <input id="l-jury-code" type="text" placeholder="輸入考場代碼" style="letter-spacing:3px;font-family:'DM Mono',monospace;text-transform:uppercase">
+      </div>
+      <button class="login-btn jury" onclick="doJuryDirectLogin()">◆ 評審登入</button>
+    </div>
+  </div>
+</div>
+
+<!-- JURY NAME MODAL -->
+<div class="overlay" id="jury-name-modal">
+  <div class="modal" style="width:360px">
+    <h2 class="modal-t">請填入姓名</h2>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px">代碼正確，請填入您的姓名以開始評分。</p>
+    <div class="fg"><label>評審姓名</label><input id="jn-name" type="text" placeholder="請輸入姓名"></div>
+    <div class="modal-ft">
+      <button class="btn btn-s" onclick="closeOverlay('jury-name-modal')">取消</button>
+      <button class="btn btn-p" onclick="doJuryLogin()">開始評分</button>
+    </div>
+  </div>
+</div>
+
+<!-- GENERIC EDIT MODAL -->
+<div class="overlay" id="edit-modal">
+  <div class="modal">
+    <h2 class="modal-t" id="edit-modal-title">編輯</h2>
+    <div id="edit-modal-body"></div>
+    <div class="modal-ft">
+      <button class="btn btn-s" onclick="closeOverlay('edit-modal')">取消</button>
+      <button class="btn btn-p" id="edit-modal-save">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- THANK YOU MODAL -->
+<div class="overlay" id="ty-modal">
+  <div class="modal" style="width:400px">
+    <div class="ty-wrap">
+      <div class="ty-sym">🎼</div>
+      <h2 class="ty-title" id="ty-title-el">感謝您的評分</h2>
+      <p class="ty-text" id="ty-text-el">感謝老師本學期的辛苦指導與細心評分。</p>
+      <div style="margin-top:22px"><button class="btn btn-p" onclick="closeOverlay('ty-modal')">關閉</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- CHECK MODAL -->
+<div class="overlay" id="check-modal">
+  <div class="modal" style="width:460px">
+    <h2 class="modal-t">填寫完畢確認</h2>
+    <div id="check-modal-body"></div>
+    <div class="modal-ft">
+      <button class="btn btn-s" onclick="closeOverlay('check-modal')">返回補填</button>
+      <button class="btn btn-g" id="check-confirm-btn" onclick="confirmSubmitJury()">確認送出</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- TEACHER STUDENTS MODAL -->
+<div class="overlay" id="tea-stu-modal">
+  <div class="modal" style="width:480px">
+    <h2 class="modal-t">指派負責學生 — <span id="tsm-teacher-name"></span></h2>
+    <p style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:12px;letter-spacing:1px">勾選該教師負責評量的學生</p>
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap" id="tsm-class-tabs"></div>
+    <div id="tsm-stu-list" style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r)"></div>
+    <div class="modal-ft">
+      <button class="btn btn-s" onclick="closeOverlay('tea-stu-modal')">取消</button>
+      <button class="btn btn-p" onclick="saveTeaStu()">儲存指派</button>
+    </div>
+  </div>
+</div>
+
+<!-- DISQUALIFY MODAL -->
+<div class="overlay" id="disq-modal">
+  <div class="modal" style="width:420px">
+    <h2 class="modal-t">⛔ 設定扣考</h2>
+    <p id="disq-modal-name" style="font-size:15px;font-weight:600;margin-bottom:14px;color:var(--ink)"></p>
+    <div class="lf"><label style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">扣考原因（必填）</label>
+      <input id="disq-reason" type="text" placeholder="例：曠課超過三分之一、違反考試規定…">
+    </div>
+    <div class="lf"><label style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">備註（選填）</label>
+      <input id="disq-note" type="text" placeholder="其他說明">
+    </div>
+    <div class="login-err" id="disq-err" style="min-height:16px;margin-bottom:4px"></div>
+    <div class="modal-ft">
+      <button class="btn btn-s" onclick="closeOverlay('disq-modal')">取消</button>
+      <button class="btn btn-d" onclick="saveDisq()">確認扣考</button>
+    </div>
+  </div>
+</div>
+
+<!-- CHANGE PASSWORD MODAL -->
+<div class="overlay" id="chpwd-modal">
+  <div class="modal" style="width:360px">
+    <h2 class="modal-t">&#128273; 修改密碼</h2>
+    <div class="lf"><label style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">舊密碼</label><input id="chpwd-old" type="password" placeholder="輸入目前密碼"></div>
+    <div class="lf"><label style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">新密碼</label><input id="chpwd-new" type="password" placeholder="輸入新密碼（至少1字元）"></div>
+    <div class="lf"><label style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">確認新密碼</label><input id="chpwd-confirm" type="password" placeholder="再次輸入新密碼"></div>
+    <div class="login-err" id="chpwd-err" style="min-height:16px;margin-bottom:4px"></div>
+    <div class="modal-ft">
+      <button class="btn btn-s" onclick="closeOverlay('chpwd-modal')">取消</button>
+      <button class="btn btn-p" onclick="doChangePassword()">確認修改</button>
+    </div>
+  </div>
+</div>
+
+<!-- NUMPAD -->
+<div class="np-overlay" id="np-overlay" onclick="npBg(event)">
+  <div class="np">
+    <div class="np-lbl" id="np-lbl"></div>
+    <div class="np-disp" id="np-disp">—</div>
+    <div class="np-grid">
+      <div class="nk" onclick="npKey('7')">7</div><div class="nk" onclick="npKey('8')">8</div><div class="nk" onclick="npKey('9')">9</div>
+      <div class="nk" onclick="npKey('4')">4</div><div class="nk" onclick="npKey('5')">5</div><div class="nk" onclick="npKey('6')">6</div>
+      <div class="nk" onclick="npKey('1')">1</div><div class="nk" onclick="npKey('2')">2</div><div class="nk" onclick="npKey('3')">3</div>
+      <div class="nk nk-del" onclick="npDel()">⌫</div><div class="nk" onclick="npKey('0')">0</div><div class="nk" onclick="npKey('.')">.</div>
+      <div class="nk nk-ok" style="grid-column:1/-1" onclick="npConfirm()">確 認</div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST & SYNC -->
+<div class="toast" id="toast"></div>
+<div class="sync" id="sync"><div class="sy-dot" id="sy-dot"></div><span id="sy-txt"></span></div>
+
+<!-- APP -->
+<div id="app">
+  <div class="off-bar" id="off-bar">⚠ 離線模式 — 資料儲存於本機，連線後自動同步</div>
+  <div class="topbar">
+    <div class="tb-logo">♩ <em>術科評量</em></div>
+    <nav class="tb-nav" id="tb-nav"></nav>
+    <div class="tb-right">
+      <span class="role-pill" id="role-pill"></span>
+      <span class="tb-uname" id="tb-uname"></span>
+      <button class="logout-btn" onclick="openChPwd()" title="修改密碼" style="font-size:13px">🔑</button>
+      <button class="logout-btn" onclick="doLogout()" title="登出">⏻</button>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- ══ STUDENT: REP FORM ══ -->
+    <div class="pg" id="pg-rep">
+      <div class="ph"><h1>考試曲目填寫</h1><span>Exam Repertoire</span></div>
+      <div class="card" id="rep-done-card" style="display:none;border-color:var(--sage)">
+        <div class="card-t" style="color:var(--sage);display:flex;align-items:center;justify-content:space-between">
+          <span>✓ 已完成填報</span>
+          <button class="btn btn-s btn-sm" onclick="editRep()">重新填寫</button>
+        </div>
+        <p style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:16px;letter-spacing:1px">您已完成曲目填報。如需修改請聯絡管理員，或在開放期間點「重新填寫」。</p>
+        <div id="rep-done-info"></div>
+      </div>
+      <div id="rep-form-area">
+        <div class="hint-box" id="rep-hint">💡 示範寫法：作曲家 → Mozart, W.A. ／ 曲目 → Concerto in D major, K. 314, 1st mvt.</div>
+        <!-- ① Major -->
+        <div class="reg-section">
+          <div class="reg-sec-h">♩ ① 主修樂器</div>
+          <div class="reg-sec-b">
+            <div class="fr">
+              <div class="fg"><label>大項類別</label><select id="r-major-cat" onchange="filterRepInst('major')"><option value="">選擇類別</option></select></div>
+              <div class="fg"><label>樂器（必填）</label><select id="r-major-inst"><option value="">—</option></select></div>
+            </div>
+            <div class="fr">
+              <div class="fg" style="flex:1"><label>指定曲 作曲家</label><input id="r-major-ac" type="text" placeholder="Composer name"></div>
+              <div class="fg" style="flex:2"><label>指定曲 曲目名稱</label><input id="r-major-at" type="text" placeholder="Piece title, opus, movement..."></div>
+            </div>
+            <div class="fr">
+              <div class="fg" style="flex:1"><label>自選曲 作曲家</label><input id="r-major-fc" type="text" placeholder="Composer name"></div>
+              <div class="fg" style="flex:2"><label>自選曲 曲目名稱</label><input id="r-major-ft" type="text" placeholder="Piece title, opus, movement..."></div>
+            </div>
+          </div>
+        </div>
+        <!-- ② Minor -->
+        <div class="reg-section">
+          <div class="reg-sec-h">♪ ② 副修樂器（選填）</div>
+          <div class="reg-sec-b">
+            <div class="fr">
+              <div class="fg"><label>大項類別</label><select id="r-minor-cat" onchange="filterRepInst('minor')"><option value="">— 不填副修 —</option></select></div>
+              <div class="fg"><label>樂器</label><select id="r-minor-inst"><option value="">—</option></select></div>
+            </div>
+            <div id="r-minor-rep" style="display:none">
+              <div class="fr"><div class="fg" style="flex:1"><label>指定曲 作曲家</label><input id="r-minor-ac" type="text" placeholder="Composer name"></div><div class="fg" style="flex:2"><label>指定曲 曲目名稱</label><input id="r-minor-at" type="text" placeholder="Piece title..."></div></div>
+              <div class="fr"><div class="fg" style="flex:1"><label>自選曲 作曲家</label><input id="r-minor-fc" type="text" placeholder="Composer name"></div><div class="fg" style="flex:2"><label>自選曲 曲目名稱</label><input id="r-minor-ft" type="text" placeholder="Piece title..."></div></div>
+            </div>
+          </div>
+        </div>
+        <!-- ③ Elective -->
+        <div class="reg-section">
+          <div class="reg-sec-h">
+            <label class="tgl" style="margin-right:8px"><input type="checkbox" id="r-elec-tog" onchange="toggleElective()"><span class="tgl-sl"></span></label>
+            ♫ ③ 選修加考（勾選後填寫）
+          </div>
+          <div id="r-elec-area" style="display:none"><div class="reg-sec-b">
+            <div class="fr"><div class="fg"><label>大項類別</label><select id="r-elec-cat" onchange="filterRepInst('elective')"><option value="">選擇類別</option></select></div><div class="fg"><label>樂器</label><select id="r-elec-inst"><option value="">—</option></select></div></div>
+            <div class="fr"><div class="fg" style="flex:1"><label>指定曲 作曲家</label><input id="r-elec-ac" type="text" placeholder="Composer name"></div><div class="fg" style="flex:2"><label>指定曲 曲目名稱</label><input id="r-elec-at" type="text" placeholder="Piece title..."></div></div>
+            <div class="fr"><div class="fg" style="flex:1"><label>自選曲 作曲家</label><input id="r-elec-fc" type="text" placeholder="Composer name"></div><div class="fg" style="flex:2"><label>自選曲 曲目名稱</label><input id="r-elec-ft" type="text" placeholder="Piece title..."></div></div>
+          </div></div>
+        </div>
+        <div class="bg"><button class="btn btn-p" onclick="previewRep()">下一步：核對資料 →</button></div>
+      </div>
+      <div id="rep-preview" style="display:none">
+        <div class="card" style="border-color:var(--gold)"><div class="card-t">請核對以下資料</div><div id="rep-preview-body"></div></div>
+        <div class="bg">
+          <button class="btn btn-s" onclick="backToRepForm()">← 返回修改</button>
+          <button class="btn btn-g" onclick="submitRep()">✓ 確認送出</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ STUDENT: SCORES ══ -->
+    <div class="pg" id="pg-scores">
+      <div class="ph"><h1>成績查閱</h1><span>My Results</span></div>
+      <div id="scores-body"></div>
+    </div>
+
+    <!-- ══ STUDENT: SCHEDULE LOOKUP ══ -->
+    <div class="pg" id="pg-stu-schedule">
+      <div class="ph"><h1>考試順序查詢</h1><span>Schedule Lookup</span></div>
+      <div class="lookup-bar">
+        <input class="lookup-inp" id="lookup-name" type="text" placeholder="輸入姓名搜尋...">
+        <select class="lookup-inp" id="lookup-inst" style="flex:none;min-width:130px"><option value="">全部樂器</option></select>
+        <select class="lookup-inp" id="lookup-room" style="flex:none;min-width:130px"><option value="">全部考場</option></select>
+        <button class="btn btn-p" onclick="doLookup()">搜尋</button>
+        <button class="btn btn-s" onclick="clearLookup()">清除</button>
+      </div>
+      <div class="tw"><table>
+        <thead><tr><th>序</th><th>考場</th><th>班級</th><th>姓名</th><th>樂器</th><th>別</th><th>指定曲</th><th>自選曲</th></tr></thead>
+        <tbody id="stu-sched-tbody"></tbody>
+      </table></div>
+    </div>
+
+    <!-- ══ TEACHER MODULE ══ -->
+    <div class="pg" id="pg-teacher">
+      <div class="ph"><h1>平時評量</h1><span>Teacher Assessment</span></div>
+
+      <!-- ── 逐步填寫區 ── -->
+      <div id="tea-wizard" style="display:none">
+        <div class="card" style="margin-bottom:14px">
+          <div class="card-t">填寫評量</div>
+          <!-- Step 指示器 -->
+          <div style="display:flex;align-items:center;gap:0;margin-bottom:18px" id="tea-step-bar">
+            <div class="tea-step on" id="tstep-1">① 選班級</div>
+            <div class="tea-step-arrow">▶</div>
+            <div class="tea-step" id="tstep-2">② 選學生</div>
+            <div class="tea-step-arrow">▶</div>
+            <div class="tea-step" id="tstep-3">③ 選修別</div>
+            <div class="tea-step-arrow">▶</div>
+            <div class="tea-step" id="tstep-4">④ 填分數／評語</div>
+          </div>
+
+          <!-- Step 1: 選班級 -->
+          <div id="tea-s1">
+            <div class="fg" style="max-width:200px"><label>選擇班級</label>
+              <select id="tea-wiz-class" onchange="teaWizPickClass()"><option value="">— 請選 —</option></select>
+            </div>
+          </div>
+
+          <!-- Step 2: 選學生 -->
+          <div id="tea-s2" style="display:none">
+            <div class="fg" style="max-width:260px"><label>選擇學生</label>
+              <select id="tea-wiz-stu" onchange="teaWizPickStu()"><option value="">— 請選 —</option></select>
+            </div>
+            <div style="margin-top:8px">
+              <button class="btn btn-s btn-sm" onclick="teaWizBack(1)">← 返回</button>
+            </div>
+          </div>
+
+          <!-- Step 3: 選修別 -->
+          <div id="tea-s3" style="display:none">
+            <p style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:10px">請選擇要填寫的修課類別</p>
+            <div id="tea-wiz-type-btns" class="bg"></div>
+            <div style="margin-top:8px">
+              <button class="btn btn-s btn-sm" onclick="teaWizBack(2)">← 返回</button>
+            </div>
+          </div>
+
+          <!-- Step 4: 填分數評語 -->
+          <div id="tea-s4" style="display:none">
+            <div style="background:var(--cream);border-radius:var(--r);padding:10px 14px;margin-bottom:14px;font-size:13px" id="tea-wiz-info"></div>
+            <div class="fr" style="align-items:flex-end">
+              <div class="fg" style="max-width:130px"><label>平時成績（0–100）</label>
+                <input type="text" inputmode="decimal" id="tea-wiz-score" placeholder="輸入分數"
+                  onclick="openNP('tea-wiz-score','平時成績',v=>{document.getElementById('tea-wiz-score').value=v;})" readonly
+                  style="cursor:pointer;font-family:'DM Mono',monospace;font-size:22px;font-weight:700;color:var(--ink);text-align:center">
+              </div>
+              <div class="fg"><label>評語</label>
+                <textarea id="tea-wiz-comment" style="min-height:80px" placeholder="填寫評語..."></textarea>
+              </div>
+            </div>
+            <div class="bg" style="margin-top:12px">
+              <button class="btn btn-s btn-sm" onclick="teaWizBack(3)">← 返回</button>
+              <button class="btn btn-g btn-sm" onclick="teaWizSaveAndNext()">儲存並填下一位 →</button>
+              <button class="btn btn-p btn-sm" onclick="teaWizSubmitAll()">✓ 送出完成</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 總覽區（我的學生所有資料）── -->
+      <div id="tea-overview">
+        <div class="card" style="margin-bottom:14px">
+          <div class="card-t" style="display:flex;align-items:center;justify-content:space-between">
+            <span>我的學生評量總覽</span>
+            <div class="bg">
+              <div class="fg" style="margin:0;min-width:100px">
+                <select id="tea-class" onchange="renderTeaTable()" style="padding:4px 8px;border:1px solid var(--border);background:var(--paper);border-radius:var(--r);font-size:12px;outline:none"><option value="">全部班級</option></select>
+              </div>
+              <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">
+                已完成：<strong style="color:var(--sage)" id="tea-done-n">0</strong>/<span id="tea-total-n">0</span>
+              </span>
+            </div>
+          </div>
+          <div class="prog" style="margin-bottom:12px"><div class="prog-f" id="tea-prog" style="width:0%"></div></div>
+          <button class="btn btn-p btn-sm" style="margin-bottom:12px" onclick="teaWizStart()">＋ 填寫評量</button>
+          <div id="tea-overview-body"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Teacher Modal -->
+    <div class="overlay" id="tea-modal">
+      <div class="modal" style="width:620px">
+        <h2 class="modal-t">填寫評量 — <span id="tea-modal-name"></span></h2>
+        <div class="tabs" id="tea-modal-tabs"></div>
+        <div id="tea-modal-contents"></div>
+        <div class="modal-ft">
+          <button class="btn btn-s" onclick="closeOverlay('tea-modal')">取消</button>
+          <button class="btn btn-g" onclick="saveTeaComment()">✓ 儲存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ JURY MODULE ══ -->
+    <div class="pg" id="pg-jury">
+      <div class="ph"><h1>現場評分</h1><span>Live Jury Scoring</span></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">評審：</span>
+          <strong style="color:var(--gold);font-family:'DM Mono',monospace;font-size:12px" id="jury-name-disp">—</strong>
+          <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">｜考場：</span>
+          <span style="background:var(--ink);color:var(--paper);padding:2px 8px;border-radius:var(--r);font-family:'DM Mono',monospace;font-size:10px" id="jury-room-disp">—</span>
+        </div>
+        <div class="bg">
+          <button class="btn btn-b btn-sm" onclick="checkJuryBeforeSubmit()">✔ 填寫完畢確認</button>
+          <button class="btn btn-g btn-sm" onclick="submitJuryAll()">↑ 送出全部評分</button>
+        </div>
+      </div>
+      <div class="check-warn" id="jury-check-warn"></div>
+      <div style="overflow-x:auto">
+        <table class="jst" id="jury-table">
+          <thead>
+            <tr>
+              <th style="width:32px">序</th>
+              <th class="s-name-col" style="width:140px">學生</th>
+              <th style="width:44px">扣/缺<br>考</th>
+              <th style="width:64px;text-align:center">音階<br><span style="font-size:7px;opacity:.6">SCALE</span></th>
+              <th style="width:64px;text-align:center">指定分<br><span style="font-size:7px;opacity:.6">ASSIGNED</span></th>
+              <th style="width:160px;text-align:left;padding-left:8px">指定曲<br><span style="font-size:7px;opacity:.6">ASSIGNED PIECE</span></th>
+              <th style="width:64px;text-align:center">自選分<br><span style="font-size:7px;opacity:.6">FREE</span></th>
+              <th style="width:160px;text-align:left;padding-left:8px">自選曲<br><span style="font-size:7px;opacity:.6">FREE PIECE</span></th>
+              <th style="min-width:160px">評語</th>
+            </tr>
+          </thead>
+          <tbody id="jury-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══ SCHEDULE ══ -->
+    <div class="pg" id="pg-schedule">
+      <div class="ph"><h1>考試排程</h1><span>Exam Schedule</span></div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-t">篩選與排序設定</div>
+        <!-- 篩選列 -->
+        <div class="fr" style="margin-bottom:10px;flex-wrap:wrap;gap:10px;align-items:flex-end">
+          <div class="fg" style="min-width:110px"><label>考場</label>
+            <select id="sch-room" onchange="renderSchedule()"><option value="">全部考場</option></select>
+          </div>
+          <div class="fg" style="min-width:100px"><label>班級</label>
+            <select id="sch-class" onchange="renderSchedule()"><option value="">全部班級</option></select>
+          </div>
+          <div class="fg" style="min-width:100px"><label>類別</label>
+            <select id="sch-type" onchange="renderSchedule()">
+              <option value="">全部</option>
+              <option value="major">主修</option>
+              <option value="minor">副修</option>
+              <option value="elective">選修</option>
+            </select>
+          </div>
+        </div>
+        <!-- 排序列：每個欄位可選升/降序 -->
+        <div style="margin-bottom:10px">
+          <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:6px;text-transform:uppercase">排序優先順序（點擊切換升↑降↓，可拖曳排序後列表自行重排）</div>
+          <div id="sch-sort-keys" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"></div>
+        </div>
+        <!-- 操作列 -->
+        <div class="bg">
+          <button class="btn btn-p btn-sm" onclick="generateSchedule()">⚙ 自動排序</button>
+          <button class="btn btn-s btn-sm" onclick="schResetFilters()">↺ 重設</button>
+          <button class="btn btn-b btn-sm" onclick="exportScheduleCSV()">↓ 匯出 CSV</button>
+          <button class="btn btn-g btn-sm" onclick="publishSchedule()">📢 公告學生</button>
+          <span id="sch-count" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-left:4px"></span>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-t" style="display:flex;align-items:center;justify-content:space-between">
+          <span>⛔ 扣考名單</span>
+          <div class="bg">
+            <button class="btn btn-o btn-sm" onclick="importDisqCSV()">↑ 匯入 CSV</button>
+            <a class="btn btn-s btn-sm" href="#" onclick="downloadDisqSample(event)">↓ 範例檔</a>
+            <button class="btn btn-b btn-sm" onclick="exportDisqCSV()">↓ 匯出</button>
+          </div>
+        </div>
+        <p style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.7">
+          CSV 欄位：帳號,扣考原因,備註（備註可空白）。設為扣考的學生出場順序仍列出但標記為扣考，評審評分頁自動標示缺考。
+        </p>
+        <div id="disq-list"></div>
+      </div>
+      <div class="card"><div class="card-t">出場順序（可拖曳調整）</div><div id="sch-list"></div></div>
+    </div>
+
+    <!-- ══ ADMIN ══ -->
+    <div class="pg" id="pg-admin">
+      <div class="ph"><h1>管理員後台</h1><span>Administration</span></div>
+      <div class="g4" style="margin-bottom:20px">
+        <div class="sc"><div class="sn" id="stat-s">0</div><div class="sl">學生人數</div></div>
+        <div class="sc"><div class="sn" id="stat-r">0</div><div class="sl">已填報</div></div>
+        <div class="sc"><div class="sn" id="stat-t">0</div><div class="sl">教師人數</div></div>
+        <div class="sc"><div class="sn" style="color:var(--gold)" id="stat-avg">—</div><div class="sl">平均術科分</div></div>
+      </div>
+      <div class="tabs" id="admin-tabs">
+        <div class="tab on" onclick="swAdminTab('users',this)">人員管理</div>
+        <div class="tab" onclick="swAdminTab('instruments',this)">樂器設定</div>
+        <div class="tab" onclick="swAdminTab('rooms',this)">考場 / 班級</div>
+        <div class="tab" onclick="swAdminTab('timing',this)">時間控制</div>
+        <div class="tab" onclick="swAdminTab('scoring',this)">計分設定</div>
+        <div class="tab" onclick="swAdminTab('access',this)">分頁權限</div>
+        <div class="tab" onclick="swAdminTab('content',this)">內容設定</div>
+        <div class="tab" onclick="swAdminTab('danger',this)" style="color:var(--rust)">⚠ 資料清除</div>
+      </div>
+
+      <!-- Users Tab -->
+      <div class="tc on" id="at-users">
+        <div class="tabs" id="user-sub-tabs">
+          <div class="tab on" onclick="swUserTab('students',this)">學生名單</div>
+          <div class="tab" onclick="swUserTab('teachers',this)">教師名單</div>
+          <div class="tab" onclick="swUserTab('admins',this)">管理員名單</div>
+        </div>
+        <div class="tc on" id="ut-students">
+          <div class="bg" style="margin-bottom:12px">
+            <button class="btn btn-p btn-sm" onclick="showAddUser('student')">＋ 新增學生</button>
+            <button class="btn btn-s btn-sm" onclick="importCSV('student')">↑ 匯入 CSV</button>
+            <a class="btn btn-s btn-sm" href="#" onclick="downloadSample(event,'student')">↓ 範例檔</a>
+            <select id="admin-class-filter" onchange="renderAdminStudents()" style="padding:4px 9px;border:1px solid var(--border);background:var(--paper);border-radius:var(--r);font-size:12px;outline:none">
+              <option value="">全部班級</option>
+            </select>
+          </div>
+          <div class="tw"><table>
+            <thead><tr><th>班級</th><th>座號</th><th>姓名</th><th>主修</th><th>副修</th><th>選修</th><th>填報</th><th>評量</th><th>操作</th></tr></thead>
+            <tbody id="admin-stu-tbody"></tbody>
+          </table></div>
+        </div>
+        <div class="tc" id="ut-teachers">
+          <div class="bg" style="margin-bottom:12px">
+            <button class="btn btn-p btn-sm" onclick="showAddUser('teacher')">＋ 新增教師</button>
+            <button class="btn btn-s btn-sm" onclick="importCSV('teacher')">↑ 匯入 CSV</button>
+            <a class="btn btn-s btn-sm" href="#" onclick="downloadSample(event,'teacher')">↓ 範例檔</a>
+          </div>
+          <div class="tw"><table>
+            <thead><tr><th>姓名</th><th>帳號</th><th>負責學生</th><th>操作</th></tr></thead>
+            <tbody id="admin-tea-tbody"></tbody>
+          </table></div>
+        </div>
+        <div class="tc" id="ut-admins">
+          <div class="bg" style="margin-bottom:12px"><button class="btn btn-p btn-sm" onclick="showAddUser('admin')">＋ 新增管理員</button></div>
+          <div class="tw"><table>
+            <thead><tr><th>姓名</th><th>帳號</th><th>操作</th></tr></thead>
+            <tbody id="admin-adm-tbody"></tbody>
+          </table></div>
+        </div>
+      </div>
+
+      <!-- Instruments Tab -->
+      <div class="tc" id="at-instruments">
+        <div class="g2">
+          <div class="card">
+            <div class="card-t">樂器大項（拖曳排序）</div>
+            <div class="bg" style="margin-bottom:10px"><button class="btn btn-p btn-sm" onclick="addCategory()">＋ 新增大項</button></div>
+            <div id="cat-list"></div>
+          </div>
+          <div class="card">
+            <div class="card-t">細項樂器（拖曳排序）</div>
+            <div class="bg" style="margin-bottom:10px">
+              <select id="inst-cat-sel" onchange="renderInstList()" style="padding:6px 10px;border:1px solid var(--border);background:var(--paper);border-radius:var(--r);font-size:13px;outline:none"><option value="">選擇大項</option></select>
+              <button class="btn btn-p btn-sm" onclick="addInstrument()">＋ 新增樂器</button>
+            </div>
+            <div id="inst-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rooms & Classes Tab -->
+      <div class="tc" id="at-rooms">
+        <div class="g2">
+          <div class="card">
+            <div class="card-t">考場管理</div>
+            <div class="bg" style="margin-bottom:12px"><button class="btn btn-p btn-sm" onclick="addRoom()">＋ 新增考場</button></div>
+            <div class="tw"><table>
+              <thead><tr><th>考場名稱</th><th>評審代碼</th><th>操作</th></tr></thead>
+              <tbody id="rooms-tbody"></tbody>
+            </table></div>
+          </div>
+          <div class="card">
+            <div class="card-t">班級管理（拖曳排序）</div>
+            <div class="bg" style="margin-bottom:12px"><button class="btn btn-p btn-sm" onclick="addClass()">＋ 新增班級</button></div>
+            <div id="class-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timing Tab -->
+      <div class="tc" id="at-timing">
+        <div class="g2">
+          <div class="card"><div class="card-t">分頁開放時間</div><div id="timing-body"></div><button class="btn btn-p" style="margin-top:10px" onclick="saveTiming()">儲存</button></div>
+          <div class="card"><div class="card-t">公告文字</div><div id="announce-body"></div></div>
+        </div>
+      </div>
+
+      <!-- Scoring Tab -->
+      <div class="tc" id="at-scoring">
+        <div class="g2">
+          <div class="card">
+            <div class="card-t">加權比例（三項合計須 = 100%）</div>
+            <div class="fr">
+              <div class="fg"><label>音階/視奏 %</label><input type="number" id="w-scale" value="20" min="0" max="100"></div>
+              <div class="fg"><label>指定曲 %</label><input type="number" id="w-assigned" value="40" min="0" max="100"></div>
+              <div class="fg"><label>自選曲 %</label><input type="number" id="w-free" value="40" min="0" max="100"></div>
+            </div>
+            <button class="btn btn-p" onclick="saveWeights()">儲存權重</button>
+          </div>
+          <div class="card">
+            <div class="card-t">去頭去尾規則（各項目分別套用）</div>
+            <p style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:10px">音階、指定曲、自選曲三項各自套用此規則</p>
+            <div id="trim-list"></div>
+            <button class="btn btn-s btn-sm" style="margin-top:8px" onclick="addTrim()">＋ 新增規則</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Access Control Tab -->
+      <div class="tc" id="at-access">
+        <div class="card">
+          <div class="card-t">學生可見分頁</div>
+          <div id="access-student"></div>
+        </div>
+        <div class="card">
+          <div class="card-t">教師可見分頁</div>
+          <div id="access-teacher"></div>
+        </div>
+      </div>
+
+      <!-- Content Tab -->
+      <div class="tc" id="at-content">
+        <div class="g2">
+          <div class="card">
+            <div class="card-t">曲目填報示範說明</div>
+            <div class="fg"><label>顯示於學生填報頁</label><textarea id="rep-hint-txt" style="min-height:80px">💡 示範寫法：作曲家 → Mozart, W.A. ／ 曲目 → Concerto in D major, K. 314, 1st mvt.</textarea></div>
+            <button class="btn btn-p" style="margin-top:8px" onclick="saveRepHint()">儲存</button>
+          </div>
+          <div class="card">
+            <div class="card-t">評審送出感謝文字</div>
+            <div class="fg" style="margin-bottom:10px"><label>標題</label><input id="ty-title-inp" type="text" value="感謝您的評分"></div>
+            <div class="fg"><label>正文</label><textarea id="ty-body-inp" style="min-height:80px">感謝老師本學期的辛苦指導與細心評分，您的專業意見將是學生最珍貴的回饋。</textarea></div>
+            <button class="btn btn-p" style="margin-top:8px" onclick="saveTyText()">儲存</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Danger Tab -->
+      <div class="tc" id="at-danger">
+        <div class="card" style="border-color:var(--rust)">
+          <div class="card-t" style="color:var(--rust)">⚠ 危險操作 — 清除考試資料</div>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:18px;line-height:1.8">以下操作不可復原，請謹慎使用。</p>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border:1px solid var(--border);border-radius:var(--r)">
+              <div><div style="font-size:14px;font-weight:600;margin-bottom:3px">清除學生曲目填報</div><div style="font-size:12px;color:var(--muted)">清除所有學生的主/副/選修曲目資料</div></div>
+              <button class="btn btn-d btn-sm" onclick="clearData('rep')">清除</button>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border:1px solid var(--border);border-radius:var(--r)">
+              <div><div style="font-size:14px;font-weight:600;margin-bottom:3px">清除教師平時成績</div><div style="font-size:12px;color:var(--muted)">清除所有教師填寫的平時成績與評語</div></div>
+              <button class="btn btn-d btn-sm" onclick="clearData('teacher')">清除</button>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border:1px solid var(--border);border-radius:var(--r)">
+              <div><div style="font-size:14px;font-weight:600;margin-bottom:3px">清除考試成績與評語</div><div style="font-size:12px;color:var(--muted)">清除所有評審打的術科成績與評語</div></div>
+              <button class="btn btn-d btn-sm" onclick="clearData('jury')">清除</button>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border:2px solid var(--rust);border-radius:var(--r);background:#fff5f5">
+              <div><div style="font-size:14px;font-weight:600;color:var(--rust);margin-bottom:3px">清除全部考試資料</div><div style="font-size:12px;color:var(--muted)">包含以上三項，一次全部清除</div></div>
+              <button class="btn btn-d btn-sm" onclick="clearData('all')">全部清除</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ RESULTS (術科成績) ══ -->
+    <div class="pg" id="pg-results">
+      <div class="ph"><h1>術科成績</h1><span>Score Results</span></div>
+      <div class="room-bar">
+        <label>考場</label>
+        <select id="result-room" onchange="renderResults()"><option value="">選擇考場</option></select>
+        <button class="btn btn-b btn-sm" onclick="exportResultsCSV()">↓ 匯出 CSV</button>
+      </div>
+      <div id="results-body"></div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app -->
+<script>
+(function(){
+'use strict';
+
+function __init__(){
+// ════════════════════════════════════════════════
+// DATA
+// ════════════════════════════════════════════════
+const DB = {
+  classes: ['甲班','乙班','丙班'],
+  instruments: {
+    categories: [
+      {id:'ww',name:'木管樂器',order:0},{id:'br',name:'銅管樂器',order:1},
+      {id:'kb',name:'鍵盤樂器',order:2},{id:'st',name:'弦樂器',order:3},{id:'pc',name:'打擊樂器',order:4},
+    ],
+    items: [
+      {id:'flute',cat:'ww',name:'長笛',order:0},{id:'oboe',cat:'ww',name:'雙簧管',order:1},
+      {id:'clarinet',cat:'ww',name:'單簧管',order:2},{id:'bassoon',cat:'ww',name:'低音管',order:3},
+      {id:'sax',cat:'ww',name:'薩克斯風',order:4},{id:'trumpet',cat:'br',name:'小號',order:0},
+      {id:'trombone',cat:'br',name:'長號',order:1},{id:'horn',cat:'br',name:'法國號',order:2},
+      {id:'tuba',cat:'br',name:'大號',order:3},{id:'piano',cat:'kb',name:'鋼琴',order:0},
+      {id:'organ',cat:'kb',name:'管風琴',order:1},{id:'violin',cat:'st',name:'小提琴',order:0},
+      {id:'viola',cat:'st',name:'中提琴',order:1},{id:'cello',cat:'st',name:'大提琴',order:2},
+      {id:'bass',cat:'st',name:'低音提琴',order:3},{id:'marimba',cat:'pc',name:'木琴',order:0},
+      {id:'timpani',cat:'pc',name:'定音鼓',order:1},
+    ]
+  },
+  rooms: [
+    {id:'r1',name:'木管考場',code:'WW2024',cats:['ww']},
+    {id:'r2',name:'銅管考場',code:'BR2024',cats:['br']},
+    {id:'r3',name:'鍵盤弦樂考場',code:'KB2024',cats:['kb','st','pc']},
+  ],
+  users: [
+    {id:'a001',name:'王國霖',account:'admin',pass:'000',role:'admin'},
+    {id:'t001',name:'李老師',account:'teacher01',pass:'000',role:'teacher'},
+    {id:'t002',name:'張老師',account:'teacher02',pass:'000',role:'teacher'},
+    {id:'s001',name:'陳雅婷',account:'s001',pass:'000',role:'student',class:'甲班',seat:1,
+      major:'flute',minor:'piano',elective:null,
+      major_ac:'Mozart, W.A.',major_at:'Concerto in D major, K.314, 1st mvt.',
+      major_fc:'Ibert, J.',major_ft:'Pièce pour flûte seule',
+      minor_ac:'Chopin, F.',minor_at:'Nocturne Op.9 No.2',
+      minor_fc:'Debussy, C.',minor_ft:'Clair de lune',
+      repDone:true,teaDone:true},
+    {id:'s002',name:'林宗翰',account:'s002',pass:'000',role:'student',class:'甲班',seat:2,
+      major:'clarinet',minor:null,elective:'violin',
+      major_ac:'Weber, C.M.',major_at:'Concerto No.1 Op.73',
+      major_fc:'Brahms, J.',major_ft:'Sonata Op.120 No.1, 1st mvt.',
+      elec_ac:'Bach, J.S.',elec_at:'Partita No.2 BWV 1004',
+      elec_fc:'Bartók, B.',elec_ft:'Romanian Folk Dances',
+      repDone:true,teaDone:true},
+    {id:'s003',name:'黃詩涵',account:'s003',pass:'000',role:'student',class:'甲班',seat:3,
+      major:'violin',minor:'piano',elective:null,
+      major_ac:'Mendelssohn, F.',major_at:'Violin Concerto Op.64, 1st mvt.',
+      major_fc:'Bach, J.S.',major_ft:'Partita No.3 BWV 1006',
+      minor_ac:'Beethoven, L.',minor_at:'Sonata Op.27 No.2, 1st mvt.',
+      minor_fc:'Schubert, F.',minor_ft:'Impromptu Op.90 No.3',
+      repDone:false,teaDone:false},
+    {id:'s004',name:'王建志',account:'s004',pass:'000',role:'student',class:'乙班',seat:1,
+      major:'trumpet',minor:null,elective:null,
+      major_ac:'Haydn, F.J.',major_at:'Trumpet Concerto in E♭, 3rd mvt.',
+      major_fc:'Arutunian, A.',major_ft:'Trumpet Concerto in A♭',
+      repDone:true,teaDone:true},
+    {id:'s005',name:'李佳穎',account:'s005',pass:'000',role:'student',class:'乙班',seat:2,
+      major:'piano',minor:'flute',elective:'clarinet',
+      major_ac:'Beethoven, L.',major_at:'Sonata Op.2 No.1, 1st mvt.',
+      major_fc:'Rachmaninoff, S.',major_ft:'Prelude Op.23 No.5',
+      minor_ac:'Mozart, W.A.',minor_at:'Andante in C major K.315',
+      minor_fc:'Doppler, F.',minor_ft:'Fantaisie pastorale hongroise',
+      elec_ac:'Weber, C.M.',elec_at:'Concertino Op.26',
+      elec_fc:'Saint-Saëns, C.',elec_ft:'Sonata Op.167, 1st mvt.',
+      repDone:true,teaDone:false},
+    {id:'s006',name:'張明哲',account:'s006',pass:'000',role:'student',class:'丙班',seat:1,
+      major:'cello',minor:'piano',elective:null,
+      major_ac:'Dvorak, A.',major_at:'Cello Concerto Op.104, 1st mvt.',
+      major_fc:'Bach, J.S.',major_ft:'Suite No.1 BWV 1007',
+      minor_ac:'Ravel, M.',minor_at:"Jeux d'eau",
+      minor_fc:'Liszt, F.',minor_ft:'Liebestraum No.3',
+      repDone:true,teaDone:true},
+  ],
+  juryScores: {}, // {roomId: {entryKey: {jurorId: {scale,assigned,free,comment,absent}}}}
+  teacherComments: {}, // {studentId: {major/minor/elective: {score,comment}}}
+  teacherStudents: {'t001':['s001','s002','s003'],'t002':['s004','s005','s006']}, // {teacherId: [studentId]}
+  deductions: {}, // {entryKey: {amount, reason}}
+  disqualified: {}, // {entryKey: {reason, note}} - 扣考名單
+  config: {
+    repHint:'💡 示範寫法：作曲家 → Mozart, W.A. ／ 曲目 → Concerto in D major, K. 314, 1st mvt.',
+    tyTitle:'感謝您的評分',
+    tyText:'感謝老師本學期的辛苦指導與細心評分，您的專業意見將是學生最珍貴的回饋。',
+    weights:{scale:0.2,assigned:0.4,free:0.4},
+    trimRules:[
+      {id:1,minJ:0,maxJ:3,trimH:0,trimT:0},
+      {id:2,minJ:4,maxJ:5,trimH:0,trimT:1},
+      {id:3,minJ:6,maxJ:99,trimH:1,trimT:1},
+    ],
+    pages:{
+      rep:{open:'2024-01-01T08:00',close:'2024-12-31T23:59',visible:true,announce:''},
+      scores:{open:'2024-01-01T08:00',close:'2024-12-31T23:59',visible:true,announce:''},
+      jury:{open:'2024-01-01T08:00',close:'2024-12-31T23:59',visible:true,announce:''},
+      teacher:{open:'2024-01-01T08:00',close:'2024-12-31T23:59',visible:true,announce:''},
+      schedule:{open:'2024-01-01T08:00',close:'2024-12-31T23:59',visible:true,announce:''},
+    },
+    // access control per role: {pageId: true/false}
+    studentAccess:{rep:true,scores:true,'stu-schedule':true},
+    teacherAccess:{teacher:true},
+  }
+};
+
+window.DB = DB; // expose to Firebase callbacks
+const ST = {user:null,role:null,juryRoom:null,juryName:'',juryId:'',
+  npTarget:null,npVal:'',npCallback:null,isOnline:navigator.onLine};
+
+// Seed some jury scores for demo
+DB.juryScores['r1'] = {
+  's001_major': {
+    'J001':{scale:88,assigned:90,free:87,comment:'音色圓潤，音準穩定。',absent:false},
+    'J002':{scale:85,assigned:86,free:88,comment:'指定曲詮釋細膩。',absent:false},
+    'J003':{scale:92,assigned:91,free:93,comment:'自選曲展現良好的掌控力。',absent:false},
+    'J004':{scale:78,assigned:82,free:80,comment:'換氣需更自然。',absent:false},
+  },
+  's002_major': {
+    'J001':{scale:82,assigned:85,free:83,comment:'音色溫暖，指法清晰。',absent:false},
+    'J002':{scale:80,assigned:83,free:81,comment:'音色清晰，節奏穩定。',absent:false},
+    'J003':{scale:88,assigned:87,free:89,comment:'整體表現優秀。',absent:false},
+  },
+};
+
+// ════════════════════════════════════════════════
+// HELPERS
+// ════════════════════════════════════════════════
+const iname = id => DB.instruments.items.find(i=>i.id===id)?.name||'—';
+const cname = id => DB.instruments.categories.find(c=>c.id===id)?.name||'';
+const students = () => DB.users.filter(u=>u.role==='student');
+const teachers = () => DB.users.filter(u=>u.role==='teacher');
+const admins = () => DB.users.filter(u=>u.role==='admin');
+const typeName = t=>({major:'主修',minor:'副修',elective:'選修'}[t]||'');
+const typeBadge = t=>`<span class="badge b-${t}">${typeName(t)}</span>`;
+const scoreClass = v => (v!==null && v!==undefined && v!=='' && parseFloat(v)<60) ? 'red-score' : '';
+const fmtScore = v => {
+  if(v===null||v===undefined||v==='') return '—';
+  const n = parseFloat(v);
+  const cls = n < 60 ? ' class="red-score"' : '';
+  return `<span${cls}>${n.toFixed(1)}</span>`;
+};
+
+// ════════════════════════════════════════════════
+// LOGIN
+// ════════════════════════════════════════════════
+function doLogin(){
+  const acc=document.getElementById('l-user').value.trim();
+  const pass=document.getElementById('l-pass').value.trim()||'000';
+  const u=DB.users.find(u=>u.account===acc&&u.pass===pass);
+  if(!u){document.getElementById('l-err').textContent='帳號或密碼錯誤';return;}
+  ST.user=u;ST.role=u.role;launchApp();
+}
+window.doLogin=doLogin;
+// Event listeners wrapped safely
+(function(){
+  function attachListeners(){
+    var lp=document.getElementById('l-pass');
+    var lu=document.getElementById('l-user');
+    var jc=document.getElementById('l-jury-code');
+    if(lp) lp.addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});
+    if(lu) lu.addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});
+    if(jc) jc.addEventListener('keydown',function(e){if(e.key==='Enter')doJuryDirectLogin();});
+    // overlay click-to-close
+    document.querySelectorAll('.overlay').forEach(function(o){
+      o.addEventListener('click',function(e){if(e.target===o)o.classList.remove('on');});
+    });
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',attachListeners);
+  } else {
+    attachListeners();
+  }
+})();
+
+function doJuryDirectLogin(){
+  const code=document.getElementById('l-jury-code').value.trim().toUpperCase();
+  if(!code){document.getElementById('l-err').textContent='請輸入評審代碼';return;}
+  const room=DB.rooms.find(r=>r.code===code||r.code===document.getElementById('l-jury-code').value.trim());
+  if(!room){document.getElementById('l-err').textContent='代碼錯誤，請重新輸入';return;}
+  ST.juryRoom=room;
+  document.getElementById('l-err').textContent='';
+  document.getElementById('jn-name').value='';
+  openOverlay('jury-name-modal');
+  setTimeout(()=>document.getElementById('jn-name').focus(),200);
+}
+window.doJuryDirectLogin=doJuryDirectLogin;
+
+function doJuryLogin(){
+  const name=document.getElementById('jn-name').value.trim();
+  if(!name){showToast('請填入姓名','err');return;}
+  ST.juryName=name;
+  ST.juryId='J_'+Date.now();
+  ST.role='jury';
+  ST.user={id:ST.juryId,name,role:'jury'};
+  closeOverlay('jury-name-modal');
+  launchApp();
+}
+window.doJuryLogin=doJuryLogin;
+
+function doLogout(){
+  ST.user=null;ST.role=null;ST.juryRoom=null;ST.juryName='';
+  document.getElementById('app').classList.remove('on');
+  document.getElementById('login-screen').classList.remove('gone');
+  document.getElementById('l-user').value='';
+  document.getElementById('l-pass').value='';
+  document.getElementById('l-jury-code').value='';
+  document.getElementById('l-err').textContent='';
+}
+
+function openChPwd(){
+  if(!ST.user||ST.role==='jury'){showToast('評審帳號無需密碼','warn');return;}
+  document.getElementById('chpwd-old').value='';
+  document.getElementById('chpwd-new').value='';
+  document.getElementById('chpwd-confirm').value='';
+  document.getElementById('chpwd-err').textContent='';
+  openOverlay('chpwd-modal');
+  setTimeout(()=>document.getElementById('chpwd-old').focus(),200);
+}
+window.openChPwd=openChPwd;
+
+function doChangePassword(){
+  const oldVal=document.getElementById('chpwd-old').value;
+  const newVal=document.getElementById('chpwd-new').value;
+  const cfmVal=document.getElementById('chpwd-confirm').value;
+  const errEl=document.getElementById('chpwd-err');
+  if(!ST.user){errEl.textContent='請先登入';return;}
+  if(oldVal!==ST.user.pass){errEl.textContent='舊密碼錯誤';return;}
+  if(!newVal){errEl.textContent='新密碼不可為空';return;}
+  if(newVal!==cfmVal){errEl.textContent='兩次密碼不一致';return;}
+  ST.user.pass=newVal;
+  fbSet('users',ST.user.id,{pass:newVal});
+  closeOverlay('chpwd-modal');
+  showToast('密碼已更新 ✓','ok');
+}
+window.doChangePassword=doChangePassword;
+
+
+// ════ Firebase 共用 helper ════
+function fbSet(col, docId, data){
+  if(!window._FB)return;
+  const {db,serverTimestamp}=window._FB;
+  // ★ 等 Auth 就緒後再寫入，確保安全規則通過
+  (window._fbAuthReady||Promise.resolve()).then(()=>{
+    db.collection(col).doc(docId)
+      .set({...data, _updatedAt:serverTimestamp()},{merge:true})
+      .catch(e=>console.warn('[FB write]',col,docId,e));
+  });
+}
+function fbDelete(col, docId){
+  if(!window._FB)return;
+  const {db}=window._FB;
+  (window._fbAuthReady||Promise.resolve()).then(()=>{
+    db.collection(col).doc(docId).delete()
+      .catch(e=>console.warn('[FB delete]',col,docId,e));
+  });
+}
+function fbLoad(col, cb){
+  if(!window._FB){cb([]);return;}
+  const {db}=window._FB;
+  // ★ 等 Auth 就緒後再讀取，確保安全規則通過
+  (window._fbAuthReady||Promise.resolve()).then(()=>{
+    db.collection(col).get()
+      .then(snap=>{const docs=[];snap.forEach(d=>docs.push({id:d.id,...d.data()}));cb(docs);})
+      .catch(e=>{console.warn('[FB load]',col,e);cb([]);});
+  });
+}
+
+// ════ 啟動時從 Firebase 讀回所有資料 ════
+function loadAllFromFirebase(done){
+  if(!window._FB){done();return;}
+  let pending=0;
+  function tick(){pending--;if(pending<=0)done();}
+
+  // — users —
+  pending++;
+  fbLoad('users',docs=>{
+    if(docs.length){
+      // 用 Firebase 資料覆蓋，但保留程式碼裡沒有的欄位
+      docs.forEach(fd=>{
+        const local=DB.users.find(u=>u.id===fd.id);
+        if(local){Object.assign(local,fd);}
+        else{DB.users.push(fd);}
+      });
+    } else {
+      // 第一次：把預設 users 全部寫進 Firebase
+      DB.users.forEach(u=>fbSet('users',u.id,u));
+    }
+    tick();
+  });
+
+  // — config —
+  pending++;
+  fbLoad('config',docs=>{
+    const cfg=docs.find(d=>d.id==='main');
+    if(cfg){
+      const {id,_updatedAt,...rest}=cfg;
+      // 深度合併
+      if(rest.weights)DB.config.weights=rest.weights;
+      if(rest.trimRules)DB.config.trimRules=rest.trimRules;
+      if(rest.pages)Object.assign(DB.config.pages,rest.pages);
+      if(rest.studentAccess)Object.assign(DB.config.studentAccess,rest.studentAccess);
+      if(rest.teacherAccess)Object.assign(DB.config.teacherAccess,rest.teacherAccess);
+      if(rest.repHint)DB.config.repHint=rest.repHint;
+      if(rest.tyTitle)DB.config.tyTitle=rest.tyTitle;
+      if(rest.tyText)DB.config.tyText=rest.tyText;
+    } else {
+      fbSet('config','main',{
+        weights:DB.config.weights,trimRules:DB.config.trimRules,
+        pages:DB.config.pages,studentAccess:DB.config.studentAccess,
+        teacherAccess:DB.config.teacherAccess,
+        repHint:DB.config.repHint,tyTitle:DB.config.tyTitle,tyText:DB.config.tyText,
+      });
+    }
+    tick();
+  });
+
+  // — rooms —
+  pending++;
+  fbLoad('rooms',docs=>{
+    if(docs.length){
+      DB.rooms.length=0;
+      docs.sort((a,b)=>(a._order||0)-(b._order||0));
+      docs.forEach(d=>{const{id,_updatedAt,_order,...r}=d;DB.rooms.push({id,...r});});
+    } else {
+      DB.rooms.forEach((r,i)=>fbSet('rooms',r.id,{...r,_order:i}));
+    }
+    tick();
+  });
+
+  // — classes —
+  pending++;
+  fbLoad('classes',docs=>{
+    if(docs.length){
+      const cfg=docs.find(d=>d.id==='main');
+      if(cfg&&cfg.list)DB.classes.splice(0,DB.classes.length,...cfg.list);
+    } else {
+      fbSet('classes','main',{list:DB.classes});
+    }
+    tick();
+  });
+
+  // — instruments —
+  pending++;
+  fbLoad('instruments',docs=>{
+    if(docs.length){
+      const cats=docs.find(d=>d.id==='categories');
+      const items=docs.find(d=>d.id==='items');
+      if(cats&&cats.list)DB.instruments.categories=cats.list;
+      if(items&&items.list)DB.instruments.items=items.list;
+    } else {
+      fbSet('instruments','categories',{list:DB.instruments.categories});
+      fbSet('instruments','items',{list:DB.instruments.items});
+    }
+    tick();
+  });
+
+  // — teacherStudents —
+  pending++;
+  fbLoad('teacherStudents',docs=>{
+    if(docs.length){
+      docs.forEach(d=>{if(d.id&&d.list)DB.teacherStudents[d.id]=d.list;});
+    } else {
+      Object.entries(DB.teacherStudents).forEach(([tid,list])=>fbSet('teacherStudents',tid,{list}));
+    }
+    tick();
+  });
+
+  // — disqualified —
+  pending++;
+  fbLoad('disqualified',docs=>{
+    if(docs.length){
+      docs.forEach(d=>{const{id,_updatedAt,...rest}=d;DB.disqualified[id]=rest;});
+    }
+    tick();
+  });
+
+  // — teacherComments —
+  pending++;
+  fbLoad('teacherComments',docs=>{
+    if(docs.length){
+      docs.forEach(d=>{const{id,_updatedAt,...rest}=d;DB.teacherComments[id]=rest;});
+    }
+    tick();
+  });
+
+  // — students repDone/teaDone/曲目 (stored in users collection above) —
+  // 已由 users 讀回，不重複讀
+
+  // — deductions —
+  pending++;
+  fbLoad('deductions',docs=>{
+    if(docs.length){
+      docs.forEach(d=>{const{id,_updatedAt,...rest}=d;DB.deductions[id]=rest;});
+    }
+    tick();
+  });
+
+  // — juryScores (即時監聽，非一次性讀取) —
+  // 由 Firebase SDK 初始化區塊的 onSnapshot 處理
+  // 但啟動時先做一次完整讀取確保資料同步
+  pending++;
+  (function(){
+    if(!window._FB){tick();return;}
+    const db=window._FB.db;
+    // ★ 等 Auth 就緒後再讀取 juryScores
+    (window._fbAuthReady||Promise.resolve()).then(()=>{
+    db.collection('juryScores').get().then(roomSnap=>{
+      let roomCount=roomSnap.size;
+      if(roomCount===0){tick();return;}
+      roomSnap.forEach(roomDoc=>{
+        db.collection('juryScores').doc(roomDoc.id)
+          .collection('entries').get().then(entrySnap=>{
+            entrySnap.forEach(entryDoc=>{
+              const roomId=roomDoc.id;
+              const entryKey=entryDoc.id;
+              if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
+              const raw=entryDoc.data();
+              const jurors={};
+              Object.keys(raw).forEach(k=>{if(!k.startsWith('_'))jurors[k]=raw[k];});
+              DB.juryScores[roomId][entryKey]=jurors;
+            });
+            roomCount--;
+            if(roomCount<=0)tick();
+          }).catch(()=>{roomCount--;if(roomCount<=0)tick();});
+      });
+    }).catch(()=>tick());
+    }); // end authReady.then
+  })();
+}
+
+function launchApp(){
+  document.getElementById('login-screen').classList.add('gone');
+  document.getElementById('app').classList.add('on');
+  document.getElementById('role-pill').textContent={admin:'管理員',teacher:'教師',student:'學生',jury:'評審'}[ST.role]||'';
+  document.getElementById('tb-uname').textContent=ST.user.name;
+  // 顯示載入提示
+  const loadEl=document.createElement('div');
+  loadEl.id='fb-loading';
+  loadEl.style.cssText='position:fixed;inset:0;background:rgba(24,21,15,.55);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px';
+  loadEl.innerHTML='<div style="font-family:\'DM Mono\',monospace;font-size:13px;color:var(--gold);letter-spacing:3px">載入資料中...</div><div style="width:120px;height:3px;background:var(--border);border-radius:3px"><div id="fb-bar" style="height:100%;width:0%;background:var(--gold);border-radius:3px;transition:width .4s"></div></div>';
+  document.body.appendChild(loadEl);
+  const bar=document.getElementById('fb-bar');
+  let prog=0;const progTimer=setInterval(()=>{prog=Math.min(prog+8,88);if(bar)bar.style.width=prog+'%';},120);
+  // ★ 等匿名 Auth 完成後再讀 Firestore，確保安全規則 request.auth != null 成立
+  const authWait = window._fbAuthReady || Promise.resolve(null);
+  authWait.then(()=>{
+    loadAllFromFirebase(()=>{
+      clearInterval(progTimer);if(bar)bar.style.width='100%';
+      setTimeout(()=>{loadEl.remove();buildNav();initDropdowns();renderAll();setTimeout(navFirst,80);if(window._startJuryListener)window._startJuryListener();},300);
+    });
+  });
+}
+
+// ════════════════════════════════════════════════
+// NAV
+// ════════════════════════════════════════════════
+const NAV_MAP = {
+  student:[
+    {label:'曲目填寫',page:'rep'},
+    {label:'成績查閱',page:'scores'},
+    {label:'考試順序',page:'stu-schedule'},
+  ],
+  teacher:[{label:'平時評量',page:'teacher'}],
+  jury:[{label:'現場評分',page:'jury'}],
+  admin:[
+    {label:'管理後台',page:'admin'},
+    {label:'考試排程',page:'schedule'},
+    {label:'術科成績',page:'results'},
+    {label:'平時評量',page:'teacher'},
+    {label:'現場評分',page:'jury'},
+  ],
+};
+
+function buildNav(){
+  const nav=document.getElementById('tb-nav');
+  nav.innerHTML='';
+  // Apply access control for student/teacher
+  let items=(NAV_MAP[ST.role]||[]);
+  if(ST.role==='student'){
+    items=items.filter(item=>{
+      const acc=DB.config.studentAccess;
+      return acc[item.page]!==false;
+    });
+  }
+  if(ST.role==='teacher'){
+    items=items.filter(item=>{
+      const acc=DB.config.teacherAccess;
+      return acc[item.page]!==false;
+    });
+  }
+  items.forEach((item,i)=>{
+    const b=document.createElement('button');
+    b.className='nb';b.textContent=item.label;b.dataset.page=item.page;
+    b.onclick=()=>{nav.querySelectorAll('.nb').forEach(x=>x.classList.remove('on'));b.classList.add('on');showPage(item.page);};
+    nav.appendChild(b);
+  });
+}
+
+function navFirst(){const f=document.querySelector('.nb');if(f)f.click();}
+function showPage(id){document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));document.getElementById('pg-'+id)?.classList.add('on');}
+
+// ════════════════════════════════════════════════
+// DROPDOWNS INIT
+// ════════════════════════════════════════════════
+function initDropdowns(){
+  // Rep instrument selects
+  ['major','minor','elective'].forEach(t=>{
+    const s=document.getElementById('r-'+t+'-cat');if(!s)return;
+    while(s.options.length>1)s.remove(1);
+    DB.instruments.categories.sort((a,b)=>a.order-b.order).forEach(c=>s.appendChild(new Option(c.name,c.id)));
+  });
+  // minor cat
+  const mc=document.getElementById('r-minor-cat');
+  if(mc){while(mc.options.length>1)mc.remove(1);DB.instruments.categories.forEach(c=>mc.appendChild(new Option(c.name,c.id)));}
+  // Lookup
+  const li=document.getElementById('lookup-inst');
+  if(li){li.innerHTML='<option value="">全部樂器</option>';DB.instruments.items.forEach(i=>li.appendChild(new Option(i.name,i.id)));}
+  const lr=document.getElementById('lookup-room');
+  if(lr){lr.innerHTML='<option value="">全部考場</option>';DB.rooms.forEach(r=>lr.appendChild(new Option(r.name,r.id)));}
+  // Teacher class
+  const tc=document.getElementById('tea-class');
+  if(tc){const _v=tc.value;while(tc.options.length>1)tc.remove(1);DB.classes.forEach(c=>tc.appendChild(new Option(c,c)));tc.value=_v;}
+  // Admin class filter
+  const acf=document.getElementById('admin-class-filter');
+  if(acf){const _v=acf.value;while(acf.options.length>1)acf.remove(1);DB.classes.forEach(c=>acf.appendChild(new Option(c,c)));acf.value=_v;renderAdminStudents();}
+  // Room selects
+  ['sch-room','result-room'].forEach(id=>{
+    const s=document.getElementById(id);
+    if(s){s.innerHTML='<option value="">選擇考場</option>';DB.rooms.forEach(r=>s.appendChild(new Option(r.name,r.id)));}
+  });
+  // Schedule class filter
+  const schCls=document.getElementById('sch-class');
+  if(schCls){schCls.innerHTML='<option value="">全部班級</option>';DB.classes.forEach(c=>schCls.appendChild(new Option(c,c)));}
+  // Inst cat sel
+  const ics=document.getElementById('inst-cat-sel');
+  if(ics){ics.innerHTML='<option value="">選擇大項</option>';DB.instruments.categories.forEach(c=>ics.appendChild(new Option(c.name,c.id)));}
+  // Jury room/name display
+  if(ST.role==='jury'&&ST.juryRoom){
+    document.getElementById('jury-room-disp').textContent=ST.juryRoom.name;
+    document.getElementById('jury-name-disp').textContent=ST.juryName;
+  }
+}
+
+function filterRepInst(type){
+  const catId=document.getElementById('r-'+type+'-cat').value;
+  const sel=document.getElementById('r-'+type+'-inst');
+  sel.innerHTML='';sel.appendChild(new Option('— 請選 —',''));
+  if(catId)DB.instruments.items.filter(i=>i.cat===catId).sort((a,b)=>a.order-b.order).forEach(i=>sel.appendChild(new Option(i.name,i.id)));
+  if(type==='minor')document.getElementById('r-minor-rep').style.display=catId?'block':'none';
+}
+
+function toggleElective(){
+  const on=document.getElementById('r-elec-tog').checked;
+  document.getElementById('r-elec-area').style.display=on?'block':'none';
+  if(!on){['r-elec-cat','r-elec-inst'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+    ['r-elec-ac','r-elec-at','r-elec-fc','r-elec-ft'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});}
+}
+
+// ════════════════════════════════════════════════
+// RENDER ALL
+// ════════════════════════════════════════════════
+function renderAll(){
+  renderRepPage();renderRepHint();renderTeaTable();renderAdminStudents();renderAdminTeachers();renderAdminAdmins();
+  renderCatList();renderInstDropdown();renderRooms();renderClassList();renderTiming();
+  renderTrimRules();schInitSortBar();renderSchedule();renderDisqList();renderResults();renderScoresPage();renderStuSchedule();
+  renderJuryTable();renderAccessControl();updateStats();
+}
+
+// ════════════════════════════════════════════════
+// STUDENT: REPERTOIRE
+// ════════════════════════════════════════════════
+function renderRepHint(){const e=document.getElementById('rep-hint');if(e)e.textContent=DB.config.repHint;}
+
+function previewRep(){
+  const majorInst=document.getElementById('r-major-inst').value;
+  if(!majorInst){showToast('請選擇主修樂器','err');return;}
+  const majorAC=document.getElementById('r-major-ac').value;
+  const majorAT=document.getElementById('r-major-at').value;
+  if(!majorAC||!majorAT){showToast('請填寫主修指定曲作曲家及曲目','err');return;}
+  const minorInst=document.getElementById('r-minor-inst').value;
+  const hasElec=document.getElementById('r-elec-tog').checked;
+  const elecInst=hasElec?document.getElementById('r-elec-inst').value:'';
+  const sections=[];
+  sections.push({header:'主修 · '+iname(majorInst),rows:[
+    {lbl:'指定曲',val:(document.getElementById('r-major-ac').value||'—')+' — '+(document.getElementById('r-major-at').value||'—')},
+    {lbl:'自選曲',val:(document.getElementById('r-major-fc').value||'—')+' — '+(document.getElementById('r-major-ft').value||'—')},
+  ]});
+  if(minorInst)sections.push({header:'副修 · '+iname(minorInst),rows:[
+    {lbl:'指定曲',val:(document.getElementById('r-minor-ac').value||'—')+' — '+(document.getElementById('r-minor-at').value||'—')},
+    {lbl:'自選曲',val:(document.getElementById('r-minor-fc').value||'—')+' — '+(document.getElementById('r-minor-ft').value||'—')},
+  ]});
+  if(hasElec&&elecInst)sections.push({header:'選修 · '+iname(elecInst),rows:[
+    {lbl:'指定曲',val:(document.getElementById('r-elec-ac').value||'—')+' — '+(document.getElementById('r-elec-at').value||'—')},
+    {lbl:'自選曲',val:(document.getElementById('r-elec-fc').value||'—')+' — '+(document.getElementById('r-elec-ft').value||'—')},
+  ]});
+  document.getElementById('rep-preview-body').innerHTML=sections.map(s=>`
+    <div style="margin-bottom:14px">
+      <div style="background:var(--ink);color:var(--gold);padding:7px 13px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;border-radius:var(--r) var(--r) 0 0">${s.header}</div>
+      <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 var(--r) var(--r)">
+        ${s.rows.map(r=>`<div class="cp-row"><div class="cp-lbl">${r.lbl}</div><div class="cp-val">${r.val}</div></div>`).join('')}
+      </div>
+    </div>`).join('');
+  document.getElementById('rep-form-area').style.display='none';
+  document.getElementById('rep-preview').style.display='block';
+}
+
+function renderRepDoneInfo(){
+  const el=document.getElementById('rep-done-info');if(!el)return;
+  const u=ST.user;if(!u){el.innerHTML='';return;}
+  // 基本資料列
+  const infoRows=[
+    {lbl:'姓名',val:u.name},
+    {lbl:'班級',val:u.class||'—'},
+    {lbl:'座號',val:u.seat||'—'},
+  ];
+  const infoHtml=`
+    <div style="background:var(--cream);border-radius:var(--r);padding:12px 16px;margin-bottom:16px;display:flex;gap:24px;flex-wrap:wrap">
+      ${infoRows.map(r=>`
+        <div>
+          <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:3px">${r.lbl}</div>
+          <div style="font-size:15px;font-weight:600;color:var(--ink)">${r.val}</div>
+        </div>`).join('')}
+    </div>`;
+  // 各修課區塊
+  const sections=[];
+  if(u.major){
+    sections.push({
+      icon:'♩',label:'主修',inst:iname(u.major),
+      rows:[
+        {lbl:'指定曲',composer:u.major_ac,title:u.major_at},
+        {lbl:'自選曲',composer:u.major_fc,title:u.major_ft},
+      ]
+    });
+  }
+  if(u.minor){
+    sections.push({
+      icon:'♪',label:'副修',inst:iname(u.minor),
+      rows:[
+        {lbl:'指定曲',composer:u.minor_ac,title:u.minor_at},
+        {lbl:'自選曲',composer:u.minor_fc,title:u.minor_ft},
+      ]
+    });
+  }
+  if(u.elective){
+    sections.push({
+      icon:'♫',label:'選修加考',inst:iname(u.elective),
+      rows:[
+        {lbl:'指定曲',composer:u.elec_ac,title:u.elec_at},
+        {lbl:'自選曲',composer:u.elec_fc,title:u.elec_ft},
+      ]
+    });
+  }
+  const sectHtml=sections.map(s=>`
+    <div style="border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:12px">
+      <div style="background:var(--ink);color:var(--gold);padding:9px 16px;display:flex;align-items:center;gap:10px">
+        <span style="font-family:'Cormorant Garamond',serif;font-size:18px">${s.icon}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase">${s.label}</span>
+        <span style="font-size:13px;font-weight:600;color:var(--paper)">${s.inst}</span>
+      </div>
+      <div style="background:var(--white)">
+        ${s.rows.map(r=>`
+          <div style="display:grid;grid-template-columns:72px 1fr;border-bottom:1px solid var(--cream)">
+            <div style="padding:10px 14px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;color:var(--muted);display:flex;align-items:center;background:var(--cream);text-transform:uppercase">${r.lbl}</div>
+            <div style="padding:10px 14px">
+              ${r.composer||r.title
+                ? `<div style="font-size:12px;color:var(--muted);margin-bottom:2px">${r.composer||'—'}</div>
+                   <div style="font-size:14px;color:var(--ink);font-style:italic">${r.title||'—'}</div>`
+                : `<span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--border)">未填寫</span>`}
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+  el.innerHTML = infoHtml + (sectHtml || '<p style="color:var(--muted);font-size:13px">無填報資料</p>');
+}
+window.renderRepDoneInfo=renderRepDoneInfo;
+
+function backToRepForm(){document.getElementById('rep-form-area').style.display='block';document.getElementById('rep-preview').style.display='none';}
+function editRep(){
+  document.getElementById('rep-done-card').style.display='none';
+  document.getElementById('rep-form-area').style.display='block';
+  // 預填回原本資料
+  const u=ST.user;if(!u)return;
+  const setV=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v||'';};
+  // 主修
+  if(u.major){
+    const inst=DB.instruments.items.find(i=>i.id===u.major);
+    if(inst){setV('r-major-cat',inst.cat);filterRepInst('major');}
+    setV('r-major-inst',u.major);
+    setV('r-major-ac',u.major_ac);setV('r-major-at',u.major_at);
+    setV('r-major-fc',u.major_fc);setV('r-major-ft',u.major_ft);
+  }
+  // 副修
+  if(u.minor){
+    const inst=DB.instruments.items.find(i=>i.id===u.minor);
+    if(inst){setV('r-minor-cat',inst.cat);filterRepInst('minor');}
+    setV('r-minor-inst',u.minor);
+    setV('r-minor-ac',u.minor_ac);setV('r-minor-at',u.minor_at);
+    setV('r-minor-fc',u.minor_fc);setV('r-minor-ft',u.minor_ft);
+    document.getElementById('r-minor-rep').style.display='block';
+  }
+  // 選修
+  if(u.elective){
+    document.getElementById('r-elec-tog').checked=true;
+    document.getElementById('r-elec-area').style.display='block';
+    const inst=DB.instruments.items.find(i=>i.id===u.elective);
+    if(inst){setV('r-elec-cat',inst.cat);filterRepInst('elective');}
+    setV('r-elec-inst',u.elective);
+    setV('r-elec-ac',u.elec_ac);setV('r-elec-at',u.elec_at);
+    setV('r-elec-fc',u.elec_fc);setV('r-elec-ft',u.elec_ft);
+  }
+}
+function submitRep(){
+  if(ST.user){
+    // Collect form data
+    const data={
+      major:document.getElementById('r-major-inst').value,
+      major_ac:document.getElementById('r-major-ac').value,
+      major_at:document.getElementById('r-major-at').value,
+      major_fc:document.getElementById('r-major-fc').value,
+      major_ft:document.getElementById('r-major-ft').value,
+      minor:document.getElementById('r-minor-inst').value,
+      minor_ac:document.getElementById('r-minor-ac').value,
+      minor_at:document.getElementById('r-minor-at').value,
+      minor_fc:document.getElementById('r-minor-fc').value,
+      minor_ft:document.getElementById('r-minor-ft').value,
+      elective:document.getElementById('r-elec-tog').checked?document.getElementById('r-elec-inst').value:'',
+      elec_ac:document.getElementById('r-elec-ac').value,
+      elec_at:document.getElementById('r-elec-at').value,
+      elec_fc:document.getElementById('r-elec-fc').value,
+      elec_ft:document.getElementById('r-elec-ft').value,
+      repDone:true,
+    };
+    Object.assign(ST.user, data);
+    // Write to Firestore
+    fbSet('users',ST.user.id,ST.user);
+    showToast('曲目填報已送出並同步 ✓','ok');
+  }
+  document.getElementById('rep-form-area').style.display='none';
+  document.getElementById('rep-preview').style.display='none';
+  document.getElementById('rep-done-card').style.display='block';
+  renderRepDoneInfo();
+}
+
+// ════════════════════════════════════════════════
+// STUDENT: SCORES
+// ════════════════════════════════════════════════
+function renderRepPage(){
+  if(!ST.user||ST.user.role!=='student')return;
+  if(ST.user.repDone){
+    document.getElementById('rep-done-card').style.display='block';
+    document.getElementById('rep-form-area').style.display='none';
+    document.getElementById('rep-preview').style.display='none';
+    renderRepDoneInfo();
+  } else {
+    document.getElementById('rep-done-card').style.display='none';
+    document.getElementById('rep-form-area').style.display='block';
+  }
+}
+window.renderRepPage=renderRepPage;
+
+function renderScoresPage(){
+  const el=document.getElementById('scores-body');if(!el)return;
+  const u=ST.user;if(!u||u.role!=='student'){el.innerHTML='';return;}
+  const types=[];
+  if(u.major)types.push({type:'major',inst:u.major,ac:u.major_ac,at:u.major_at,fc:u.major_fc,ft:u.major_ft,room:'木管考場',rank:2});
+  if(u.minor)types.push({type:'minor',inst:u.minor,ac:u.minor_ac,at:u.minor_at,fc:u.minor_fc,ft:u.minor_ft,room:'鍵盤考場',rank:null});
+  if(u.elective)types.push({type:'elective',inst:u.elective,ac:u.elec_ac,at:u.elec_at,fc:u.elec_fc,ft:u.elec_ft,room:'木管考場',rank:3});
+  el.innerHTML=types.map(t=>{
+    const entryKey=u.id+'_'+t.type;
+    const roomId=DB.rooms.find(r=>r.cats.includes(DB.instruments.items.find(i=>i.id===t.inst)?.cat))?.id||'r1';
+    const jurorData=DB.juryScores[roomId]?.[entryKey]||{};
+    const scoreArr=Object.values(jurorData).filter(s=>!s.absent);
+    const result=scoreArr.length?calcFinal(scoreArr):{finalScore:null,fS:null,fA:null,fF:null};
+    const comment=Object.values(jurorData).filter(s=>!s.absent&&s.comment).map(s=>s.comment).join('；');
+    const tc=DB.teacherComments[u.id]?.[t.type];
+    const fs=result.finalScore;
+    return `<div class="isb">
+      <div class="isb-h">
+        <div>
+          <span style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--muted)">${typeName(t.type)} · </span>
+          <span class="isb-h-name">${iname(t.inst)}</span>
+          ${t.rank&&t.rank<=3?`<span style="margin-left:10px;font-family:'DM Mono',monospace;font-size:8px;color:var(--gold)">第${t.rank}名 · ${t.room}</span>`:`<span style="margin-left:10px;font-family:'DM Mono',monospace;font-size:8px;color:var(--muted)">${t.room}</span>`}
+        </div>
+        <div class="isb-h-score ${fs!==null&&fs<60?'red-score':''}">${fs!==null?fs.toFixed(2):'—'}</div>
+      </div>
+      <div class="isb-b">
+        <div class="g3" style="margin-bottom:12px">
+          <div><div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">音階/視奏</div>
+            <div style="font-family:'Cormorant Garamond',serif;font-size:28px;color:var(--ink)" class="${result.fS!==null&&result.fS<60?'red-score':''}">${result.fS!==null?result.fS.toFixed(1):'—'}</div></div>
+          <div><div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">指定曲</div>
+            <div style="font-family:'Cormorant Garamond',serif;font-size:28px" class="${result.fA!==null&&result.fA<60?'red-score':''}">${result.fA!==null?result.fA.toFixed(1):'—'}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px">${t.ac||''} — ${t.at||''}</div></div>
+          <div><div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">自選曲</div>
+            <div style="font-family:'Cormorant Garamond',serif;font-size:28px" class="${result.fF!==null&&result.fF<60?'red-score':''}">${result.fF!==null?result.fF.toFixed(1):'—'}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px">${t.fc||''} — ${t.ft||''}</div></div>
+        </div>
+        <div style="font-size:13px;line-height:1.9;margin-bottom:8px"><strong style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1.5px;color:var(--gold)">術科評語</strong><br>${comment||'—'}</div>
+        <div style="font-size:12px;color:var(--muted);background:var(--cream);padding:8px 11px;border-radius:var(--r)">
+          <strong style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1.5px">教師評語</strong> ${tc?.comment||'—'}
+          <span style="float:right;font-family:'DM Mono',monospace;font-size:9px;opacity:.5">平時成績不顯示</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('')||'<p style="color:var(--muted);font-family:\'DM Mono\',monospace;font-size:12px">尚無成績資料</p>';
+}
+
+// ════════════════════════════════════════════════
+// STUDENT: SCHEDULE LOOKUP
+// ════════════════════════════════════════════════
+function getScheduleEntries(){
+  const entries=[];
+  students().forEach(s=>{
+    const types=[];
+    if(s.major)types.push({type:'major',instId:s.major,ac:s.major_ac,at:s.major_at,fc:s.major_fc,ft:s.major_ft});
+    if(s.minor)types.push({type:'minor',instId:s.minor,ac:s.minor_ac,at:s.minor_at,fc:s.minor_fc,ft:s.minor_ft});
+    if(s.elective)types.push({type:'elective',instId:s.elective,ac:s.elec_ac,at:s.elec_at,fc:s.elec_fc,ft:s.elec_ft});
+    types.forEach(t=>{
+      const inst=DB.instruments.items.find(i=>i.id===t.instId);
+      const cat=inst?DB.instruments.categories.find(c=>c.id===inst.cat):null;
+      const room=DB.rooms.find(r=>r.cats.includes(inst?.cat));
+      entries.push({
+        studentId:s.id,name:s.name,class:s.class,seat:s.seat,
+        instId:t.instId,instName:iname(t.instId),catId:inst?.cat,catOrder:cat?.order??99,
+        type:t.type,typeOrder:{major:0,minor:1,elective:2}[t.type],
+        ac:t.ac,at:t.at,fc:t.fc,ft:t.ft,
+        roomId:room?.id||'',roomName:room?.name||'—',order:0,
+      });
+    });
+  });
+  entries.sort((a,b)=>a.catOrder-b.catOrder||a.typeOrder-b.typeOrder||DB.classes.indexOf(a.class)-DB.classes.indexOf(b.class)||a.seat-b.seat);
+  let roomCnt={};
+  entries.forEach(e=>{if(!roomCnt[e.roomId])roomCnt[e.roomId]=0;roomCnt[e.roomId]++;e.order=roomCnt[e.roomId];});
+  return entries;
+}
+
+function renderStuSchedule(filter){
+  const tbody=document.getElementById('stu-sched-tbody');if(!tbody)return;
+  const entries=getScheduleEntries();
+  const nameQ=(filter?.name||'').toLowerCase();
+  const instQ=filter?.inst||'';
+  const roomQ=filter?.room||'';
+  const shown=entries.filter(e=>(!nameQ||e.name.toLowerCase().includes(nameQ))&&(!instQ||e.instId===instQ)&&(!roomQ||e.roomId===roomQ));
+  tbody.innerHTML=shown.map(e=>`<tr>
+    <td style="font-family:'DM Mono',monospace;color:var(--ink);font-weight:600">${e.order}</td>
+    <td style="color:var(--ink)">${e.roomName}</td>
+    <td style="color:var(--ink)">${e.class}</td>
+    <td style="color:var(--ink);font-weight:600">${e.name}</td>
+    <td style="color:var(--ink)">${e.instName}</td>
+    <td>${typeBadge(e.type)}</td>
+    <td style="font-size:12px;color:var(--ink)">${e.ac?e.ac+' — <em>'+e.at+'</em>':'—'}</td>
+    <td style="font-size:12px;color:var(--ink)">${e.fc?e.fc+' — <em>'+e.ft+'</em>':'—'}</td>
+  </tr>`).join('')||'<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px;font-family:\'DM Mono\',monospace;font-size:12px">查無資料</td></tr>';
+}
+function doLookup(){renderStuSchedule({name:document.getElementById('lookup-name').value,inst:document.getElementById('lookup-inst').value,room:document.getElementById('lookup-room').value});}
+function clearLookup(){['lookup-name'].forEach(id=>document.getElementById(id).value='');['lookup-inst','lookup-room'].forEach(id=>document.getElementById(id).value='');renderStuSchedule();}
+
+// ════════════════════════════════════════════════
+// TEACHER MODULE
+// ════════════════════════════════════════════════
+// ── 取得「該教師負責的學生」 ──
+function getMyStudents(){
+  const tid=ST.user?.id;
+  if(ST.role==='admin')return students(); // admin 看全部
+  const ids=DB.teacherStudents[tid]||[];
+  return students().filter(s=>ids.includes(s.id));
+}
+
+// ── 總覽表格 ──
+function renderTeaTable(){
+  const cf=document.getElementById('tea-class')?.value||'';
+  let stus=getMyStudents().filter(s=>!cf||s.class===cf)
+    .sort((a,b)=>DB.classes.indexOf(a.class)-DB.classes.indexOf(b.class)||a.seat-b.seat);
+  const done=stus.filter(s=>s.teaDone).length;
+  const el1=document.getElementById('tea-done-n'),el2=document.getElementById('tea-total-n'),el3=document.getElementById('tea-prog');
+  if(el1)el1.textContent=done;if(el2)el2.textContent=stus.length;
+  if(el3)el3.style.width=stus.length?(done/stus.length*100)+'%':'0%';
+
+  const ob=document.getElementById('tea-overview-body');if(!ob)return;
+  if(!stus.length){ob.innerHTML='<p style="font-family:\'DM Mono\',monospace;font-size:11px;color:var(--muted)">尚無負責學生</p>';return;}
+  ob.innerHTML=stus.map(s=>{
+    const tc=DB.teacherComments[s.id]||{};
+    const types=['major','minor','elective'].filter(k=>s[k]);
+    const typeCards=types.map(k=>{
+      const t=tc[k];
+      const scoreColor=t?.score&&t.score<60?'color:var(--red)':'color:var(--sage)';
+      return `<div style="border:1px solid var(--border);border-radius:var(--r);overflow:hidden;min-width:160px;flex:1">
+        <div style="background:var(--ink);color:var(--gold);padding:5px 10px;font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1.5px">${typeName(k)} · ${iname(s[k])}</div>
+        <div style="padding:8px 10px;background:var(--white)">
+          <div style="font-family:'DM Mono',monospace;font-size:20px;font-weight:700;${t?.score?scoreColor:'color:var(--border)'}">${t?.score||'—'}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px;line-height:1.6">${t?.comment||'尚無評語'}</div>
+          <button class="btn btn-s btn-xs" style="margin-top:8px" onclick="teaWizOpenDirect('${s.id}','${k}')">修改</button>
+        </div>
+      </div>`;
+    }).join('');
+    return `<div style="border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;overflow:hidden">
+      <div style="background:var(--cream);padding:8px 14px;display:flex;align-items:center;gap:12px;justify-content:space-between">
+        <div>
+          <strong>${s.name}</strong>
+          <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:8px">${s.class}·座${s.seat}</span>
+          ${s.repDone?'<span class="badge b-elective" style="margin-left:6px">已填報</span>':'<span class="badge b-absent" style="margin-left:6px">未填報</span>'}
+        </div>
+        <span class="dot ${s.teaDone?'dg':'dr'}" title="${s.teaDone?'已完成評量':'未完成評量'}"></span>
+      </div>
+      <div style="padding:10px 14px;background:var(--white);display:flex;gap:10px;flex-wrap:wrap">${typeCards}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Wizard 狀態 ──
+const TWZ={cls:'',sid:'',type:'',remaining:[]};
+
+function teaWizStart(){
+  // 初始化班級下拉（只顯示該師學生所在班級）
+  const myStus=getMyStudents();
+  const cls=[...new Set(myStus.map(s=>s.class))].sort((a,b)=>DB.classes.indexOf(a)-DB.classes.indexOf(b));
+  const sel=document.getElementById('tea-wiz-class');
+  sel.innerHTML='<option value="">— 請選 —</option>'+cls.map(c=>`<option value="${c}">${c}</option>`).join('');
+  TWZ.cls='';TWZ.sid='';TWZ.type='';
+  teaWizShowStep(1);
+  document.getElementById('tea-wizard').style.display='block';
+  document.getElementById('tea-wizard').scrollIntoView({behavior:'smooth',block:'start'});
+}
+window.teaWizStart=teaWizStart;
+
+function teaWizShowStep(n){
+  [1,2,3,4].forEach(i=>{
+    document.getElementById('tea-s'+i).style.display=i===n?'block':'none';
+    const el=document.getElementById('tstep-'+i);
+    if(el){el.classList.toggle('on',i===n);el.classList.toggle('done',i<n);}
+  });
+}
+
+function teaWizPickClass(){
+  const cls=document.getElementById('tea-wiz-class').value;
+  if(!cls)return;
+  TWZ.cls=cls;
+  const stus=getMyStudents().filter(s=>s.class===cls).sort((a,b)=>a.seat-b.seat);
+  const sel=document.getElementById('tea-wiz-stu');
+  sel.innerHTML='<option value="">— 請選學生 —</option>'+stus.map(s=>`<option value="${s.id}">${s.name}（座${s.seat}）</option>`).join('');
+  teaWizShowStep(2);
+}
+window.teaWizPickClass=teaWizPickClass;
+
+function teaWizPickStu(){
+  const sid=document.getElementById('tea-wiz-stu').value;
+  if(!sid)return;
+  TWZ.sid=sid;
+  const s=DB.users.find(u=>u.id===sid);if(!s)return;
+  const types=[];
+  if(s.major)types.push({key:'major',label:'主修 · '+iname(s.major)});
+  if(s.minor)types.push({key:'minor',label:'副修 · '+iname(s.minor)});
+  if(s.elective)types.push({key:'elective',label:'選修加考 · '+iname(s.elective)});
+  TWZ.remaining=[...types];
+  const btns=document.getElementById('tea-wiz-type-btns');
+  btns.innerHTML=types.map(t=>{
+    const done=DB.teacherComments[sid]?.[t.key];
+    return `<button class="btn ${done?'btn-g':'btn-p'} btn-sm" onclick="teaWizPickType('${t.key}')">${t.label}${done?' ✓':''}</button>`;
+  }).join('');
+  teaWizShowStep(3);
+}
+window.teaWizPickStu=teaWizPickStu;
+
+function teaWizPickType(type){
+  TWZ.type=type;
+  const s=DB.users.find(u=>u.id===TWZ.sid);if(!s)return;
+  const existing=DB.teacherComments[TWZ.sid]?.[type]||{};
+  document.getElementById('tea-wiz-info').innerHTML=
+    `<strong>${s.name}</strong> <span style="color:var(--muted);font-size:12px">${s.class}·座${s.seat}</span> — ${typeName(type)} · ${iname(s[type])}`+
+    (s[type+'_ac']?`<div style="font-size:11px;color:var(--muted);margin-top:4px">指定：${s[type==='elective'?'elec_ac':type+'_ac']||''} — <em>${s[type==='elective'?'elec_at':type+'_at']||''}</em></div>`:'');
+  document.getElementById('tea-wiz-score').value=existing.score||'';
+  document.getElementById('tea-wiz-comment').value=existing.comment||'';
+  teaWizShowStep(4);
+}
+window.teaWizPickType=teaWizPickType;
+
+function teaWizBack(toStep){teaWizShowStep(toStep);}
+window.teaWizBack=teaWizBack;
+
+function teaWizSave(){
+  const sid=TWZ.sid;const type=TWZ.type;
+  if(!sid||!type)return;
+  const score=parseFloat(document.getElementById('tea-wiz-score').value);
+  const comment=document.getElementById('tea-wiz-comment').value;
+  if(isNaN(score)){showToast('請填入分數','err');return;}
+  if(!DB.teacherComments[sid])DB.teacherComments[sid]={};
+  DB.teacherComments[sid][type]={score,comment};
+  const s=DB.users.find(u=>u.id===sid);
+  if(s){
+    const types=['major','minor','elective'].filter(k=>s[k]);
+    s.teaDone=types.every(k=>DB.teacherComments[sid]?.[k]?.score!==undefined);
+  }
+  fbSet('teacherComments',sid,DB.teacherComments[sid]||{});
+  renderTeaTable();
+}
+
+function teaWizSaveAndNext(){
+  teaWizSave();
+  // 找下一位學生（同班）
+  const stus=getMyStudents().filter(s=>s.class===TWZ.cls).sort((a,b)=>a.seat-b.seat);
+  const idx=stus.findIndex(s=>s.id===TWZ.sid);
+  if(idx>=0&&idx<stus.length-1){
+    const next=stus[idx+1];
+    document.getElementById('tea-wiz-stu').value=next.id;
+    showToast('已儲存，跳到下一位：'+next.name,'ok');
+    teaWizPickStu();
+  } else {
+    showToast('同班已無下一位，請切換班級或送出','warn');
+    teaWizShowStep(2);
+  }
+}
+window.teaWizSaveAndNext=teaWizSaveAndNext;
+
+function teaWizSubmitAll(){
+  teaWizSave();
+  document.getElementById('tea-wizard').style.display='none';
+  showToast('評量已全部儲存 ✓','ok');
+  renderTeaTable();
+}
+window.teaWizSubmitAll=teaWizSubmitAll;
+
+// 從總覽直接修改某學生某修別
+function teaWizOpenDirect(sid,type){
+  TWZ.sid=sid;TWZ.type=type;
+  const s=DB.users.find(u=>u.id===sid);if(!s)return;
+  TWZ.cls=s.class;
+  const existing=DB.teacherComments[sid]?.[type]||{};
+  document.getElementById('tea-wiz-info').innerHTML=
+    `<strong>${s.name}</strong> <span style="color:var(--muted);font-size:12px">${s.class}·座${s.seat}</span> — ${typeName(type)} · ${iname(s[type])}`;
+  document.getElementById('tea-wiz-score').value=existing.score||'';
+  document.getElementById('tea-wiz-comment').value=existing.comment||'';
+  [1,2,3].forEach(i=>{
+    document.getElementById('tea-s'+i).style.display='none';
+    const el=document.getElementById('tstep-'+i);if(el){el.classList.remove('on');el.classList.add('done');}
+  });
+  teaWizShowStep(4);
+  document.getElementById('tea-wizard').style.display='block';
+  document.getElementById('tea-wizard').scrollIntoView({behavior:'smooth',block:'start'});
+}
+window.teaWizOpenDirect=teaWizOpenDirect;
+
+// ── 管理員指派學生 ──
+function openTeaStuModal(tid){
+  const t=DB.users.find(u=>u.id===tid);if(!t)return;
+  document.getElementById('tsm-teacher-name').textContent=t.name;
+  document.getElementById('tsm-teacher-name').dataset.tid=tid;
+  const sel=DB.teacherStudents[tid]||[];
+  // class tabs
+  const clsEl=document.getElementById('tsm-class-tabs');
+  clsEl.innerHTML=DB.classes.map((c,i)=>`<button class="btn btn-s btn-sm ${i===0?'btn-p':''}" onclick="tsmFilterClass('${c}',this)">${c}</button>`).join('')+
+    `<button class="btn btn-s btn-sm" onclick="tsmFilterClass('',this)">全部</button>`;
+  tsmRenderList(tid,'');
+  openOverlay('tea-stu-modal');
+}
+window.openTeaStuModal=openTeaStuModal;
+
+function tsmFilterClass(cls,btn){
+  document.querySelectorAll('#tsm-class-tabs button').forEach(b=>b.classList.remove('btn-p'));
+  btn.classList.add('btn-p');
+  const tid=document.getElementById('tsm-teacher-name').dataset.tid;
+  tsmRenderList(tid,cls);
+}
+window.tsmFilterClass=tsmFilterClass;
+
+function tsmRenderList(tid,cls){
+  const sel=DB.teacherStudents[tid]||[];
+  const stus=students().filter(s=>!cls||s.class===cls).sort((a,b)=>DB.classes.indexOf(a.class)-DB.classes.indexOf(b.class)||a.seat-b.seat);
+  document.getElementById('tsm-stu-list').innerHTML=stus.map(s=>`
+    <label style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--cream);cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--gold-bg)'" onmouseout="this.style.background=''">
+      <input type="checkbox" value="${s.id}" ${sel.includes(s.id)?'checked':''} style="width:15px;height:15px;accent-color:var(--gold)">
+      <div>
+        <strong>${s.name}</strong>
+        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:6px">${s.class}·座${s.seat}</span>
+        <div style="font-size:11px;color:var(--muted)">${[s.major&&iname(s.major),s.minor&&iname(s.minor),s.elective&&iname(s.elective)].filter(Boolean).join(' / ')}</div>
+      </div>
+    </label>`).join('');
+}
+window.tsmRenderList=tsmRenderList;
+
+function saveTeaStu(){
+  const tid=document.getElementById('tsm-teacher-name').dataset.tid;
+  const checked=[...document.querySelectorAll('#tsm-stu-list input[type=checkbox]:checked')].map(cb=>cb.value);
+  DB.teacherStudents[tid]=checked;
+  fbSet('teacherStudents',tid,{list:checked});
+  closeOverlay('tea-stu-modal');
+  renderAdminTeachers();
+  showToast('學生指派已儲存 ✓','ok');
+}
+window.saveTeaStu=saveTeaStu;
+
+// ── 舊 Modal 相容（admin 模式仍可用） ──
+function openTeaModal(sid){
+  teaWizOpenDirect(sid,'major');
+}
+function swTeaTab(key,el){}
+function saveTeaComment(){teaWizSubmitAll();}
+
+// ════════════════════════════════════════════════
+// JURY MODULE
+// ════════════════════════════════════════════════
+function getJuryEntries(){
+  const all=getScheduleEntries();
+  if(ST.role!=='jury'||!ST.juryRoom)return all;
+  return all.filter(e=>e.roomId===ST.juryRoom.id);
+}
+
+function renderJuryTable(){
+  const tbody=document.getElementById('jury-tbody');if(!tbody)return;
+  const entries=getJuryEntries();
+  const roomId=ST.juryRoom?.id||'r1';
+  if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
+  const rows=[];
+  entries.forEach((e,i)=>{
+    const entryKey=e.studentId+'_'+e.type;
+    if(!DB.juryScores[roomId][entryKey])DB.juryScores[roomId][entryKey]={};
+    const myId=ST.juryId||ST.user?.id||'admin';
+    const my=DB.juryScores[roomId][entryKey][myId]||{};
+    const dq=DB.disqualified?.[entryKey];
+    const absent=dq?true:(my.absent||false);
+    if(dq&&!my._dqApplied){
+      if(!DB.juryScores[roomId][entryKey][myId])DB.juryScores[roomId][entryKey][myId]={};
+      ['scale','assigned','free'].forEach(f=>DB.juryScores[roomId][entryKey][myId][f]=0);
+      DB.juryScores[roomId][entryKey][myId].absent=true;
+      DB.juryScores[roomId][entryKey][myId]._dqApplied=true;
+    }
+    const locked=dq||absent;
+
+    // 分數格
+    const sc=f=>{
+      const v=locked?'0':(my[f]??'');
+      const isEmpty=v===''||v===null||v===undefined;
+      const red=!isEmpty&&parseFloat(v)<60;
+      return `<input class="score-inp${isEmpty&&!locked?' empty-warn':''}${red?' red-score':''}" id="js-${f}-${i}" type="text" inputmode="decimal" value="${locked?'0':v}" placeholder="${locked?'0':'—'}" ${locked?'disabled':''} onclick="if(!this.disabled)openNP('js-${f}-${i}','${f==='scale'?'音階/視奏':f==='assigned'?'指定曲分數':'自選曲分數'}',v=>{saveJCell(${i},'${roomId}','${entryKey}','${f}',v);})" readonly>`;
+    };
+
+    // 曲目格（文字過長自動縮小顯示）
+    const pieceCell=(composer,title)=>`<td class="piece-cell">
+      <div class="pc-composer" title="${composer||''}">${composer||'<span style="color:var(--border)">—</span>'}</div>
+      <div class="pc-title" title="${title||''}">${title||''}</div>
+    </td>`;
+
+    // 扣/缺考欄
+    const absentCell=dq
+      ?`<td style="text-align:center;padding:4px;vertical-align:middle">
+          <span class="badge b-absent" style="font-size:8px;display:inline-block;line-height:1.4">⛔<br>扣考</span>
+        </td>`
+      :`<td class="absent-cell" style="vertical-align:middle">
+          <input type="checkbox" ${absent?'checked':''} onchange="toggleAbsent(${i},'${roomId}','${entryKey}')" style="width:16px;height:16px;cursor:pointer;accent-color:var(--rust)">
+        </td>`;
+
+    // 學生資訊欄（含扣考原因）
+    const nameCell=`<td class="s-name-col" style="vertical-align:middle;padding:6px 10px">
+      <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px" title="${e.name}">${e.name}</div>
+      <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);white-space:nowrap">${e.class}·座${e.seat}·${e.instName}</div>
+      <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted)">${typeName(e.type)}</div>
+      ${dq?`<div style="font-size:8px;color:var(--red);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px" title="⛔ ${dq.reason}">⛔ ${dq.reason}</div>`:''}
+    </td>`;
+
+    // ── 第 1 行：序、學生、扣/缺、音階、指定分、[指定曲格]、自選分、[自選曲格]、評語(rowspan2) ──
+    rows.push(`<tr id="jr-${i}" class="${locked?'jst-row-a':''}" style="border-bottom:1px dashed var(--cream)">
+      <td rowspan="2" style="text-align:center;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);vertical-align:middle;border-right:1px solid var(--border)">${String(e.order).padStart(2,'0')}</td>
+      <td rowspan="2" style="padding:0;border-right:1px solid var(--border)">${nameCell}</td>
+      <td rowspan="2" style="border-right:1px solid var(--border);text-align:center;vertical-align:middle">${absentCell.replace(/<td[^>]*>/,'').replace('</td>','')}</td>
+      <td rowspan="2" class="score-cell" style="border-right:1px solid var(--border)">${sc('scale')}</td>
+      <td class="score-cell" style="border-right:none">${sc('assigned')}</td>
+      ${pieceCell(e.ac,e.at)}
+      <td class="score-cell" style="border-right:none">${sc('free')}</td>
+      ${pieceCell(e.fc,e.ft)}
+      <td rowspan="2" style="padding:4px 6px;vertical-align:middle;border-left:1px solid var(--border)">
+        <textarea class="comment-inp" id="jco-${i}" ${locked?'disabled':''} placeholder="${dq?'扣考，無需評語':'評語...'}" onblur="saveJCell(${i},'${roomId}','${entryKey}','comment',this.value)">${dq?'':(my.comment||'')}</textarea>
+      </td>
+    </tr>`);
+    // ── 第 2 行：指定分/指定曲/自選分/自選曲 的標籤行（提示文字小行） ──
+    rows.push(`<tr id="jr2-${i}" class="${locked?'jst-row-a':''}" style="border-bottom:2px solid var(--border)">
+      <td colspan="2" style="padding:2px 8px;vertical-align:top">
+        <span style="font-family:'DM Mono',monospace;font-size:7px;color:var(--muted);letter-spacing:1px">ASSIGNED SCORE ↑</span>
+      </td>
+      <td style="padding:2px 8px;vertical-align:top" colspan="2">
+        <span style="font-family:'DM Mono',monospace;font-size:7px;color:var(--muted);letter-spacing:1px">FREE SCORE ↑</span>
+      </td>
+    </tr>`);
+  });
+  tbody.innerHTML=rows.join('');
+}
+
+function toggleAbsent(i,roomId,entryKey){
+  const cb=document.querySelector(`#jr-${i} input[type=checkbox]`);
+  const absent=cb.checked;
+  const myId=ST.juryId||ST.user?.id||'admin';
+  if(!DB.juryScores[roomId][entryKey])DB.juryScores[roomId][entryKey]={};
+  if(!DB.juryScores[roomId][entryKey][myId])DB.juryScores[roomId][entryKey][myId]={};
+  DB.juryScores[roomId][entryKey][myId].absent=absent;
+  const r1=document.getElementById(`jr-${i}`);
+  const r2=document.getElementById(`jr2-${i}`);
+  if(absent){
+    ['scale','assigned','free'].forEach(f=>{const inp=document.getElementById(`js-${f}-${i}`);if(inp){inp.value='0';inp.disabled=true;}});
+    const ta=document.getElementById(`jco-${i}`);if(ta){ta.disabled=true;}
+    if(r1)r1.classList.add('jst-row-a');
+    if(r2)r2.classList.add('jst-row-a');
+    ['scale','assigned','free'].forEach(f=>saveJCell(i,roomId,entryKey,f,'0'));
+  }else{
+    ['scale','assigned','free'].forEach(f=>{const inp=document.getElementById(`js-${f}-${i}`);if(inp){inp.value='';inp.disabled=false;inp.classList.add('empty-warn');}});
+    const ta=document.getElementById(`jco-${i}`);if(ta){ta.disabled=false;}
+    if(r1)r1.classList.remove('jst-row-a');
+    if(r2)r2.classList.remove('jst-row-a');
+  }
+}
+
+function saveJCell(i,roomId,entryKey,field,val){
+  const myId=ST.juryId||ST.user?.id||'admin';
+  if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
+  if(!DB.juryScores[roomId][entryKey])DB.juryScores[roomId][entryKey]={};
+  if(!DB.juryScores[roomId][entryKey][myId])DB.juryScores[roomId][entryKey][myId]={};
+  const v=field==='comment'?val:(parseFloat(val)??0);
+  DB.juryScores[roomId][entryKey][myId][field]=v;
+
+  // Update input styling
+  const inp=document.getElementById(`js-${field}-${i}`);
+  if(inp&&field!=='comment'){
+    inp.classList.remove('empty-warn');
+    inp.classList.toggle('red-score',parseFloat(v)<60);
+  }
+
+  // ── 1. 永遠先存 localStorage（離線保護）──
+  const lsKey=`jury_${roomId}_${entryKey}_${myId}`;
+  try{localStorage.setItem(lsKey,JSON.stringify(DB.juryScores[roomId][entryKey][myId]));}catch(e){}
+
+  // ── 2. 標記 pending ──
+  markPending(lsKey);
+
+  // ── 3. 若有網路，即時寫入 Firestore ──
+  if(ST.isOnline&&window._FB){
+    showSyncStatus('sync','正在同步...');
+    const {db,serverTimestamp}=window._FB;
+    // 路徑：juryScores/{roomId}/entries/{entryKey}
+    // 所有評審分數平鋪在同一份文件，以 jurorId 為 key
+    const entryRef=db.collection('juryScores').doc(roomId)
+      .collection('entries').doc(entryKey);
+    const patch={};
+    patch[myId]={...DB.juryScores[roomId][entryKey][myId]};
+    patch['_updatedAt']=serverTimestamp();
+    entryRef.set(patch,{merge:true})
+      .then(()=>{unmarkPending(lsKey);showSyncStatus('ok','已同步 ✓');})
+      .catch(()=>showSyncStatus('pend','離線暫存'));
+  } else {
+    showSyncStatus('pend','離線暫存 — 連線後自動同步');
+  }
+}
+
+// ── 離線 Pending 管理 ──
+const PENDING_KEY='music_exam_pending';
+function markPending(lsKey){
+  const p=JSON.parse(localStorage.getItem(PENDING_KEY)||'[]');
+  if(!p.includes(lsKey)){p.push(lsKey);localStorage.setItem(PENDING_KEY,JSON.stringify(p));}
+}
+function unmarkPending(lsKey){
+  const p=JSON.parse(localStorage.getItem(PENDING_KEY)||'[]');
+  localStorage.setItem(PENDING_KEY,JSON.stringify(p.filter(k=>k!==lsKey)));
+}
+
+// ── 重新連線後批次同步所有 pending ──
+async function syncPendingToFirebase(){
+  if(!window._FB)return;
+  if(window._fbAuthReady)await window._fbAuthReady; // ★ 等 Auth 就緒
+  const pending=JSON.parse(localStorage.getItem(PENDING_KEY)||'[]');
+  if(!pending.length)return;
+  showSyncStatus('sync',`同步 ${pending.length} 筆離線資料...`);
+  const {db,serverTimestamp}=window._FB;
+  let ok=0;
+  for(const lsKey of pending){
+    try{
+      const data=JSON.parse(localStorage.getItem(lsKey)||'null');
+      if(!data)continue;
+      // lsKey 格式：jury_{roomId}_{studentId}_{type}_{jurorId}
+      const parts=lsKey.replace(/^jury_/,'').split('_');
+      const roomId=parts[0];
+      const jurorId=parts[parts.length-1];
+      const entryKey=parts.slice(1,parts.length-1).join('_');
+      const entryRef=db.collection('juryScores').doc(roomId)
+        .collection('entries').doc(entryKey);
+      const patch={};
+      patch[jurorId]={...data};
+      patch['_syncedAt']=serverTimestamp();
+      await entryRef.set(patch,{merge:true});
+      unmarkPending(lsKey);ok++;
+    }catch(e){console.warn('sync error',lsKey,e);}
+  }
+  showSyncStatus('ok',`已同步 ${ok} 筆 ✓`);
+}
+
+window.addEventListener('online',()=>{
+  ST.isOnline=true;
+  document.getElementById('off-bar').classList.remove('show');
+  showToast('已重新連線，正在同步...','ok');
+  setTimeout(syncPendingToFirebase,800);
+});
+
+// Check before submit
+function checkJuryBeforeSubmit(){
+  const entries=getJuryEntries();
+  const roomId=ST.juryRoom?.id||'r1';
+  const myId=ST.juryId||ST.user?.id||'admin';
+  const missing=[];
+  entries.forEach((e,i)=>{
+    const entryKey=e.studentId+'_'+e.type;
+    const my=DB.juryScores[roomId]?.[entryKey]?.[myId]||{};
+    const isDQ=DB.disqualified?.[entryKey];if(my.absent||isDQ)return;
+    const fields=['scale','assigned','free'];
+    const emptyFields=fields.filter(f=>my[f]===undefined||my[f]===''||my[f]===null);
+    if(emptyFields.length)missing.push({name:e.name,inst:e.instName,type:typeName(e.type),fields:emptyFields});
+  });
+  const body=document.getElementById('check-modal-body');
+  const confirmBtn=document.getElementById('check-confirm-btn');
+  if(missing.length){
+    body.innerHTML=`<div style="color:var(--rust);font-family:'DM Mono',monospace;font-size:11px;margin-bottom:14px">⚠ 以下學生尚有未填分數</div>`+
+      missing.map(m=>`<div style="padding:8px 12px;background:var(--cream);border-radius:var(--r);margin-bottom:6px;font-size:13px">
+        <strong>${m.name}</strong> <span style="color:var(--muted);font-size:11px">${m.inst}·${m.type}</span>
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--rust);margin-top:4px">未填：${m.fields.map(f=>({scale:'音階',assigned:'指定曲',free:'自選曲'})[f]).join('、')}</div>
+      </div>`).join('');
+    confirmBtn.style.display='none';
+  }else{
+    body.innerHTML=`<div style="color:var(--sage);font-family:'DM Mono',monospace;font-size:12px;text-align:center;padding:16px">✓ 所有分數均已填寫完畢，可以送出。</div>`;
+    confirmBtn.style.display='inline-flex';
+  }
+  openOverlay('check-modal');
+}
+
+function confirmSubmitJury(){closeOverlay('check-modal');submitJuryAll();}
+
+function submitJuryAll(){
+  document.getElementById('ty-title-el').textContent=DB.config.tyTitle||'感謝您的評分';
+  document.getElementById('ty-text-el').textContent=DB.config.tyText||'';
+  showSyncStatus('sync','正在送出...');
+  setTimeout(()=>{showSyncStatus('ok','全部已同步 ✓');openOverlay('ty-modal');},900);
+}
+
+// ════════════════════════════════════════════════
+// SCORING ALGORITHM (per-item trimming)
+// ════════════════════════════════════════════════
+function getTrimRule(n){
+  return DB.config.trimRules.find(r=>n>=r.minJ&&n<=r.maxJ)||{trimH:0,trimT:0};
+}
+
+function trimmedAvg(scores,field){
+  const vals=scores.map(s=>parseFloat(s[field])||0);
+  const n=vals.length;
+  const rule=getTrimRule(n);
+  const sorted=[...vals].sort((a,b)=>a-b);
+  const kept=sorted.slice(rule.trimT,rule.trimH?-rule.trimH:undefined);
+  if(!kept.length)return{avg:0,kept,removed:[],rule};
+  return{avg:kept.reduce((s,v)=>s+v,0)/kept.length,kept,removed:sorted.filter(v=>!kept.includes(v)),rule};
+}
+
+function calcFinal(scoreArr){
+  const active=scoreArr.filter(s=>!s.absent);
+  if(!active.length)return{finalScore:0,fS:0,fA:0,fF:0,detail:{}};
+  const w=DB.config.weights;
+  const sRes=trimmedAvg(active,'scale');
+  const aRes=trimmedAvg(active,'assigned');
+  const fRes=trimmedAvg(active,'free');
+  const fS=sRes.avg,fA=aRes.avg,fF=fRes.avg;
+  const finalScore=Math.round((fS*w.scale+fA*w.assigned+fF*w.free)*100)/100;
+  return{finalScore,fS,fA,fF,detail:{scale:sRes,assigned:aRes,free:fRes}};
+}
+
+// ════════════════════════════════════════════════
+// SCHEDULE
+// ════════════════════════════════════════════════
+function generateSchedule(){renderSchedule();showToast('已自動生成出場順序 ✓','ok');}
+
+// ── 排序鍵狀態 ──
+const SCH_SORT_DEFS=[
+  {key:'room',label:'考場'},
+  {key:'class',label:'班級'},
+  {key:'seat',label:'座號'},
+  {key:'inst',label:'樂器'},
+  {key:'type',label:'類別'},
+  {key:'name',label:'姓名'},
+];
+let schSortKeys=SCH_SORT_DEFS.map(d=>({...d,dir:1,active:false}));
+
+function schInitSortBar(){
+  const el=document.getElementById('sch-sort-keys');if(!el)return;
+  el.innerHTML='';
+  schSortKeys.forEach((k,idx)=>{
+    const btn=document.createElement('div');
+    btn.className='sort-key'+(k.active?' active':'');
+    btn.draggable=true;
+    btn.dataset.idx=idx;
+    btn.innerHTML=`<span>${k.label}</span><span class="sk-dir">${k.active?(k.dir===1?'↑':'↓'):'—'}</span>`;
+    btn.onclick=()=>schToggleSortKey(idx);
+    btn.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain',idx);btn.classList.add('dragging-key');});
+    btn.addEventListener('dragend',()=>btn.classList.remove('dragging-key'));
+    btn.addEventListener('dragover',e=>{e.preventDefault();});
+    btn.addEventListener('drop',e=>{
+      e.preventDefault();
+      const fromIdx=+e.dataTransfer.getData('text/plain');
+      const toIdx=idx;
+      if(fromIdx===toIdx)return;
+      const moved=schSortKeys.splice(fromIdx,1)[0];
+      schSortKeys.splice(toIdx,0,moved);
+      schInitSortBar();renderSchedule();
+    });
+    el.appendChild(btn);
+  });
+}
+window.schInitSortBar=schInitSortBar;
+
+function schToggleSortKey(idx){
+  const k=schSortKeys[idx];
+  if(k.active){
+    if(k.dir===1)k.dir=-1;
+    else{k.active=false;k.dir=1;}
+  } else {k.active=true;k.dir=1;}
+  schInitSortBar();renderSchedule();
+}
+
+function renderSchedule(){
+  const container=document.getElementById('sch-list');if(!container)return;
+  const roomId=document.getElementById('sch-room')?.value||'';
+  const classF=document.getElementById('sch-class')?.value||'';
+  const typeF=document.getElementById('sch-type')?.value||'';
+  let entries=getScheduleEntries();
+  if(roomId)entries=entries.filter(e=>e.roomId===roomId);
+  if(classF)entries=entries.filter(e=>e.class===classF);
+  if(typeF)entries=entries.filter(e=>e.type===typeF);
+
+  // 多鍵排序
+  const activeKeys=schSortKeys.filter(k=>k.active);
+  if(activeKeys.length){
+    entries.sort((a,b)=>{
+      for(const k of activeKeys){
+        let va,vb;
+        if(k.key==='room'){va=a.roomId;vb=b.roomId;}
+        else if(k.key==='class'){va=DB.classes.indexOf(a.class);vb=DB.classes.indexOf(b.class);}
+        else if(k.key==='seat'){va=a.seat;vb=b.seat;}
+        else if(k.key==='inst'){va=a.catOrder*10+a.typeOrder;vb=b.catOrder*10+b.typeOrder;}
+        else if(k.key==='type'){va=a.typeOrder;vb=b.typeOrder;}
+        else if(k.key==='name'){const r=a.name.localeCompare(b.name,'zh-TW');if(r!==0)return r*k.dir;}
+        if(k.key!=='name'){const d=va-vb;if(d!==0)return d*k.dir;}
+      }
+      return 0;
+    });
+  }
+  // 初始化排序按鈕（若尚未初始化）
+  if(!document.querySelector('.sort-key'))schInitSortBar();
+
+  entries.forEach((e,i)=>e._displayOrder=i+1);
+  const countEl=document.getElementById('sch-count');
+  if(countEl)countEl.textContent=entries.length?`共 ${entries.length} 筆`:'';
+  container.innerHTML='';
+  if(!entries.length){container.innerHTML='<p style="color:var(--muted);font-family:\'DM Mono\',monospace;font-size:11px;padding:14px">無符合條件的資料</p>';return;}
+  entries.forEach((e,i)=>{
+    const entryKey=e.studentId+'_'+e.type;
+    const dq=DB.disqualified[entryKey];
+    const div=document.createElement('div');div.className='exam-item'+(dq?' jst-row-a':'');div.draggable=true;
+    div.innerHTML=`<div class="dh">⠿</div>
+      <div class="ei-num" style="${dq?'color:var(--red)':''}">${String(e._displayOrder).padStart(2,'0')}</div>
+      <div class="ei-info" style="flex:1">
+        <div class="ei-name">${e.name} <span style="font-size:12px;font-weight:400;color:var(--muted)">${e.class}·座${e.seat}</span>${dq?`<span class="badge b-absent" style="margin-left:6px">⛔ 扣考</span>`:''}</div>
+        <div class="ei-detail">${e.instName}·${typeName(e.type)}·${e.roomName}</div>
+        ${dq?`<div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--red);margin-top:2px">原因：${dq.reason}${dq.note?' ／ '+dq.note:''}</div>`:''}
+        <div class="ei-rep">${e.ac?'指定：'+e.ac+' — '+e.at:''}${e.fc?'\n自選：'+e.fc+' — '+e.ft:''}</div>
+      </div>
+      ${typeBadge(e.type)}
+      <div class="bg" style="margin-left:8px;flex-shrink:0">
+        <button class="btn ${dq?'btn-s':'btn-o'} btn-xs" onclick="openDisqModal('${e.studentId}','${e.type}','${e.name}','${e.instName}')">${dq?'修改扣考':'設扣考'}</button>
+        ${dq?`<button class="btn btn-s btn-xs" onclick="removeDisq('${entryKey}')">取消扣考</button>`:''}
+      </div>`;
+    setupDrag(div,container);container.appendChild(div);
+  });
+}
+
+function schResetFilters(){
+  ['sch-room','sch-class','sch-type'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  schSortKeys=SCH_SORT_DEFS.map(d=>({...d,dir:1,active:false}));
+  schInitSortBar();renderSchedule();
+}
+window.schResetFilters=schResetFilters;
+
+// ════════════════════════════════════════════════
+// DISQUALIFIED LIST
+// ════════════════════════════════════════════════
+function renderDisqList(){
+  const el=document.getElementById('disq-list');if(!el)return;
+  const keys=Object.keys(DB.disqualified);
+  if(!keys.length){el.innerHTML='<p style="font-family:\'DM Mono\',monospace;font-size:11px;color:var(--muted);padding:6px 0">目前無扣考名單</p>';return;}
+  const rows=keys.map(k=>{
+    const dq=DB.disqualified[k];
+    const [sid,type]=k.split('_');
+    const stu=DB.users.find(u=>u.id===sid);
+    const name=stu?stu.name:'(已刪除)';
+    const cls=stu?stu.class:'';
+    const inst=stu?iname(stu[type]):'';
+    return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr auto auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--cream)">
+      <div><strong>${name}</strong> <span style="font-size:11px;color:var(--muted)">${cls}</span></div>
+      <div style="font-size:12px">${inst}·${typeName(type)}</div>
+      <div style="font-size:12px;color:var(--red)">${dq.reason}${dq.note?' <span style=\"color:var(--muted)\">/ '+dq.note+'</span>':''}</div>
+      <button class="btn btn-s btn-xs" onclick="openDisqModal('${sid}','${type}','${name}','${inst}')">修改</button>
+      <button class="btn btn-d btn-xs" onclick="removeDisq('${k}')">移除</button>
+    </div>`;
+  }).join('');
+  el.innerHTML=rows;
+}
+window.renderDisqList=renderDisqList;
+
+function openDisqModal(studentId,type,name,instName){
+  const entryKey=studentId+'_'+type;
+  const dq=DB.disqualified[entryKey]||{};
+  document.getElementById('disq-modal-name').textContent=name+' — '+instName+'·'+typeName(type);
+  document.getElementById('disq-reason').value=dq.reason||'';
+  document.getElementById('disq-note').value=dq.note||'';
+  document.getElementById('disq-err').textContent='';
+  document.getElementById('disq-modal').dataset.entryKey=entryKey;
+  openOverlay('disq-modal');
+  setTimeout(()=>document.getElementById('disq-reason').focus(),200);
+}
+window.openDisqModal=openDisqModal;
+
+function saveDisq(){
+  const entryKey=document.getElementById('disq-modal').dataset.entryKey;
+  const reason=document.getElementById('disq-reason').value.trim();
+  if(!reason){document.getElementById('disq-err').textContent='請填寫扣考原因';return;}
+  const note=document.getElementById('disq-note').value.trim();
+  DB.disqualified[entryKey]={reason,note};
+  fbSet('disqualified',entryKey,{reason,note});
+  closeOverlay('disq-modal');
+  renderDisqList();renderSchedule();
+  showToast('已設定扣考 ✓','warn');
+}
+window.saveDisq=saveDisq;
+
+function removeDisq(entryKey){
+  delete DB.disqualified[entryKey];
+  fbDelete('disqualified',entryKey);
+  renderDisqList();renderSchedule();
+  showToast('已取消扣考','ok');
+}
+window.removeDisq=removeDisq;
+
+function importDisqCSV(){
+  const input=document.createElement('input');input.type='file';input.accept='.csv,.txt';
+  input.onchange=e=>{
+    const f=e.target.files[0];if(!f)return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      const lines=ev.target.result.split('\n').slice(1).filter(l=>l.trim());
+      let count=0,errors=[];
+      lines.forEach((line,li)=>{
+        const cols=line.split(',').map(s=>s.trim().replace(/^"|"$/g,''));
+        const [account,reason,note]=cols;
+        if(!account||!reason){errors.push('第'+(li+2)+'行格式錯誤');return;}
+        const stu=DB.users.find(u=>u.account===account&&u.role==='student');
+        if(!stu){errors.push('帳號不存在：'+account);return;}
+        // 對主修建立扣考（可視需求擴充為多類別）
+        const types=[];
+        if(stu.major)types.push('major');
+        if(stu.minor)types.push('minor');
+        if(stu.elective)types.push('elective');
+        types.forEach(t=>{DB.disqualified[stu.id+'_'+t]={reason,note:note||''};});
+        count++;
+      });
+      renderDisqList();renderSchedule();
+      if(errors.length)showToast('匯入 '+count+' 筆，'+errors.length+' 筆錯誤','warn');
+      else showToast('已匯入 '+count+' 筆扣考名單 ✓','ok');
+    };
+    reader.readAsText(f,'UTF-8');
+  };
+  input.click();
+}
+window.importDisqCSV=importDisqCSV;
+
+function exportDisqCSV(){
+  const keys=Object.keys(DB.disqualified);
+  if(!keys.length){showToast('目前無扣考名單','err');return;}
+  const data=keys.map(k=>{
+    const dq=DB.disqualified[k];
+    const [sid,type]=k.split('_');
+    const stu=DB.users.find(u=>u.id===sid);
+    return {'帳號':stu?.account||sid,'姓名':stu?.name||'','班級':stu?.class||'','樂器':stu?iname(stu[type]):'','類別':typeName(type),'扣考原因':dq.reason,'備註':dq.note||''};
+  });
+  exportCSV(data,'扣考名單');
+}
+window.exportDisqCSV=exportDisqCSV;
+
+function downloadDisqSample(e){
+  e.preventDefault();
+  const csv='帳號,扣考原因,備註\ns001,曠課超過三分之一,\ns002,違反考試規定,已通知家長';
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='扣考名單範例.csv';a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+window.downloadDisqSample=downloadDisqSample;
+
+function exportScheduleCSV(){
+  const roomId=document.getElementById('sch-room')?.value||'';
+  const entries=getScheduleEntries().filter(e=>!roomId||e.roomId===roomId);
+  exportCSV(entries.map(e=>({'序':e.order,'考場':e.roomName,'班級':e.class,'座號':e.seat,'姓名':e.name,'樂器':e.instName,'類別':typeName(e.type),'指定曲作曲家':e.ac||'','指定曲曲目':e.at||'','自選曲作曲家':e.fc||'','自選曲曲目':e.ft||''})),'考試排程');
+}
+
+function publishSchedule(){showToast('已公告至學生考試順序查詢頁 ✓','ok');renderStuSchedule();}
+
+// ════════════════════════════════════════════════
+// ADMIN - USERS
+// ════════════════════════════════════════════════
+function renderAdminStudents(){
+  const tbody=document.getElementById('admin-stu-tbody');if(!tbody)return;
+  const cf=document.getElementById('admin-class-filter')?.value||'';
+  const stus=students().filter(s=>!cf||s.class===cf).sort((a,b)=>DB.classes.indexOf(a.class)-DB.classes.indexOf(b.class)||a.seat-b.seat);
+  tbody.innerHTML=stus.map(s=>`<tr>
+    <td>${s.class}</td><td>${s.seat}</td><td><strong>${s.name}</strong></td>
+    <td>${iname(s.major)}</td><td>${iname(s.minor)}</td><td>${iname(s.elective)}</td>
+    <td style="text-align:center"><span class="dot ${s.repDone?'dg':'dr'}"></span></td>
+    <td style="text-align:center"><span class="dot ${s.teaDone?'dg':'dr'}"></span></td>
+    <td><div class="bg"><button class="btn btn-s btn-xs" onclick="editUser('${s.id}')">編輯</button><button class="btn btn-s btn-xs" onclick="resetUserPwd('${s.id}')">重置密碼</button><button class="btn btn-d btn-xs" onclick="deleteUser('${s.id}')">刪</button></div></td>
+  </tr>`).join('')||'<tr><td colspan="9" style="text-align:center;padding:16px;color:var(--muted)">無資料</td></tr>';
+}
+
+function renderAdminTeachers(){
+  const tbody=document.getElementById('admin-tea-tbody');if(!tbody)return;
+  tbody.innerHTML=teachers().map(t=>{
+    const myStus=(DB.teacherStudents[t.id]||[]).map(sid=>DB.users.find(u=>u.id===sid)?.name||sid).join('、')||'尚未指派';
+    return `<tr>
+    <td><strong>${t.name}</strong></td>
+    <td style="font-family:'DM Mono',monospace;font-size:11px">${t.account}</td>
+    <td style="font-size:12px;color:var(--muted);max-width:220px">${myStus}</td>
+    <td><div class="bg">
+      <button class="btn btn-b btn-xs" onclick="openTeaStuModal('${t.id}')">指派學生</button>
+      <button class="btn btn-s btn-xs" onclick="editUser('${t.id}')">編輯</button>
+      <button class="btn btn-s btn-xs" onclick="resetUserPwd('${t.id}')">重置密碼</button>
+      <button class="btn btn-d btn-xs" onclick="deleteUser('${t.id}')">刪</button>
+    </div></td>
+  </tr>`;}).join('');
+}
+
+function renderAdminAdmins(){
+  const tbody=document.getElementById('admin-adm-tbody');if(!tbody)return;
+  tbody.innerHTML=admins().map(a=>`<tr>
+    <td><strong>${a.name}</strong></td>
+    <td style="font-family:'DM Mono',monospace;font-size:11px">${a.account}</td>
+    <td><div class="bg"><button class="btn btn-s btn-xs" onclick="editUser('${a.id}')">編輯</button><button class="btn btn-s btn-xs" onclick="resetUserPwd('${a.id}')">重置密碼</button></div></td>
+  </tr>`).join('');
+}
+
+function showAddUser(role){
+  const rLabel={student:'學生',teacher:'教師',admin:'管理員'}[role];
+  document.getElementById('edit-modal-title').textContent='新增'+rLabel;
+  let extra='';
+  if(role==='student')extra=`
+    <div class="fr">
+      <div class="fg"><label>班級</label><select id="em-class">${DB.classes.map(c=>`<option>${c}</option>`).join('')}</select></div>
+      <div class="fg"><label>座號</label><input type="number" id="em-seat" min="1" value="1"></div>
+    </div>`;
+  document.getElementById('edit-modal-body').innerHTML=`
+    <div class="fr"><div class="fg"><label>姓名</label><input type="text" id="em-name" placeholder="姓名"></div><div class="fg"><label>帳號</label><input type="text" id="em-account" placeholder="帳號"></div></div>
+    ${extra}
+    <div class="fg"><label>初始密碼</label><input type="text" id="em-pass" value="000"></div>`;
+  document.getElementById('edit-modal-save').onclick=()=>{
+    const name=document.getElementById('em-name').value.trim();
+    const account=document.getElementById('em-account').value.trim();
+    const pass=document.getElementById('em-pass').value||'000';
+    if(!name||!account){showToast('請填寫姓名及帳號','err');return;}
+    const nu={id:role[0]+Date.now(),name,account,pass,role};
+    if(role==='student'){nu.class=document.getElementById('em-class').value;nu.seat=+document.getElementById('em-seat').value;nu.repDone=false;nu.teaDone=false;}
+    fbSet('users',nu.id,nu);
+    DB.users.push(nu);closeOverlay('edit-modal');showToast('已新增 '+name+' ✓','ok');renderAll();updateStats();
+  };
+  openOverlay('edit-modal');setTimeout(()=>document.getElementById('em-name').focus(),200);
+}
+
+function editUser(id){
+  const u=DB.users.find(x=>x.id===id);if(!u)return;
+  document.getElementById('edit-modal-title').textContent='編輯 — '+u.name;
+  let extra='';
+  if(u.role==='student')extra=`
+    <div class="fr">
+      <div class="fg"><label>班級</label><select id="em-class">${DB.classes.map(c=>`<option ${c===u.class?'selected':''}>${c}</option>`).join('')}</select></div>
+      <div class="fg"><label>座號</label><input type="number" id="em-seat" value="${u.seat}"></div>
+    </div>
+    <div class="fr">
+      <div class="fg"><label>主修</label><select id="em-major"><option value="">—</option>${DB.instruments.items.map(i=>`<option value="${i.id}" ${i.id===u.major?'selected':''}>${i.name}</option>`).join('')}</select></div>
+      <div class="fg"><label>副修</label><select id="em-minor"><option value="">—</option>${DB.instruments.items.map(i=>`<option value="${i.id}" ${i.id===u.minor?'selected':''}>${i.name}</option>`).join('')}</select></div>
+      <div class="fg"><label>選修</label><select id="em-elective"><option value="">—</option>${DB.instruments.items.map(i=>`<option value="${i.id}" ${i.id===u.elective?'selected':''}>${i.name}</option>`).join('')}</select></div>
+    </div>`;
+  document.getElementById('edit-modal-body').innerHTML=`
+    <div class="fr"><div class="fg"><label>姓名</label><input type="text" id="em-name" value="${u.name}"></div><div class="fg"><label>帳號</label><input type="text" id="em-account" value="${u.account}"></div></div>
+    ${extra}`;
+  document.getElementById('edit-modal-save').onclick=()=>{
+    u.name=document.getElementById('em-name').value.trim()||u.name;
+    u.account=document.getElementById('em-account').value.trim()||u.account;
+    if(u.role==='student'){u.class=document.getElementById('em-class').value;u.seat=+document.getElementById('em-seat').value;u.major=document.getElementById('em-major').value;u.minor=document.getElementById('em-minor').value;u.elective=document.getElementById('em-elective').value;}
+    fbSet('users',u.id,u);
+    closeOverlay('edit-modal');showToast('已更新 ✓','ok');renderAll();
+  };
+  openOverlay('edit-modal');
+}
+
+function resetUserPwd(id){const u=DB.users.find(x=>x.id===id);if(!u)return;u.pass='000';fbSet('users',id,{pass:'000'});showToast(u.name+' 密碼已重置為 000','ok');}
+function deleteUser(id){const idx=DB.users.findIndex(u=>u.id===id);if(idx>-1){const n=DB.users[idx].name;fbDelete('users',id);DB.users.splice(idx,1);renderAll();updateStats();showToast('已刪除 '+n,'err');}}
+
+// CSV Import/Export
+function importCSV(role){
+  const input=document.createElement('input');input.type='file';input.accept='.csv,.txt';
+  input.onchange=e=>{
+    const f=e.target.files[0];if(!f)return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      const lines=ev.target.result.split('\n').slice(1).filter(l=>l.trim());
+      let count=0;
+      lines.forEach(line=>{
+        const cols=line.split(',').map(s=>s.trim().replace(/^"|"$/g,''));
+        if(role==='student'){
+          const [cls,seat,name,account,...rest]=cols;
+          if(!name||!account)return;
+          if(DB.users.find(u=>u.account===account))return;
+          const nu2={id:'s'+Date.now()+Math.random(),name,account,pass:'000',role:'student',class:cls||'甲班',seat:+seat||1,repDone:false,teaDone:false};
+          DB.users.push(nu2);fbSet('users',nu2.id,nu2);
+        }else if(role==='teacher'){
+          const [name,account]=cols;
+          if(!name||!account)return;
+          if(DB.users.find(u=>u.account===account))return;
+          const nt={id:'t'+Date.now()+Math.random(),name,account,pass:'000',role:'teacher'};
+          DB.users.push(nt);fbSet('users',nt.id,nt);
+        }
+        count++;
+      });
+      renderAll();updateStats();showToast(`已匯入 ${count} 筆 ✓`,'ok');
+    };
+    reader.readAsText(f,'UTF-8');
+  };
+  input.click();
+}
+
+function downloadSample(e,role){
+  e.preventDefault();
+  const samples={
+    student:'班級,座號,姓名,帳號\n甲班,1,王小明,s999\n甲班,2,李小華,s998\n乙班,1,陳美玲,s997',
+    teacher:'姓名,帳號\n王老師,teacher99\n陳老師,teacher98',
+  };
+  const blob=new Blob(['\uFEFF'+(samples[role]||'')],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=(role==='student'?'學生':'教師')+'名單範例.csv';a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);showToast('範例檔下載中 ✓','ok');
+}
+
+function exportCSV(data,filename){
+  if(!data.length){showToast('無資料可匯出','err');return;}
+  const headers=Object.keys(data[0]);
+  const rows=[headers.join(','),...data.map(r=>headers.map(h=>`"${(r[h]??'').toString().replace(/"/g,'""')}"`).join(','))];
+  const blob=new Blob(['\uFEFF'+rows.join('\n')],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=filename+'.csv';a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);showToast('匯出成功 ✓','ok');
+}
+
+// ════════════════════════════════════════════════
+// ADMIN - INSTRUMENTS
+// ════════════════════════════════════════════════
+function renderCatList(){
+  const c=document.getElementById('cat-list');if(!c)return;c.innerHTML='';
+  DB.instruments.categories.sort((a,b)=>a.order-b.order).forEach((cat,i)=>{
+    const div=document.createElement('div');div.className='exam-item';div.draggable=true;
+    div.innerHTML=`<div class="dh">⠿</div><div class="ei-info"><div class="ei-name">${cat.name}</div></div>
+      <button class="btn btn-s btn-xs" onclick="renameCategory('${cat.id}')">改名</button>
+      <button class="btn btn-d btn-xs" onclick="delCategory('${cat.id}')">刪</button>`;
+    setupDrag(div,c);c.appendChild(div);
+  });
+  const sel=document.getElementById('inst-cat-sel');
+  if(sel){sel.innerHTML='<option value="">選擇大項</option>';DB.instruments.categories.forEach(cat=>sel.appendChild(new Option(cat.name,cat.id)));}
+}
+function renderInstList(){
+  const catId=document.getElementById('inst-cat-sel')?.value||'';
+  const c=document.getElementById('inst-list');if(!c)return;c.innerHTML='';
+  DB.instruments.items.filter(i=>i.cat===catId).sort((a,b)=>a.order-b.order).forEach(inst=>{
+    const div=document.createElement('div');div.className='exam-item';div.draggable=true;
+    div.innerHTML=`<div class="dh">⠿</div><div class="ei-info"><div class="ei-name">${inst.name}</div></div>
+      <button class="btn btn-s btn-xs" onclick="renameInst('${inst.id}')">改名</button>
+      <button class="btn btn-d btn-xs" onclick="delInst('${inst.id}')">刪</button>`;
+    setupDrag(div,c);c.appendChild(div);
+  });
+}
+function renderInstDropdown(){renderCatList();}
+function fbSaveInstruments(){
+  fbSet('instruments','categories',{list:DB.instruments.categories});
+  fbSet('instruments','items',{list:DB.instruments.items});
+}
+function addCategory(){const n=prompt('新增大項名稱：');if(!n)return;DB.instruments.categories.push({id:'cat_'+Date.now(),name:n,order:DB.instruments.categories.length});renderCatList();initDropdowns();showToast('已新增 '+n,'ok');}
+function renameCategory(id){const c=DB.instruments.categories.find(x=>x.id===id);const n=prompt('新名稱：',c?.name);if(n&&c){c.name=n;renderCatList();initDropdowns();showToast('已更新','ok');}}
+function delCategory(id){const idx=DB.instruments.categories.findIndex(c=>c.id===id);if(idx>-1){DB.instruments.categories.splice(idx,1);renderCatList();showToast('已刪除','err');}}
+function addInstrument(){const catId=document.getElementById('inst-cat-sel')?.value;if(!catId){showToast('請先選擇大項','err');return;}const n=prompt('新增樂器名稱：');if(!n)return;DB.instruments.items.push({id:'inst_'+Date.now(),cat:catId,name:n,order:DB.instruments.items.filter(i=>i.cat===catId).length});renderInstList();showToast('已新增 '+n,'ok');}
+function renameInst(id){const inst=DB.instruments.items.find(i=>i.id===id);const n=prompt('新名稱：',inst?.name);if(n&&inst){inst.name=n;fbSaveInstruments();renderInstList();showToast('已更新','ok');}}
+function delInst(id){const idx=DB.instruments.items.findIndex(i=>i.id===id);if(idx>-1){DB.instruments.items.splice(idx,1);fbSaveInstruments();renderInstList();showToast('已刪除','err');}}
+
+// ════════════════════════════════════════════════
+// ADMIN - ROOMS & CLASSES
+// ════════════════════════════════════════════════
+function renderRooms(){
+  const tbody=document.getElementById('rooms-tbody');if(!tbody)return;
+  tbody.innerHTML=DB.rooms.map(r=>`<tr>
+    <td><strong>${r.name}</strong></td>
+    <td><span style="font-family:'DM Mono',monospace;background:var(--ink);color:var(--paper);padding:2px 7px;border-radius:var(--r);letter-spacing:2px">••••••</span>
+      <button class="btn btn-s btn-xs" style="margin-left:6px" onclick="revealCode('${r.id}',this)">顯示</button></td>
+    <td><div class="bg"><button class="btn btn-s btn-xs" onclick="editRoom('${r.id}')">編輯</button><button class="btn btn-d btn-xs" onclick="delRoom('${r.id}')">刪</button></div></td>
+  </tr>`).join('');
+}
+function revealCode(id,btn){const r=DB.rooms.find(x=>x.id===id);if(!r)return;btn.parentNode.innerHTML=`<code style="font-family:'DM Mono',monospace;background:var(--cream);padding:3px 8px;border-radius:var(--r);letter-spacing:3px">${r.code}</code>`;}
+function addRoom(){
+  document.getElementById('edit-modal-title').textContent='新增考場';
+  document.getElementById('edit-modal-body').innerHTML=`
+    <div class="fr"><div class="fg"><label>考場名稱</label><input type="text" id="rm-name" placeholder="如：木管考場"></div><div class="fg"><label>評審代碼</label><input type="text" id="rm-code" placeholder="如：WW2025" style="font-family:'DM Mono',monospace;letter-spacing:3px"></div></div>`;
+  document.getElementById('edit-modal-save').onclick=()=>{
+    const name=document.getElementById('rm-name').value.trim();const code=document.getElementById('rm-code').value.trim();
+    if(!name||!code){showToast('請填寫名稱及代碼','err');return;}
+    const nr={id:'r'+Date.now(),name,code,cats:[]};DB.rooms.push(nr);fbSet('rooms',nr.id,{...nr,_order:DB.rooms.length-1});closeOverlay('edit-modal');showToast('已新增 '+name,'ok');renderRooms();initDropdowns();
+  };
+  openOverlay('edit-modal');
+}
+function editRoom(id){
+  const r=DB.rooms.find(x=>x.id===id);if(!r)return;
+  document.getElementById('edit-modal-title').textContent='編輯考場 — '+r.name;
+  document.getElementById('edit-modal-body').innerHTML=`
+    <div class="fr"><div class="fg"><label>考場名稱</label><input type="text" id="rm-name" value="${r.name}"></div><div class="fg"><label>評審代碼</label><input type="text" id="rm-code" value="${r.code}" style="font-family:'DM Mono',monospace;letter-spacing:3px"></div></div>`;
+  document.getElementById('edit-modal-save').onclick=()=>{r.name=document.getElementById('rm-name').value.trim()||r.name;r.code=document.getElementById('rm-code').value.trim()||r.code;fbSet('rooms',r.id,r);closeOverlay('edit-modal');showToast('已更新','ok');renderRooms();};
+  openOverlay('edit-modal');
+}
+function delRoom(id){const idx=DB.rooms.findIndex(r=>r.id===id);if(idx>-1){fbDelete('rooms',id);DB.rooms.splice(idx,1);renderRooms();initDropdowns();showToast('已刪除','err');}}
+
+function renderClassList(){
+  const c=document.getElementById('class-list');if(!c)return;c.innerHTML='';
+  DB.classes.forEach((cls,i)=>{
+    const div=document.createElement('div');div.className='exam-item';div.draggable=true;
+    div.innerHTML=`<div class="dh">⠿</div><div class="ei-info"><div class="ei-name">${cls}</div></div>
+      <button class="btn btn-s btn-xs" onclick="renameClass(${i})">改名</button>
+      <button class="btn btn-d btn-xs" onclick="delClass(${i})">刪</button>`;
+    // drag for classes
+    div.addEventListener('dragstart',e=>{div.classList.add('dragging');e.dataTransfer.setData('text/plain',i);});
+    div.addEventListener('dragend',()=>div.classList.remove('dragging'));
+    div.addEventListener('dragover',e=>{e.preventDefault();const after=getDragAfter(c,e.clientY);const dr=c.querySelector('.dragging');if(after)c.insertBefore(dr,after);else c.appendChild(dr);});
+    div.addEventListener('drop',()=>{
+      // Rebuild DB.classes from current DOM order
+      const items=[...c.querySelectorAll('.exam-item')];
+      const newOrder=items.map(el=>el.querySelector('.ei-name').textContent);
+      DB.classes.length=0;newOrder.forEach(n=>DB.classes.push(n));
+      fbSet('classes','main',{list:[...DB.classes]});initDropdowns();
+    });
+    c.appendChild(div);
+  });
+}
+function addClass(){const n=prompt('新班級名稱：');if(!n)return;DB.classes.push(n);fbSet('classes','main',{list:[...DB.classes]});renderClassList();initDropdowns();showToast('已新增 '+n,'ok');}
+function renameClass(i){const n=prompt('新名稱：',DB.classes[i]);if(n){DB.classes[i]=n;fbSet('classes','main',{list:[...DB.classes]});renderClassList();initDropdowns();showToast('已更新','ok');}}
+function delClass(i){DB.classes.splice(i,1);fbSet('classes','main',{list:[...DB.classes]});renderClassList();initDropdowns();showToast('已刪除','err');}
+
+// ════════════════════════════════════════════════
+// ADMIN - TIMING
+// ════════════════════════════════════════════════
+const pageLabels={rep:'學生曲目填寫',scores:'成績查閱',jury:'評審評分',teacher:'教師評量',schedule:'考試排程'};
+function renderTiming(){
+  const tb=document.getElementById('timing-body');const ab=document.getElementById('announce-body');if(!tb||!ab)return;
+  tb.innerHTML=Object.entries(DB.config.pages).map(([k,v])=>`
+    <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--cream)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="font-family:'DM Mono',monospace;font-size:10px">${pageLabels[k]}</span>
+        <label class="tgl"><input type="checkbox" ${v.visible?'checked':''} onchange="DB.config.pages['${k}'].visible=this.checked"><span class="tgl-sl"></span></label>
+      </div>
+      <div class="fr" style="margin-bottom:0">
+        <div class="fg"><label>開放</label><input type="datetime-local" value="${v.open}" onchange="DB.config.pages['${k}'].open=this.value"></div>
+        <div class="fg"><label>截止</label><input type="datetime-local" value="${v.close}" onchange="DB.config.pages['${k}'].close=this.value"></div>
+      </div>
+    </div>`).join('');
+  ab.innerHTML=Object.entries(DB.config.pages).map(([k,v])=>`
+    <div class="fg" style="margin-bottom:10px"><label>${pageLabels[k]} 公告</label><input type="text" value="${v.announce||''}" placeholder="（留空不顯示）" onchange="DB.config.pages['${k}'].announce=this.value"></div>`).join('')+
+    '<button class="btn btn-p" onclick="saveAnnounce()">儲存公告</button>';
+}
+function saveTiming(){fbSet('config','main',{weights:DB.config.weights,trimRules:DB.config.trimRules,pages:DB.config.pages,studentAccess:DB.config.studentAccess,teacherAccess:DB.config.teacherAccess,repHint:DB.config.repHint,tyTitle:DB.config.tyTitle,tyText:DB.config.tyText});showToast('時間設定已儲存 ✓','ok');}
+function saveAnnounce(){fbSet('config','main',{weights:DB.config.weights,trimRules:DB.config.trimRules,pages:DB.config.pages,studentAccess:DB.config.studentAccess,teacherAccess:DB.config.teacherAccess,repHint:DB.config.repHint,tyTitle:DB.config.tyTitle,tyText:DB.config.tyText});showToast('公告已更新 ✓','ok');}
+
+// ════════════════════════════════════════════════
+// ADMIN - SCORING
+// ════════════════════════════════════════════════
+function renderTrimRules(){
+  const c=document.getElementById('trim-list');if(!c)return;
+  c.innerHTML=DB.config.trimRules.map((r,i)=>`
+    <div style="display:flex;gap:7px;align-items:center;margin-bottom:7px;flex-wrap:wrap">
+      <div class="fg" style="min-width:60px;margin-bottom:0"><label>≥ 人</label><input type="number" value="${r.minJ}" min="0" onchange="DB.config.trimRules[${i}].minJ=+this.value"></div>
+      <div class="fg" style="min-width:60px;margin-bottom:0"><label>≤ 人</label><input type="number" value="${r.maxJ}" min="0" onchange="DB.config.trimRules[${i}].maxJ=+this.value"></div>
+      <div class="fg" style="min-width:60px;margin-bottom:0"><label>去最高</label><input type="number" value="${r.trimH}" min="0" max="5" onchange="DB.config.trimRules[${i}].trimH=+this.value"></div>
+      <div class="fg" style="min-width:60px;margin-bottom:0"><label>去最低</label><input type="number" value="${r.trimT}" min="0" max="5" onchange="DB.config.trimRules[${i}].trimT=+this.value"></div>
+      <button class="btn btn-d btn-xs" style="margin-top:16px" onclick="DB.config.trimRules.splice(${i},1);renderTrimRules()">✕</button>
+    </div>`).join('');
+}
+function addTrim(){DB.config.trimRules.push({id:Date.now(),minJ:0,maxJ:0,trimH:0,trimT:0});fbSet('config','main',{weights:DB.config.weights,trimRules:DB.config.trimRules,pages:DB.config.pages,studentAccess:DB.config.studentAccess,teacherAccess:DB.config.teacherAccess,repHint:DB.config.repHint,tyTitle:DB.config.tyTitle,tyText:DB.config.tyText});renderTrimRules();}
+function saveWeights(){
+  const s=+document.getElementById('w-scale').value,a=+document.getElementById('w-assigned').value,f=+document.getElementById('w-free').value;
+  if(s+a+f!==100){showToast('三項必須合計 100%','err');return;}
+  DB.config.weights={scale:s/100,assigned:a/100,free:f/100};fbSet('config','main',{weights:DB.config.weights,trimRules:DB.config.trimRules,pages:DB.config.pages,studentAccess:DB.config.studentAccess,teacherAccess:DB.config.teacherAccess,repHint:DB.config.repHint,tyTitle:DB.config.tyTitle,tyText:DB.config.tyText});showToast('權重已儲存 ✓','ok');
+}
+
+// ════════════════════════════════════════════════
+// ADMIN - ACCESS CONTROL
+// ════════════════════════════════════════════════
+function renderAccessControl(){
+  const studentPages=[{id:'rep',label:'曲目填寫'},{id:'scores',label:'成績查閱'},{id:'stu-schedule',label:'考試順序查詢'}];
+  const teacherPages=[{id:'teacher',label:'平時評量'}];
+  const render=(pages,configKey,containerId)=>{
+    const el=document.getElementById(containerId);if(!el)return;
+    el.innerHTML=pages.map(p=>`
+      <div class="access-grid">
+        <div class="access-label">${p.label}</div>
+        <button class="btn btn-g btn-sm" onclick="setAccess('${configKey}','${p.id}',true)">公開</button>
+        <button class="btn btn-d btn-sm" onclick="setAccess('${configKey}','${p.id}',false)">關閉</button>
+        <div style="font-family:'DM Mono',monospace;font-size:9px;padding:3px 10px;border-radius:20px;${DB.config[configKey][p.id]!==false?'background:#d4edda;color:#155724':'background:#f8d7da;color:#721c24'}">${DB.config[configKey][p.id]!==false?'公開':'關閉'}</div>
+      </div>`).join('');
+  };
+  render(studentPages,'studentAccess','access-student');
+  render(teacherPages,'teacherAccess','access-teacher');
+}
+function setAccess(configKey,pageId,val){DB.config[configKey][pageId]=val;fbSet('config','main',{weights:DB.config.weights,trimRules:DB.config.trimRules,pages:DB.config.pages,studentAccess:DB.config.studentAccess,teacherAccess:DB.config.teacherAccess,repHint:DB.config.repHint,tyTitle:DB.config.tyTitle,tyText:DB.config.tyText});renderAccessControl();showToast(`已${val?'公開':'關閉'} · 重新登入後生效`,'ok');}
+
+// ════════════════════════════════════════════════
+// ADMIN - CONTENT
+// ════════════════════════════════════════════════
+function saveRepHint(){DB.config.repHint=document.getElementById('rep-hint-txt').value;fbSet('config','main',{weights:DB.config.weights,trimRules:DB.config.trimRules,pages:DB.config.pages,studentAccess:DB.config.studentAccess,teacherAccess:DB.config.teacherAccess,repHint:DB.config.repHint,tyTitle:DB.config.tyTitle,tyText:DB.config.tyText});renderRepHint();showToast('已儲存 ✓','ok');}
+function saveTyText(){DB.config.tyTitle=document.getElementById('ty-title-inp').value;DB.config.tyText=document.getElementById('ty-body-inp').value;fbSet('config','main',{weights:DB.config.weights,trimRules:DB.config.trimRules,pages:DB.config.pages,studentAccess:DB.config.studentAccess,teacherAccess:DB.config.teacherAccess,repHint:DB.config.repHint,tyTitle:DB.config.tyTitle,tyText:DB.config.tyText});showToast('已儲存 ✓','ok');}
+
+// ════════════════════════════════════════════════
+// ADMIN - DANGER: CLEAR DATA
+// ════════════════════════════════════════════════
+function clearData(type){
+  const labels={rep:'學生曲目填報',teacher:'教師平時成績',jury:'考試成績與評語',all:'全部考試資料'};
+  if(!confirm(`確定要清除「${labels[type]}」？此操作不可復原。`))return;
+  if(type==='rep'||type==='all'){
+    students().forEach(s=>{
+      s.major_ac=s.major_at=s.major_fc=s.major_ft='';
+      s.minor_ac=s.minor_at=s.minor_fc=s.minor_ft='';
+      s.elec_ac=s.elec_at=s.elec_fc=s.elec_ft='';
+      s.repDone=false;
+      fbSet('users',s.id,s);
+    });
+  }
+  if(type==='teacher'||type==='all'){
+    Object.keys(DB.teacherComments).forEach(k=>{fbDelete('teacherComments',k);delete DB.teacherComments[k];});
+    students().forEach(s=>{s.teaDone=false;fbSet('users',s.id,s);});
+  }
+  if(type==='jury'||type==='all'){
+    Object.keys(DB.juryScores).forEach(k=>delete DB.juryScores[k]);
+    Object.keys(DB.deductions).forEach(k=>delete DB.deductions[k]);
+    // juryScores 結構較複雜，需逐層刪除
+    if(window._FB){const {db}=window._FB;db.collection('juryScores').get().then(snap=>snap.forEach(d=>d.ref.delete()));}
+  }
+  renderAll();showToast(`已清除「${labels[type]}」✓`,'ok');
+}
+
+// ════════════════════════════════════════════════
+// RESULTS (術科成績)
+// ════════════════════════════════════════════════
+function renderResults(){
+  const el=document.getElementById('results-body');if(!el)return;
+  const roomId=document.getElementById('result-room')?.value||'';
+  if(!roomId){el.innerHTML='<p style="color:var(--muted);font-family:\'DM Mono\',monospace;font-size:11px;padding:14px">請選擇考場</p>';return;}
+  const entries=getScheduleEntries().filter(e=>e.roomId===roomId);
+  if(!entries.length){el.innerHTML='<p style="color:var(--muted);font-family:\'DM Mono\',monospace;font-size:12px;padding:14px">此考場尚無學生</p>';return;}
+
+  el.innerHTML=entries.map((e,ei)=>{
+    const entryKey=e.studentId+'_'+e.type;
+    const jurorData=DB.juryScores[roomId]?.[entryKey]||{};
+    const scoreArr=Object.values(jurorData);
+    const result=scoreArr.length?calcFinal(scoreArr):{finalScore:null,fS:null,fA:null,fF:null,detail:{}};
+    const ded=DB.deductions[entryKey]||{amount:0,reason:''};
+    const finalWithDed=result.finalScore!==null?Math.max(0,result.finalScore-(ded.amount||0)):null;
+
+    // Build juror rows for each section
+    const jurorIds=Object.keys(jurorData);
+    const buildJurorRows=(field)=>{
+      return jurorIds.map((jid,ji)=>{
+        const s=jurorData[jid];
+        const val=s.absent?0:parseFloat(s[field])||0;
+        const isRemoved=result.detail?.[field]?.removed?.includes(val);
+        return `<div class="rjs-item ${isRemoved?'rjs-removed':''}">
+          <span style="color:var(--muted)">評審 ${ji+1}</span>
+          <span class="${val<60?'red-score':''}">${s.absent?'缺考':val.toFixed(1)}</span>
+        </div>`;
+      }).join('');
+    };
+
+    return `<div class="card" style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+        <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--muted)">${String(ei+1).padStart(2,'0')}</div>
+        <div><strong style="font-size:15px">${e.name}</strong> <span style="color:var(--muted);font-size:12px">${e.class}·座${e.seat}</span></div>
+        <div style="color:var(--muted);font-size:12px">${e.instName}</div>
+        ${typeBadge(e.type)}
+        <div style="margin-left:auto;text-align:right">
+          ${result.finalScore!==null?`<div style="font-family:'Cormorant Garamond',serif;font-size:28px;color:var(--gold)" class="${finalWithDed<60?'red-score':''}">${finalWithDed!==null?finalWithDed.toFixed(2):'—'}</div><div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted)">最終成績</div>`:'<div style="font-family:\'DM Mono\',monospace;font-size:11px;color:var(--muted)">尚無評分</div>'}
+        </div>
+      </div>
+      <div class="g3">
+        <div>
+          <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--gold);margin-bottom:6px">音階 / 視奏<span style="color:var(--muted);margin-left:8px">${result.fS!==null?'平均 '+result.fS.toFixed(1):''}</span></div>
+          ${buildJurorRows('scale')}
+        </div>
+        <div>
+          <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--gold);margin-bottom:6px">指定曲<span style="color:var(--muted);margin-left:8px">${result.fA!==null?'平均 '+result.fA.toFixed(1):''}</span></div>
+          ${buildJurorRows('assigned')}
+        </div>
+        <div>
+          <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--gold);margin-bottom:6px">自選曲<span style="color:var(--muted);margin-left:8px">${result.fF!==null?'平均 '+result.fF.toFixed(1):''}</span></div>
+          ${buildJurorRows('free')}
+        </div>
+      </div>
+
+      <!-- COMMENTS FOLDER -->
+      <div style="margin-top:12px">
+        <div class="comment-folder">
+          <div class="comment-folder-h" onclick="this.nextElementSibling.classList.toggle('open');this.querySelector('.cf-arrow').textContent=this.nextElementSibling.classList.contains('open')?'▲':'▼'">
+            <span>評語彙整（共 ${jurorIds.length} 位評審）</span><span class="cf-arrow">▼</span>
+          </div>
+          <div class="comment-folder-b">
+            ${jurorIds.map((jid,ji)=>{const s=jurorData[jid];return s.comment?`<div style="margin-bottom:8px;padding:8px 10px;background:var(--cream);border-radius:var(--r)"><div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:4px">評審 ${ji+1}</div><div style="font-size:13px;line-height:1.8">${s.comment}</div></div>`:''}).join('')||'<div style="color:var(--muted);font-size:12px">尚無評語</div>'}
+          </div>
+        </div>
+      </div>
+
+      <!-- DEDUCTION + EDIT -->
+      <div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--cream)">
+        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">扣分</span>
+        <input type="number" value="${ded.amount||0}" min="0" step="0.5" style="width:70px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);font-family:'DM Mono',monospace;font-size:13px;outline:none" onchange="DB.deductions['${entryKey}']={...DB.deductions['${entryKey}']||{},amount:+this.value};renderResults();fbSet('deductions','${entryKey}',DB.deductions['${entryKey}']||{})">
+        <input type="text" value="${ded.reason||''}" placeholder="扣分原因..." style="flex:1;padding:5px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;outline:none" onchange="DB.deductions['${entryKey}']={...DB.deductions['${entryKey}']||{},reason:this.value};fbSet('deductions','${entryKey}',DB.deductions['${entryKey}']||{})">
+        <button class="btn btn-o btn-xs" onclick="editJuryScores('${roomId}','${entryKey}','${e.name}')">✏ 修改評分</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function editJuryScores(roomId,entryKey,studentName){
+  const jurorData=DB.juryScores[roomId]?.[entryKey]||{};
+  document.getElementById('edit-modal-title').textContent='修改評分 — '+studentName;
+  const jurorIds=Object.keys(jurorData);
+  document.getElementById('edit-modal-body').innerHTML=jurorIds.length?
+    jurorIds.map((jid,ji)=>{const s=jurorData[jid];return `<div style="padding:10px;background:var(--cream);border-radius:var(--r);margin-bottom:8px">
+      <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:8px">評審 ${ji+1} ${s.absent?'（缺考）':''}</div>
+      <div class="fr">
+        <div class="fg"><label>音階</label><input type="number" id="ej-scale-${ji}" value="${s.scale||0}" min="0" max="100" step="0.5"></div>
+        <div class="fg"><label>指定曲</label><input type="number" id="ej-assigned-${ji}" value="${s.assigned||0}" min="0" max="100" step="0.5"></div>
+        <div class="fg"><label>自選曲</label><input type="number" id="ej-free-${ji}" value="${s.free||0}" min="0" max="100" step="0.5"></div>
+      </div>
+    </div>`;}).join('')
+    :'<p style="color:var(--muted);font-size:13px">尚無評審資料</p>';
+  document.getElementById('edit-modal-save').onclick=()=>{
+    jurorIds.forEach((jid,ji)=>{
+      const s=DB.juryScores[roomId][entryKey][jid];
+      s.scale=parseFloat(document.getElementById(`ej-scale-${ji}`)?.value)||0;
+      s.assigned=parseFloat(document.getElementById(`ej-assigned-${ji}`)?.value)||0;
+      s.free=parseFloat(document.getElementById(`ej-free-${ji}`)?.value)||0;
+    });
+    closeOverlay('edit-modal');showToast('評分已更新 ✓','ok');renderResults();
+  };
+  openOverlay('edit-modal');
+}
+
+function exportResultsCSV(){
+  const roomId=document.getElementById('result-room')?.value||'';
+  const entries=getScheduleEntries().filter(e=>!roomId||e.roomId===roomId);
+  const data=entries.map((e,i)=>{
+    const entryKey=e.studentId+'_'+e.type;
+    const jurorData=DB.juryScores[roomId]?.[entryKey]||{};
+    const scoreArr=Object.values(jurorData);
+    const result=scoreArr.length?calcFinal(scoreArr):{finalScore:null,fS:null,fA:null,fF:null};
+    const ded=DB.deductions[entryKey]||{amount:0,reason:''};
+    const finalWithDed=result.finalScore!==null?Math.max(0,result.finalScore-(ded.amount||0)):null;
+    // Absent counts as 0
+    const isAbsent=scoreArr.some(s=>s.absent);
+    return {'序':i+1,'班級':e.class,'座號':e.seat,'姓名':e.name,'樂器':e.instName,'別':typeName(e.type),
+      '音階平均':isAbsent?0:(result.fS?.toFixed(1)||''),
+      '指定曲平均':isAbsent?0:(result.fA?.toFixed(1)||''),
+      '自選曲平均':isAbsent?0:(result.fF?.toFixed(1)||''),
+      '術科成績':isAbsent?0:(result.finalScore?.toFixed(2)||''),
+      '扣分':ded.amount||0,'扣分原因':ded.reason||'',
+      '最終成績':isAbsent?0:(finalWithDed?.toFixed(2)||''),
+    };
+  });
+  exportCSV(data,'術科成績');
+}
+
+// ════════════════════════════════════════════════
+// STATS
+// ════════════════════════════════════════════════
+function updateStats(){
+  const stus=students();const done=stus.filter(s=>s.repDone).length;
+  document.getElementById('stat-s').textContent=stus.length;
+  document.getElementById('stat-r').textContent=done;
+  document.getElementById('stat-t').textContent=teachers().length;
+}
+
+// ════════════════════════════════════════════════
+// DRAG & DROP
+// ════════════════════════════════════════════════
+function setupDrag(el,container){
+  el.addEventListener('dragstart',e=>{el.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
+  el.addEventListener('dragend',()=>el.classList.remove('dragging'));
+  el.addEventListener('dragover',e=>{e.preventDefault();const after=getDragAfter(container,e.clientY);const dr=container.querySelector('.dragging');if(after)container.insertBefore(dr,after);else container.appendChild(dr);renumberItems(container);});
+}
+function getDragAfter(container,y){
+  return [...container.querySelectorAll('.exam-item:not(.dragging)')].reduce((cl,el)=>{
+    const box=el.getBoundingClientRect();const offset=y-box.top-box.height/2;
+    return offset<0&&offset>cl.offset?{offset,element:el}:cl;
+  },{offset:Number.NEGATIVE_INFINITY}).element;
+}
+function renumberItems(container){container.querySelectorAll('.ei-num').forEach((el,i)=>el.textContent=String(i+1).padStart(2,'0'));}
+
+// ════════════════════════════════════════════════
+// NUMPAD
+// ════════════════════════════════════════════════
+function openNP(targetId,label,callback){
+  ST.npTarget=targetId;
+  ST.npVal=document.getElementById(targetId)?.value||'';
+  ST.npCallback=callback;
+  document.getElementById('np-lbl').textContent=label;
+  document.getElementById('np-disp').textContent=ST.npVal||'—';
+  document.getElementById('np-overlay').classList.add('on');
+}
+function npBg(e){if(e.target===document.getElementById('np-overlay'))document.getElementById('np-overlay').classList.remove('on');}
+function npKey(k){if(k==='.'&&ST.npVal.includes('.'))return;if(ST.npVal.length>=5)return;ST.npVal+=k;document.getElementById('np-disp').textContent=ST.npVal;}
+function npDel(){ST.npVal=ST.npVal.slice(0,-1);document.getElementById('np-disp').textContent=ST.npVal||'—';}
+function npConfirm(){
+  const val=parseFloat(ST.npVal);
+  if(!isNaN(val)&&val>=0&&val<=100){
+    const inp=document.getElementById(ST.npTarget);if(inp)inp.value=val;
+    if(ST.npCallback)ST.npCallback(val);
+  }
+  document.getElementById('np-overlay').classList.remove('on');ST.npVal='';
+}
+
+// ════════════════════════════════════════════════
+// ADMIN TABS
+// ════════════════════════════════════════════════
+function swAdminTab(key,el){
+  document.querySelectorAll('#admin-tabs .tab').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('#pg-admin .tc').forEach(t=>{if(t.id.startsWith('at-'))t.classList.remove('on');});
+  el.classList.add('on');document.getElementById('at-'+key)?.classList.add('on');
+}
+function swUserTab(key,el){
+  document.querySelectorAll('#user-sub-tabs .tab').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('#at-users .tc').forEach(t=>{if(t.id.startsWith('ut-'))t.classList.remove('on');});
+  el.classList.add('on');document.getElementById('ut-'+key)?.classList.add('on');
+}
+
+// ════════════════════════════════════════════════
+// UI HELPERS
+// ════════════════════════════════════════════════
+function openOverlay(id){document.getElementById(id)?.classList.add('on');}
+function closeOverlay(id){document.getElementById(id)?.classList.remove('on');}
+// overlay listeners handled in attachListeners above
+
+function showToast(msg,type=''){
+  const t=document.getElementById('toast');t.textContent=msg;t.className='toast on '+type;
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),3000);
+}
+function showSyncStatus(state,text){
+  const el=document.getElementById('sync');const dot=document.getElementById('sy-dot');
+  document.getElementById('sy-txt').textContent=text;
+  dot.className='sy-dot '+({sync:'sy-sync',ok:'sy-ok',pend:'sy-pend'}[state]||'');
+  el.classList.add('on');clearTimeout(el._t);
+  if(state==='ok')el._t=setTimeout(()=>el.classList.remove('on'),2500);
+}
+// online handler 已整合至 Firebase enablePersistence 區塊，避免重複綁定
+window.addEventListener('offline',()=>{ST.isOnline=false;document.getElementById('off-bar').classList.add('show');});
+
+// ════════════════════════════════════════════════
+// EXPOSE FUNCTIONS TO GLOBAL SCOPE (needed for onclick= in HTML)
+// ════════════════════════════════════════════════
+const _expose = [
+  'doLogin','doJuryDirectLogin','doJuryLogin','doLogout','openChPwd','doChangePassword','fbSet','fbDelete','fbLoad','fbSaveInstruments',
+  'closeOverlay','openOverlay','showToast',
+  'filterRepInst','toggleElective','previewRep','backToRepForm','submitRep','editRep','renderRepDoneInfo','renderRepPage',
+  'doLookup','clearLookup',
+  'openTeaModal','swTeaTab','saveTeaComment','teaWizStart','teaWizPickClass','teaWizPickStu','teaWizPickType','teaWizBack','teaWizSaveAndNext','teaWizSubmitAll','teaWizOpenDirect','openTeaStuModal','tsmFilterClass','saveTeaStu',
+  'checkJuryBeforeSubmit','submitJuryAll','confirmSubmitJury','toggleAbsent','saveJCell',
+  'generateSchedule','exportScheduleCSV','publishSchedule','schResetFilters','schInitSortBar','schToggleSortKey','openDisqModal','saveDisq','removeDisq','importDisqCSV','exportDisqCSV','downloadDisqSample','renderDisqList',
+  'swAdminTab','swUserTab',
+  'showAddUser','editUser','resetUserPwd','deleteUser','importCSV','downloadSample',
+  'addCategory','renameCategory','delCategory','addInstrument','renameInst','delInst',
+  'renderInstList',
+  'addRoom','editRoom','delRoom','revealCode',
+  'addClass','renameClass','delClass',
+  'saveTiming','saveAnnounce','saveWeights','addTrim',
+  'setAccess','saveRepHint','saveTyText','clearData',
+  'renderResults','editJuryScores','exportResultsCSV',
+  'npKey','npDel','npConfirm','npBg',
+  'openNP',
+];
+_expose.forEach(function(name){
+  try{ if(typeof eval(name)==='function') window[name]=eval(name); }catch(e){}
+});
+
+} // end __init__
+
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', __init__);
+} else {
+  __init__();
+}
+
+})();
+</script>
+</body>
+</html>
