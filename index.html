@@ -165,17 +165,17 @@ td{padding:9px 12px;font-size:13px;vertical-align:middle}
 .hint-box{background:var(--cream);border-left:3px solid var(--gold);padding:9px 13px;margin-bottom:12px;font-size:11px;color:var(--muted);line-height:1.8;font-family:'DM Mono',monospace}
 
 /* JURY TABLE */
-.jst{width:100%;border-collapse:collapse;table-layout:fixed;min-width:900px}
+.jst{width:100%;border-collapse:collapse;table-layout:fixed;min-width:860px}
 .jst th,.jst td{border:1px solid var(--border);padding:0;vertical-align:middle}
-.jst thead th{background:var(--ink);color:var(--paper);padding:8px 10px;font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1.5px;text-align:center;font-weight:400}
-.jst .s-name-col{text-align:left;padding:8px 12px;width:140px}
-.score-cell{width:70px;text-align:center;padding:3px}
-.comment-cell{min-width:180px;padding:3px}
+.jst thead th{background:var(--ink);color:var(--paper);padding:8px 8px;font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1px;text-align:center;font-weight:400}
+.jst .s-name-col{text-align:left;padding:6px 10px;width:120px}
+.score-cell{width:52px;text-align:center;padding:2px}
+.comment-cell{min-width:220px;padding:3px}
 .absent-cell{width:50px;text-align:center;padding:3px}
 .piece-cell{overflow:hidden;padding:4px 8px;vertical-align:middle}
 .piece-cell .pc-composer{font-size:10px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .piece-cell .pc-title{font-size:9px;font-style:italic;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.score-inp{width:100%;border:none;background:transparent;font-family:'DM Mono',monospace;font-size:15px;font-weight:600;text-align:center;color:var(--ink);outline:none;padding:6px 2px;cursor:pointer}
+.score-inp{width:100%;border:none;background:transparent;font-family:'DM Mono',monospace;font-size:14px;font-weight:600;text-align:center;color:var(--ink);outline:none;padding:5px 1px;cursor:pointer}
 .score-inp:focus{background:var(--gold-bg)}
 .score-inp.empty-warn{background:#fff3f3!important}
 .score-inp.red-score{color:var(--red)}
@@ -696,7 +696,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
         <button class="btn btn-s" onclick="clearLookup()">清除</button>
       </div>
       <div class="tw"><table>
-        <thead><tr><th>序</th><th>考場</th><th>班級</th><th>姓名</th><th>樂器</th><th>別</th><th>指定曲</th><th>自選曲</th></tr></thead>
+        <thead><tr><th>序</th><th>考場</th><th>地點</th><th>班級</th><th>姓名</th><th>樂器</th><th>別</th><th>指定曲</th><th>自選曲</th></tr></thead>
         <tbody id="stu-sched-tbody"></tbody>
       </table></div>
     </div>
@@ -805,33 +805,35 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
 
     <!-- ══ JURY MODULE ══ -->
     <div class="pg" id="pg-jury">
-      <div class="ph"><h1>現場評分</h1><span>Live Jury Scoring</span></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">評審：</span>
-          <strong style="color:var(--gold);font-family:'DM Mono',monospace;font-size:12px" id="jury-name-disp">—</strong>
-          <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">｜考場：</span>
-          <span style="background:var(--ink);color:var(--paper);padding:2px 8px;border-radius:var(--r);font-family:'DM Mono',monospace;font-size:10px" id="jury-room-disp">—</span>
+      <!-- 考場大標題 -->
+      <div style="background:var(--ink);border-radius:var(--r);padding:18px 24px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div>
+          <div id="jury-room-disp" style="font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:300;color:var(--gold);line-height:1.2">—</div>
+          <div id="jury-location-disp" style="font-family:'DM Mono',monospace;font-size:11px;color:rgba(255,255,255,.5);margin-top:4px;letter-spacing:1.5px"></div>
         </div>
-        <div class="bg">
-          <button class="btn btn-b btn-sm" onclick="checkJuryBeforeSubmit()">✔ 填寫完畢確認</button>
-          <button class="btn btn-g btn-sm" onclick="submitJuryAll()">↑ 送出全部評分</button>
+        <div style="text-align:right">
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:rgba(255,255,255,.4);letter-spacing:2px;margin-bottom:4px">評審</div>
+          <div id="jury-name-disp" style="font-family:'DM Mono',monospace;font-size:14px;color:var(--gold)">—</div>
         </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:14px;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-b btn-sm" onclick="checkJuryBeforeSubmit()">✔ 填寫完畢確認</button>
+        <button class="btn btn-g btn-sm" onclick="submitJuryAll()">↑ 送出全部評分</button>
       </div>
       <div class="check-warn" id="jury-check-warn"></div>
       <div style="overflow-x:auto">
         <table class="jst" id="jury-table">
           <thead>
             <tr>
-              <th style="width:32px">序</th>
-              <th class="s-name-col" style="width:140px">學生</th>
-              <th style="width:44px">扣/缺<br>考</th>
-              <th style="width:64px;text-align:center">音階<br><span style="font-size:7px;opacity:.6">SCALE</span></th>
-              <th style="width:64px;text-align:center">指定分<br><span style="font-size:7px;opacity:.6">ASSIGNED</span></th>
-              <th style="width:160px;text-align:left;padding-left:8px">指定曲<br><span style="font-size:7px;opacity:.6">ASSIGNED PIECE</span></th>
-              <th style="width:64px;text-align:center">自選分<br><span style="font-size:7px;opacity:.6">FREE</span></th>
-              <th style="width:160px;text-align:left;padding-left:8px">自選曲<br><span style="font-size:7px;opacity:.6">FREE PIECE</span></th>
-              <th style="min-width:160px">評語</th>
+              <th style="width:28px">序</th>
+              <th class="s-name-col" style="width:115px">學生</th>
+              <th style="width:40px">扣/<br>缺</th>
+              <th style="width:50px;text-align:center">音階<br><span style="font-size:7px;opacity:.6">SCL</span></th>
+              <th style="width:50px;text-align:center">指定<br><span style="font-size:7px;opacity:.6">ASN</span></th>
+              <th style="min-width:180px;text-align:left;padding-left:6px">指定曲</th>
+              <th style="width:50px;text-align:center">自選<br><span style="font-size:7px;opacity:.6">FRE</span></th>
+              <th style="min-width:180px;text-align:left;padding-left:6px">自選曲</th>
+              <th style="min-width:200px">評語</th>
             </tr>
           </thead>
           <tbody id="jury-tbody"></tbody>
@@ -979,7 +981,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
             <div class="card-t">考場管理</div>
             <div class="bg" style="margin-bottom:12px"><button class="btn btn-p btn-sm" onclick="addRoom()">＋ 新增考場</button></div>
             <div class="tw"><table>
-              <thead><tr><th>考場名稱</th><th>評審代碼</th><th>操作</th></tr></thead>
+              <thead><tr><th>考場名稱</th><th>考試地點</th><th>評審代碼</th><th>操作</th></tr></thead>
               <tbody id="rooms-tbody"></tbody>
             </table></div>
           </div>
@@ -1117,7 +1119,7 @@ const DB = {
     ]
   },
   rooms: [
-    {id:'r1',name:'木管考場',code:'WW2024',cats:['ww']},
+    {id:'r1',name:'木管考場',code:'WW2024',cats:['ww'],allowedCats:['ww'],allowedItems:[],location:''},
     {id:'r2',name:'銅管考場',code:'BR2024',cats:['br']},
     {id:'r3',name:'鍵盤弦樂考場',code:'KB2024',cats:['kb','st','pc']},
   ],
@@ -1236,44 +1238,14 @@ const fmtScore = v => {
 // ════════════════════════════════════════════════
 // LOGIN
 // ════════════════════════════════════════════════
-// 標記 Firebase 資料是否已載入
-window._fbReady = false;
-
 function doLogin(){
   const acc=document.getElementById('l-user').value.trim();
   const pass=document.getElementById('l-pass').value.trim()||'000';
-
-  // 若 Firebase 尚未載入，先從 Firebase 讀取再登入
-  if(window._FB && !window._fbReady){
-    document.getElementById('l-err').textContent='';
-    const loadingBtn=document.querySelector('.login-btn');
-    if(loadingBtn)loadingBtn.textContent='驗證中...';
-    fbLoad('users',docs=>{
-      if(docs.length){
-        const fbIds=new Set(docs.map(d=>d.id));
-        DB.users.splice(0,DB.users.length,...docs.map(fd=>{
-          const{_updatedAt,...rest}=fd;return rest;
-        }));
-        if(!DB.users.find(u=>u.role==='admin')){
-          DB.users.push({id:'a001',name:'王國霖',account:'admin',pass:'000',role:'admin'});
-        }
-      }
-      window._fbReady=true;
-      if(loadingBtn)loadingBtn.textContent='登入系統';
-      _doLoginCheck(acc,pass);
-    });
-    return;
-  }
-  _doLoginCheck(acc,pass);
-}
-
-function _doLoginCheck(acc,pass){
   const u=DB.users.find(u=>u.account===acc&&u.pass===pass);
   if(!u){document.getElementById('l-err').textContent='帳號或密碼錯誤';return;}
   ST.user=u;ST.role=u.role;launchApp();
 }
 window.doLogin=doLogin;
-window._doLoginCheck=_doLoginCheck;
 // Event listeners wrapped safely
 (function(){
   function attachListeners(){
@@ -1296,15 +1268,27 @@ window._doLoginCheck=_doLoginCheck;
 })();
 
 function doJuryDirectLogin(){
-  const code=document.getElementById('l-jury-code').value.trim().toUpperCase();
+  const rawCode=document.getElementById('l-jury-code').value.trim();
+  const code=rawCode.toUpperCase();
   if(!code){document.getElementById('l-err').textContent='請輸入評審代碼';return;}
-  const room=DB.rooms.find(r=>r.code===code||r.code===document.getElementById('l-jury-code').value.trim());
-  if(!room){document.getElementById('l-err').textContent='代碼錯誤，請重新輸入';return;}
-  ST.juryRoom=room;
-  document.getElementById('l-err').textContent='';
-  document.getElementById('jn-name').value='';
-  openOverlay('jury-name-modal');
-  setTimeout(()=>document.getElementById('jn-name').focus(),200);
+  // 先嘗試從記憶體找（若 Firebase 尚未載入先做一次快速讀取）
+  function tryFindRoom(){
+    const room=DB.rooms.find(r=>r.code.toUpperCase()===code);
+    if(!room){document.getElementById('l-err').textContent='代碼錯誤，請重新輸入';return;}
+    ST.juryRoom=room;
+    document.getElementById('l-err').textContent='';
+    document.getElementById('jn-name').value='';
+    openOverlay('jury-name-modal');
+    setTimeout(()=>document.getElementById('jn-name').focus(),200);
+  }
+  if(DB.rooms.length>1){tryFindRoom();return;}
+  // rooms 尚未從 Firebase 載入，先讀取
+  if(window._FB){
+    fbLoad('rooms',docs=>{
+      if(docs.length){DB.rooms.length=0;docs.sort((a,b)=>(a._order||0)-(b._order||0)).forEach(d=>{const{id,_updatedAt,_order,...r}=d;DB.rooms.push({id,...r});});}
+      tryFindRoom();
+    });
+  } else {tryFindRoom();}
 }
 window.doJuryDirectLogin=doJuryDirectLogin;
 
@@ -1398,19 +1382,12 @@ function loadAllFromFirebase(done){
   pending++;
   fbLoad('users',docs=>{
     if(docs.length){
-      // ★ Firebase 有資料：完全以 Firebase 為準，清除預設再重建
-      // 保留程式碼預設中 Firebase 沒有的管理員帳號（保底）
-      const fbIds=new Set(docs.map(d=>d.id));
-      // 只保留 Firebase 裡有的使用者
-      DB.users.splice(0,DB.users.length,...docs.map(fd=>{
-        const{_updatedAt,...rest}=fd;
-        return rest;
-      }));
-      // 確保至少有一個管理員（防呆）
-      if(!DB.users.find(u=>u.role==='admin')){
-        DB.users.push({id:'a001',name:'王國霖',account:'admin',pass:'000',role:'admin'});
-        fbSet('users','a001',{id:'a001',name:'王國霖',account:'admin',pass:'000',role:'admin'});
-      }
+      // 用 Firebase 資料覆蓋，但保留程式碼裡沒有的欄位
+      docs.forEach(fd=>{
+        const local=DB.users.find(u=>u.id===fd.id);
+        if(local){Object.assign(local,fd);}
+        else{DB.users.push(fd);}
+      });
     } else {
       // 第一次：把預設 users 全部寫進 Firebase
       DB.users.forEach(u=>fbSet('users',u.id,u));
@@ -1576,7 +1553,7 @@ function launchApp(){
   authWait.then(()=>{
     loadAllFromFirebase(()=>{
       clearInterval(progTimer);if(bar)bar.style.width='100%';
-      setTimeout(()=>{window._fbReady=true;loadEl.remove();buildNav();initDropdowns();renderAll();setTimeout(navFirst,80);if(window._startJuryListener)window._startJuryListener();},300);
+      setTimeout(()=>{loadEl.remove();buildNav();initDropdowns();renderAll();setTimeout(navFirst,80);if(window._startJuryListener)window._startJuryListener();},300);
     });
   });
 }
@@ -1668,6 +1645,9 @@ function initDropdowns(){
   if(ST.role==='jury'&&ST.juryRoom){
     document.getElementById('jury-room-disp').textContent=ST.juryRoom.name;
     document.getElementById('jury-name-disp').textContent=ST.juryName;
+    // 顯示地點
+    const locEl=document.getElementById('jury-location-disp');
+    if(locEl)locEl.textContent=ST.juryRoom.location?('📍 '+ST.juryRoom.location):'';
   }
 }
 
@@ -1953,7 +1933,7 @@ function getScheduleEntries(){
         instId:t.instId,instName:iname(t.instId),catId:inst?.cat,catOrder:cat?.order??99,
         type:t.type,typeOrder:{major:0,minor:1,elective:2}[t.type],
         ac:t.ac,at:t.at,fc:t.fc,ft:t.ft,
-        roomId:room?.id||'',roomName:room?.name||'—',order:0,
+        roomId:room?.id||'',roomName:room?.name||'—',roomLocation:room?.location||'',order:0,
       });
     });
   });
@@ -1973,6 +1953,7 @@ function renderStuSchedule(filter){
   tbody.innerHTML=shown.map(e=>`<tr>
     <td style="font-family:'DM Mono',monospace;color:var(--ink);font-weight:600">${e.order}</td>
     <td style="color:var(--ink)">${e.roomName}</td>
+    <td style="color:var(--ink);font-family:'DM Mono',monospace;font-size:11px">${e.roomLocation||'—'}</td>
     <td style="color:var(--ink)">${e.class}</td>
     <td style="color:var(--ink);font-weight:600">${e.name}</td>
     <td style="color:var(--ink)">${e.instName}</td>
@@ -2587,7 +2568,7 @@ function renderSchedule(){
       <div class="ei-num" style="${dq?'color:var(--red)':''}">${String(e._displayOrder).padStart(2,'0')}</div>
       <div class="ei-info" style="flex:1">
         <div class="ei-name">${e.name} <span style="font-size:12px;font-weight:400;color:var(--muted)">${e.class}·座${e.seat}</span>${dq?`<span class="badge b-absent" style="margin-left:6px">⛔ 扣考</span>`:''}</div>
-        <div class="ei-detail">${e.instName}·${typeName(e.type)}·${e.roomName}</div>
+        <div class="ei-detail">${e.instName}·${typeName(e.type)}·${e.roomName}${e.roomLocation?' 📍'+e.roomLocation:''}</div>
         ${dq?`<div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--red);margin-top:2px">原因：${dq.reason}${dq.note?' ／ '+dq.note:''}</div>`:''}
         <div class="ei-rep">${e.ac?'指定：'+e.ac+' — '+e.at:''}${e.fc?'\n自選：'+e.fc+' — '+e.ft:''}</div>
       </div>
@@ -2928,6 +2909,7 @@ function renderRooms(){
   const tbody=document.getElementById('rooms-tbody');if(!tbody)return;
   tbody.innerHTML=DB.rooms.map(r=>`<tr>
     <td><strong>${r.name}</strong></td>
+    <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)">${r.location||'—'}</td>
     <td><span style="font-family:'DM Mono',monospace;background:var(--ink);color:var(--paper);padding:2px 7px;border-radius:var(--r);letter-spacing:2px">••••••</span>
       <button class="btn btn-s btn-xs" style="margin-left:6px" onclick="revealCode('${r.id}',this)">顯示</button></td>
     <td><div class="bg"><button class="btn btn-s btn-xs" onclick="editRoom('${r.id}')">編輯</button><button class="btn btn-d btn-xs" onclick="delRoom('${r.id}')">刪</button></div></td>
@@ -2936,21 +2918,58 @@ function renderRooms(){
 function revealCode(id,btn){const r=DB.rooms.find(x=>x.id===id);if(!r)return;btn.parentNode.innerHTML=`<code style="font-family:'DM Mono',monospace;background:var(--cream);padding:3px 8px;border-radius:var(--r);letter-spacing:3px">${r.code}</code>`;}
 function addRoom(){
   document.getElementById('edit-modal-title').textContent='新增考場';
+  const catCheckboxes=DB.instruments.categories.map(cat=>`
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer">
+      <input type="checkbox" value="${cat.id}">
+      <span style="font-size:13px">${cat.name}</span>
+    </label>`).join('');
   document.getElementById('edit-modal-body').innerHTML=`
-    <div class="fr"><div class="fg"><label>考場名稱</label><input type="text" id="rm-name" placeholder="如：木管考場"></div><div class="fg"><label>評審代碼</label><input type="text" id="rm-code" placeholder="如：WW2025" style="font-family:'DM Mono',monospace;letter-spacing:3px"></div></div>`;
+    <div class="fr">
+      <div class="fg"><label>考場名稱</label><input type="text" id="rm-name" placeholder="如：木管考場"></div>
+      <div class="fg"><label>評審代碼</label><input type="text" id="rm-code" placeholder="如：WW2025" style="font-family:'DM Mono',monospace;letter-spacing:3px"></div>
+    </div>
+    <div class="fg" style="margin-bottom:12px"><label>考試地點</label><input type="text" id="rm-location" placeholder="如：音樂廳 A 室、二樓演奏廳..."></div>
+    <div class="fg"><label>此考場包含的樂器大項（複選）</label>
+      <div style="background:var(--cream);padding:12px;border-radius:var(--r);margin-top:4px" id="rm-cats">${catCheckboxes}</div>
+    </div>`;
   document.getElementById('edit-modal-save').onclick=()=>{
-    const name=document.getElementById('rm-name').value.trim();const code=document.getElementById('rm-code').value.trim();
+    const name=document.getElementById('rm-name').value.trim();
+    const code=document.getElementById('rm-code').value.trim();
+    const location=document.getElementById('rm-location').value.trim();
     if(!name||!code){showToast('請填寫名稱及代碼','err');return;}
-    const nr={id:'r'+Date.now(),name,code,cats:[]};DB.rooms.push(nr);fbSet('rooms',nr.id,{...nr,_order:DB.rooms.length-1});closeOverlay('edit-modal');showToast('已新增 '+name,'ok');renderRooms();initDropdowns();
+    const cats=[...document.querySelectorAll('#rm-cats input[type=checkbox]:checked')].map(cb=>cb.value);
+    const nr={id:'r'+Date.now(),name,code,location,cats,allowedCats:cats,allowedItems:[]};
+    DB.rooms.push(nr);fbSet('rooms',nr.id,{...nr,_order:DB.rooms.length-1});
+    closeOverlay('edit-modal');showToast('已新增 '+name,'ok');renderRooms();initDropdowns();
   };
   openOverlay('edit-modal');
 }
 function editRoom(id){
   const r=DB.rooms.find(x=>x.id===id);if(!r)return;
   document.getElementById('edit-modal-title').textContent='編輯考場 — '+r.name;
+  const catCheckboxes=DB.instruments.categories.map(cat=>`
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer">
+      <input type="checkbox" value="${cat.id}" ${(r.allowedCats||r.cats||[]).includes(cat.id)?'checked':''}>
+      <span style="font-size:13px">${cat.name}</span>
+    </label>`).join('');
   document.getElementById('edit-modal-body').innerHTML=`
-    <div class="fr"><div class="fg"><label>考場名稱</label><input type="text" id="rm-name" value="${r.name}"></div><div class="fg"><label>評審代碼</label><input type="text" id="rm-code" value="${r.code}" style="font-family:'DM Mono',monospace;letter-spacing:3px"></div></div>`;
-  document.getElementById('edit-modal-save').onclick=()=>{r.name=document.getElementById('rm-name').value.trim()||r.name;r.code=document.getElementById('rm-code').value.trim()||r.code;fbSet('rooms',r.id,r);closeOverlay('edit-modal');showToast('已更新','ok');renderRooms();};
+    <div class="fr">
+      <div class="fg"><label>考場名稱</label><input type="text" id="rm-name" value="${r.name}"></div>
+      <div class="fg"><label>評審代碼</label><input type="text" id="rm-code" value="${r.code}" style="font-family:'DM Mono',monospace;letter-spacing:3px"></div>
+    </div>
+    <div class="fg" style="margin-bottom:12px"><label>考試地點</label><input type="text" id="rm-location" value="${r.location||''}" placeholder="如：音樂廳 A 室..."></div>
+    <div class="fg"><label>此考場包含的樂器大項（複選）</label>
+      <div style="background:var(--cream);padding:12px;border-radius:var(--r);margin-top:4px" id="rm-cats">${catCheckboxes}</div>
+    </div>`;
+  document.getElementById('edit-modal-save').onclick=()=>{
+    r.name=document.getElementById('rm-name').value.trim()||r.name;
+    r.code=document.getElementById('rm-code').value.trim()||r.code;
+    r.location=document.getElementById('rm-location').value.trim();
+    const cats=[...document.querySelectorAll('#rm-cats input[type=checkbox]:checked')].map(cb=>cb.value);
+    if(cats.length){r.allowedCats=cats;r.cats=cats;}
+    fbSet('rooms',r.id,{...r,_order:DB.rooms.indexOf(r)});
+    closeOverlay('edit-modal');showToast('已更新','ok');renderRooms();initDropdowns();
+  };
   openOverlay('edit-modal');
 }
 function delRoom(id){const idx=DB.rooms.findIndex(r=>r.id===id);if(idx>-1){fbDelete('rooms',id);DB.rooms.splice(idx,1);renderRooms();initDropdowns();showToast('已刪除','err');}}
@@ -3298,7 +3317,7 @@ window.addEventListener('offline',()=>{ST.isOnline=false;document.getElementById
 // EXPOSE FUNCTIONS TO GLOBAL SCOPE (needed for onclick= in HTML)
 // ════════════════════════════════════════════════
 const _expose = [
-  'doLogin','doJuryDirectLogin','doJuryLogin','doLogout','openChPwd','doChangePassword','fbSet','fbDelete','fbLoad','fbSaveInstruments',
+  'doLogin','doJuryDirectLogin','saveFirstPassword','doJuryLogin','doLogout','openChPwd','doChangePassword','fbSet','fbDelete','fbLoad','fbSaveInstruments',
   'closeOverlay','openOverlay','showToast',
   'filterRepInst','toggleElective','previewRep','backToRepForm','submitRep','editRep','renderRepDoneInfo','renderRepPage',
   'doLookup','clearLookup',
