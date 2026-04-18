@@ -6,7 +6,7 @@
 <title>音樂術科期末考評量系統</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#b5892a">
-<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="術科評量">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;500;600;700&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
@@ -1236,14 +1236,44 @@ const fmtScore = v => {
 // ════════════════════════════════════════════════
 // LOGIN
 // ════════════════════════════════════════════════
+// 標記 Firebase 資料是否已載入
+window._fbReady = false;
+
 function doLogin(){
   const acc=document.getElementById('l-user').value.trim();
   const pass=document.getElementById('l-pass').value.trim()||'000';
+
+  // 若 Firebase 尚未載入，先從 Firebase 讀取再登入
+  if(window._FB && !window._fbReady){
+    document.getElementById('l-err').textContent='';
+    const loadingBtn=document.querySelector('.login-btn');
+    if(loadingBtn)loadingBtn.textContent='驗證中...';
+    fbLoad('users',docs=>{
+      if(docs.length){
+        const fbIds=new Set(docs.map(d=>d.id));
+        DB.users.splice(0,DB.users.length,...docs.map(fd=>{
+          const{_updatedAt,...rest}=fd;return rest;
+        }));
+        if(!DB.users.find(u=>u.role==='admin')){
+          DB.users.push({id:'a001',name:'王國霖',account:'admin',pass:'000',role:'admin'});
+        }
+      }
+      window._fbReady=true;
+      if(loadingBtn)loadingBtn.textContent='登入系統';
+      _doLoginCheck(acc,pass);
+    });
+    return;
+  }
+  _doLoginCheck(acc,pass);
+}
+
+function _doLoginCheck(acc,pass){
   const u=DB.users.find(u=>u.account===acc&&u.pass===pass);
   if(!u){document.getElementById('l-err').textContent='帳號或密碼錯誤';return;}
   ST.user=u;ST.role=u.role;launchApp();
 }
 window.doLogin=doLogin;
+window._doLoginCheck=_doLoginCheck;
 // Event listeners wrapped safely
 (function(){
   function attachListeners(){
@@ -1368,12 +1398,19 @@ function loadAllFromFirebase(done){
   pending++;
   fbLoad('users',docs=>{
     if(docs.length){
-      // 用 Firebase 資料覆蓋，但保留程式碼裡沒有的欄位
-      docs.forEach(fd=>{
-        const local=DB.users.find(u=>u.id===fd.id);
-        if(local){Object.assign(local,fd);}
-        else{DB.users.push(fd);}
-      });
+      // ★ Firebase 有資料：完全以 Firebase 為準，清除預設再重建
+      // 保留程式碼預設中 Firebase 沒有的管理員帳號（保底）
+      const fbIds=new Set(docs.map(d=>d.id));
+      // 只保留 Firebase 裡有的使用者
+      DB.users.splice(0,DB.users.length,...docs.map(fd=>{
+        const{_updatedAt,...rest}=fd;
+        return rest;
+      }));
+      // 確保至少有一個管理員（防呆）
+      if(!DB.users.find(u=>u.role==='admin')){
+        DB.users.push({id:'a001',name:'王國霖',account:'admin',pass:'000',role:'admin'});
+        fbSet('users','a001',{id:'a001',name:'王國霖',account:'admin',pass:'000',role:'admin'});
+      }
     } else {
       // 第一次：把預設 users 全部寫進 Firebase
       DB.users.forEach(u=>fbSet('users',u.id,u));
@@ -1539,7 +1576,7 @@ function launchApp(){
   authWait.then(()=>{
     loadAllFromFirebase(()=>{
       clearInterval(progTimer);if(bar)bar.style.width='100%';
-      setTimeout(()=>{loadEl.remove();buildNav();initDropdowns();renderAll();setTimeout(navFirst,80);if(window._startJuryListener)window._startJuryListener();},300);
+      setTimeout(()=>{window._fbReady=true;loadEl.remove();buildNav();initDropdowns();renderAll();setTimeout(navFirst,80);if(window._startJuryListener)window._startJuryListener();},300);
     });
   });
 }
