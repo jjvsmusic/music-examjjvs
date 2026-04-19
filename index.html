@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>音樂術科期末考評量系統</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#b5892a">
@@ -339,7 +339,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
         // 持久化成功後才啟動 online 事件監聽，避免重複同步
         window.addEventListener('online', () => {
           ST.isOnline = true;
-          document.getElementById('off-bar')?.classList.remove('show');
+          document.getElementById('off-bar').classList.remove('show');
           if (typeof syncPendingToFirebase === 'function') syncPendingToFirebase();
         });
       })
@@ -352,7 +352,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
         // 即使持久化失敗，仍加上 online 事件
         window.addEventListener('online', () => {
           ST.isOnline = true;
-          document.getElementById('off-bar')?.classList.remove('show');
+          document.getElementById('off-bar').classList.remove('show');
           if (typeof syncPendingToFirebase === 'function') syncPendingToFirebase();
         });
       });
@@ -1370,26 +1370,13 @@ const students = () => DB.users.filter(u=>u.role==='student');
 const teachers = () => DB.users.filter(u=>u.role==='teacher');
 const admins = () => DB.users.filter(u=>u.role==='admin');
 const typeName = t=>({major:'主修',minor:'副修',elective:'選修'}[t]||'');
+const typeBadge = t=>`<span class="badge b-${t}">${typeName(t)}</span>`;
 const scoreClass = v => (v!==null && v!==undefined && v!=='' && parseFloat(v)<60) ? 'red-score' : '';
 const fmtScore = v => {
   if(v===null||v===undefined||v==='') return '—';
   const n = parseFloat(v);
   const cls = n < 60 ? ' class="red-score"' : '';
   return `<span${cls}>${n.toFixed(1)}</span>`;
-};
-function escapeHtml(s){
-  if(s==null)return'';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
-}
-function escapeAttr(s){
-  if(s==null)return'';
-  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-}
-function jsa(v){return JSON.stringify(v===undefined?null:v);}
-const typeBadge = t=>{
-  const k=t==='major'||t==='minor'||t==='elective'?t:'major';
-  const lbl=typeName(t)||typeName(k)||'—';
-  return `<span class="badge b-${k}">${escapeHtml(lbl)}</span>`;
 };
 
 // ════════════════════════════════════════════════
@@ -1791,12 +1778,16 @@ function buildNav(){
   nav.innerHTML='';
   let items=(NAV_MAP[ST.role]||[]);
   if(ST.role==='student'){
-    const acc=DB.config.studentAccess||{};
-    items=items.filter(item=>acc[item.page]!==false); // false=完全隱藏；true或'pending'=顯示
+    items=items.filter(item=>{
+      const acc=DB.config.studentAccess;
+      return acc[item.page]!==false; // false=完全隱藏；true或'pending'=顯示
+    });
   }
   if(ST.role==='teacher'){
-    const acc=DB.config.teacherAccess||{};
-    items=items.filter(item=>acc[item.page]!==false);
+    items=items.filter(item=>{
+      const acc=DB.config.teacherAccess;
+      return acc[item.page]!==false;
+    });
   }
   items.forEach((item,i)=>{
     const b=document.createElement('button');
@@ -1824,9 +1815,8 @@ function showPendingPage(pageId,label){
     pp=document.createElement('div');pp.id='pg-pending';pp.className='pg';
     document.querySelector('.main').appendChild(pp);
   }
-  const msg=escapeHtml((DB.config.pendingMsg?.[pageId])||'此功能尚未開放，請等候管理員公告。');
-  const titleSafe=escapeHtml(label);
-  pp.innerHTML=`<div class="ph"><h1>${titleSafe}</h1><span>Not Yet Available</span></div>
+  const msg=(DB.config.pendingMsg?.[pageId])||'此功能尚未開放，請等候管理員公告。';
+  pp.innerHTML=`<div class="ph"><h1>${label}</h1><span>Not Yet Available</span></div>
     <div class="card" style="text-align:center;padding:40px 24px">
       <div style="font-size:36px;margin-bottom:14px">🔒</div>
       <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:300;margin-bottom:12px">尚未開放</div>
@@ -1948,9 +1938,9 @@ function previewRep(){
   ]});
   document.getElementById('rep-preview-body').innerHTML=sections.map(s=>`
     <div style="margin-bottom:14px">
-      <div style="background:var(--ink);color:var(--gold);padding:7px 13px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;border-radius:var(--r) var(--r) 0 0">${escapeHtml(s.header)}</div>
+      <div style="background:var(--ink);color:var(--gold);padding:7px 13px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;border-radius:var(--r) var(--r) 0 0">${s.header}</div>
       <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 var(--r) var(--r)">
-        ${s.rows.map(r=>`<div class="cp-row"><div class="cp-lbl">${escapeHtml(r.lbl)}</div><div class="cp-val">${escapeHtml(r.val)}</div></div>`).join('')}
+        ${s.rows.map(r=>`<div class="cp-row"><div class="cp-lbl">${r.lbl}</div><div class="cp-val">${r.val}</div></div>`).join('')}
       </div>
     </div>`).join('');
   document.getElementById('rep-form-area').style.display='none';
@@ -1971,7 +1961,7 @@ function renderRepDoneInfo(){
       ${infoRows.map(r=>`
         <div>
           <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:3px">${r.lbl}</div>
-          <div style="font-size:15px;font-weight:600;color:var(--ink)">${escapeHtml(r.val)}</div>
+          <div style="font-size:15px;font-weight:600;color:var(--ink)">${r.val}</div>
         </div>`).join('')}
     </div>`;
   // 各修課區塊
@@ -2008,16 +1998,16 @@ function renderRepDoneInfo(){
       <div style="background:var(--ink);color:var(--gold);padding:9px 16px;display:flex;align-items:center;gap:10px">
         <span style="font-family:'Cormorant Garamond',serif;font-size:18px">${s.icon}</span>
         <span style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase">${s.label}</span>
-        <span style="font-size:13px;font-weight:600;color:var(--paper)">${escapeHtml(s.inst)}</span>
+        <span style="font-size:13px;font-weight:600;color:var(--paper)">${s.inst}</span>
       </div>
       <div style="background:var(--white)">
         ${s.rows.map(r=>`
           <div style="display:grid;grid-template-columns:72px 1fr;border-bottom:1px solid var(--cream)">
-            <div style="padding:10px 14px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;color:var(--muted);display:flex;align-items:center;background:var(--cream);text-transform:uppercase">${escapeHtml(r.lbl)}</div>
+            <div style="padding:10px 14px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;color:var(--muted);display:flex;align-items:center;background:var(--cream);text-transform:uppercase">${r.lbl}</div>
             <div style="padding:10px 14px">
               ${r.composer||r.title
-                ? `<div style="font-size:12px;color:var(--muted);margin-bottom:2px">${escapeHtml(r.composer||'—')}</div>
-                   <div style="font-size:14px;color:var(--ink);font-style:italic">${escapeHtml(r.title||'—')}</div>`
+                ? `<div style="font-size:12px;color:var(--muted);margin-bottom:2px">${r.composer||'—'}</div>
+                   <div style="font-size:14px;color:var(--ink);font-style:italic">${r.title||'—'}</div>`
                 : `<span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--border)">未填寫</span>`}
             </div>
           </div>`).join('')}
@@ -2139,11 +2129,11 @@ function renderScoresPage(){
     const tc=DB.teacherComments[u.id]?.[t.type];
     const fs=result.finalScore;
     return `<div class="isb">
-        <div class="isb-h">
+      <div class="isb-h">
         <div>
-          <span style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--muted)">${escapeHtml(typeName(t.type))} · </span>
-          <span class="isb-h-name">${escapeHtml(iname(t.inst))}</span>
-          ${t.rank&&t.rank<=3?`<span style="margin-left:10px;font-family:'DM Mono',monospace;font-size:8px;color:var(--gold)">第${t.rank}名 · ${escapeHtml(t.room)}</span>`:`<span style="margin-left:10px;font-family:'DM Mono',monospace;font-size:8px;color:var(--muted)">${escapeHtml(t.room)}</span>`}
+          <span style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--muted)">${typeName(t.type)} · </span>
+          <span class="isb-h-name">${iname(t.inst)}</span>
+          ${t.rank&&t.rank<=3?`<span style="margin-left:10px;font-family:'DM Mono',monospace;font-size:8px;color:var(--gold)">第${t.rank}名 · ${t.room}</span>`:`<span style="margin-left:10px;font-family:'DM Mono',monospace;font-size:8px;color:var(--muted)">${t.room}</span>`}
         </div>
         <div class="isb-h-score ${fs!==null&&fs<60?'red-score':''}">${fs!==null?fs.toFixed(2):'—'}</div>
       </div>
@@ -2153,14 +2143,14 @@ function renderScoresPage(){
             <div style="font-family:'Cormorant Garamond',serif;font-size:28px;color:var(--ink)" class="${result.fS!==null&&result.fS<60?'red-score':''}">${result.fS!==null?result.fS.toFixed(1):'—'}</div></div>
           <div><div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">指定曲</div>
             <div style="font-family:'Cormorant Garamond',serif;font-size:28px" class="${result.fA!==null&&result.fA<60?'red-score':''}">${result.fA!==null?result.fA.toFixed(1):'—'}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:3px">${escapeHtml(t.ac||'')} — ${escapeHtml(t.at||'')}</div></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px">${t.ac||''} — ${t.at||''}</div></div>
           <div><div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">自選曲</div>
             <div style="font-family:'Cormorant Garamond',serif;font-size:28px" class="${result.fF!==null&&result.fF<60?'red-score':''}">${result.fF!==null?result.fF.toFixed(1):'—'}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:3px">${escapeHtml(t.fc||'')} — ${escapeHtml(t.ft||'')}</div></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px">${t.fc||''} — ${t.ft||''}</div></div>
         </div>
-        <div style="font-size:13px;line-height:1.9;margin-bottom:8px"><strong style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1.5px;color:var(--gold)">術科評語</strong><br>${escapeHtml(comment||'—')}</div>
+        <div style="font-size:13px;line-height:1.9;margin-bottom:8px"><strong style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1.5px;color:var(--gold)">術科評語</strong><br>${comment||'—'}</div>
         <div style="font-size:12px;color:var(--muted);background:var(--cream);padding:8px 11px;border-radius:var(--r)">
-          <strong style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1.5px">教師評語</strong> ${escapeHtml(tc?.comment||'—')}
+          <strong style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1.5px">教師評語</strong> ${tc?.comment||'—'}
           <span style="float:right;font-family:'DM Mono',monospace;font-size:9px;opacity:.5">平時成績不顯示</span>
         </div>
       </div>
@@ -2206,14 +2196,14 @@ function renderStuSchedule(filter){
   const shown=entries.filter(e=>(!nameQ||e.name.toLowerCase().includes(nameQ))&&(!instQ||e.instId===instQ)&&(!roomQ||e.roomId===roomQ));
   tbody.innerHTML=shown.map(e=>`<tr>
     <td style="font-family:'DM Mono',monospace;color:var(--ink);font-weight:600">${e.order}</td>
-    <td style="color:var(--ink)">${escapeHtml(e.roomName)}</td>
-    <td style="color:var(--ink);font-family:'DM Mono',monospace;font-size:11px">${escapeHtml(e.roomLocation||'—')}</td>
-    <td style="color:var(--ink)">${escapeHtml(e.class)}</td>
-    <td style="color:var(--ink);font-weight:600">${escapeHtml(e.name)}</td>
-    <td style="color:var(--ink)">${escapeHtml(e.instName)}</td>
+    <td style="color:var(--ink)">${e.roomName}</td>
+    <td style="color:var(--ink);font-family:'DM Mono',monospace;font-size:11px">${e.roomLocation||'—'}</td>
+    <td style="color:var(--ink)">${e.class}</td>
+    <td style="color:var(--ink);font-weight:600">${e.name}</td>
+    <td style="color:var(--ink)">${e.instName}</td>
     <td>${typeBadge(e.type)}</td>
-    <td style="font-size:12px;color:var(--ink)">${e.ac?escapeHtml(e.ac)+' — <em>'+escapeHtml(e.at)+'</em>':'—'}</td>
-    <td style="font-size:12px;color:var(--ink)">${e.fc?escapeHtml(e.fc)+' — <em>'+escapeHtml(e.ft)+'</em>':'—'}</td>
+    <td style="font-size:12px;color:var(--ink)">${e.ac?e.ac+' — <em>'+e.at+'</em>':'—'}</td>
+    <td style="font-size:12px;color:var(--ink)">${e.fc?e.fc+' — <em>'+e.ft+'</em>':'—'}</td>
   </tr>`).join('')||'<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px;font-family:\'DM Mono\',monospace;font-size:12px">查無資料</td></tr>';
 }
 function doLookup(){renderStuSchedule({name:document.getElementById('lookup-name').value,inst:document.getElementById('lookup-inst').value,room:document.getElementById('lookup-room').value});}
@@ -2252,16 +2242,16 @@ function renderTeaTable(){
         <div style="background:var(--ink);color:var(--gold);padding:5px 10px;font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1.5px">${typeName(k)} · ${iname(s[k])}</div>
         <div style="padding:8px 10px;background:var(--white)">
           <div style="font-family:'DM Mono',monospace;font-size:20px;font-weight:700;${t?.score?scoreColor:'color:var(--border)'}">${t?.score||'—'}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:3px;line-height:1.6">${escapeHtml(t?.comment||'尚無評語')}</div>
-          <button class="btn btn-s btn-xs" style="margin-top:8px" onclick="teaWizOpenDirect(${jsa(s.id)},${jsa(k)})">修改</button>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px;line-height:1.6">${t?.comment||'尚無評語'}</div>
+          <button class="btn btn-s btn-xs" style="margin-top:8px" onclick="teaWizOpenDirect('${s.id}','${k}')">修改</button>
         </div>
       </div>`;
     }).join('');
     return `<div style="border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;overflow:hidden">
       <div style="background:var(--cream);padding:8px 14px;display:flex;align-items:center;gap:12px;justify-content:space-between">
         <div>
-          <strong>${escapeHtml(s.name)}</strong>
-          <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:8px">${escapeHtml(s.class)}·座${escapeHtml(String(s.seat))}</span>
+          <strong>${s.name}</strong>
+          <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:8px">${s.class}·座${s.seat}</span>
           ${s.repDone?'<span class="badge b-elective" style="margin-left:6px">已填報</span>':'<span class="badge b-absent" style="margin-left:6px">未填報</span>'}
         </div>
         <span class="dot ${s.teaDone?'dg':'dr'}" title="${s.teaDone?'已完成評量':'未完成評量'}"></span>
@@ -2279,7 +2269,7 @@ function teaWizStart(){
   const myStus=getMyStudents();
   const cls=[...new Set(myStus.map(s=>s.class))].sort((a,b)=>DB.classes.indexOf(a)-DB.classes.indexOf(b));
   const sel=document.getElementById('tea-wiz-class');
-  sel.innerHTML='<option value="">— 請選 —</option>'+cls.map(c=>`<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join('');
+  sel.innerHTML='<option value="">— 請選 —</option>'+cls.map(c=>`<option value="${c}">${c}</option>`).join('');
   TWZ.cls='';TWZ.sid='';TWZ.type='';
   // 清空 step 1 姓名搜尋
   const s1inp=document.getElementById('tea-s1-name-search');if(s1inp)s1inp.value='';
@@ -2305,11 +2295,11 @@ function teaWizS1NameSearch(){
     const s=found[0];
     TWZ.cls=s.class;
     document.getElementById('tea-wiz-class').value=s.class;
-    if(hint)hint.innerHTML=`<span style="color:var(--sage)">✓ 找到：${escapeHtml(s.name)}（${escapeHtml(s.class)}·座${escapeHtml(String(s.seat))}）</span>`;
+    if(hint)hint.innerHTML=`<span style="color:var(--sage)">✓ 找到：${s.name}（${s.class}·座${s.seat}）</span>`;
     // 直接設定學生並跳到修別選擇
     const classStus=getMyStudents().filter(ss=>ss.class===s.class).sort((a,b)=>a.seat-b.seat);
     const stuSel=document.getElementById('tea-wiz-stu');
-    stuSel.innerHTML='<option value="">— 請選學生 —</option>'+classStus.map(ss=>`<option value="${escapeAttr(ss.id)}">${escapeHtml(ss.name)}（座${escapeHtml(String(ss.seat))}）</option>`).join('');
+    stuSel.innerHTML='<option value="">— 請選學生 —</option>'+classStus.map(ss=>`<option value="${ss.id}">${ss.name}（座${ss.seat}）</option>`).join('');
     stuSel.value=s.id;
     TWZ.sid=s.id;
     teaWizPickStu();
@@ -2317,7 +2307,7 @@ function teaWizS1NameSearch(){
     if(hint)hint.innerHTML=`<span style="color:var(--muted)">找到 ${found.length} 位，請選擇班級後再從下拉選單挑選</span>`;
     // 把多個結果塞進 step 2 下拉並跳過去
     const stuSel=document.getElementById('tea-wiz-stu');
-    stuSel.innerHTML='<option value="">— 請選學生 —</option>'+found.map(s=>`<option value="${escapeAttr(s.id)}">${escapeHtml(s.name)}（${escapeHtml(s.class)}·座${escapeHtml(String(s.seat))}）</option>`).join('');
+    stuSel.innerHTML='<option value="">— 請選學生 —</option>'+found.map(s=>`<option value="${s.id}">${s.name}（${s.class}·座${s.seat}）</option>`).join('');
     const ns=document.getElementById('tea-wiz-name-search');if(ns)ns.value=q;
     teaWizShowStep(2);
   }
@@ -2338,7 +2328,7 @@ function teaWizPickClass(){
   TWZ.cls=cls;
   const stus=getMyStudents().filter(s=>s.class===cls).sort((a,b)=>a.seat-b.seat);
   const sel=document.getElementById('tea-wiz-stu');
-  sel.innerHTML='<option value="">— 請選學生 —</option>'+stus.map(s=>`<option value="${escapeAttr(s.id)}">${escapeHtml(s.name)}（座${escapeHtml(String(s.seat))}）</option>`).join('');
+  sel.innerHTML='<option value="">— 請選學生 —</option>'+stus.map(s=>`<option value="${s.id}">${s.name}（座${s.seat}）</option>`).join('');
   const ns=document.getElementById('tea-wiz-name-search');if(ns)ns.value='';
   const nh=document.getElementById('tea-wiz-name-hint');if(nh)nh.textContent='';
   teaWizShowStep(2);
@@ -2364,15 +2354,15 @@ function teaWizNameSearch(){
     document.getElementById('tea-wiz-class').value=s.class;
     // repopulate student dropdown for that class
     const classStus=getMyStudents().filter(ss=>ss.class===s.class).sort((a,b)=>a.seat-b.seat);
-    sel.innerHTML='<option value="">— 請選學生 —</option>'+classStus.map(ss=>`<option value="${escapeAttr(ss.id)}">${escapeHtml(ss.name)}（座${escapeHtml(String(ss.seat))}）</option>`).join('');
+    sel.innerHTML='<option value="">— 請選學生 —</option>'+classStus.map(ss=>`<option value="${ss.id}">${ss.name}（座${ss.seat}）</option>`).join('');
     sel.value=s.id;
-    if(hint)hint.innerHTML=`<span style="color:var(--sage)">✓ 找到：${escapeHtml(s.name)}（${escapeHtml(s.class)}·座${escapeHtml(String(s.seat))}）</span>`;
+    if(hint)hint.innerHTML=`<span style="color:var(--sage)">✓ 找到：${s.name}（${s.class}·座${s.seat}）</span>`;
     TWZ.sid=s.id;
     teaWizPickStu();
   } else {
     if(hint)hint.innerHTML='<span style="color:var(--muted)">找到 '+found.length+' 位，請從下拉選單選擇</span>';
     // filter dropdown to matching students
-    sel.innerHTML='<option value="">— 請選學生 —</option>'+found.map(s=>`<option value="${escapeAttr(s.id)}">${escapeHtml(s.name)}（${escapeHtml(s.class)}·座${escapeHtml(String(s.seat))}）</option>`).join('');
+    sel.innerHTML='<option value="">— 請選學生 —</option>'+found.map(s=>`<option value="${s.id}">${s.name}（${s.class}·座${s.seat}）</option>`).join('');
   }
 }
 window.teaWizNameSearch=teaWizNameSearch;
@@ -2390,7 +2380,7 @@ function teaWizPickStu(){
   const btns=document.getElementById('tea-wiz-type-btns');
   btns.innerHTML=types.map(t=>{
     const done=DB.teacherComments[sid]?.[t.key];
-    return `<button class="btn ${done?'btn-g':'btn-p'} btn-sm" onclick="teaWizPickType(${jsa(t.key)})">${escapeHtml(t.label)}${done?' ✓':''}</button>`;
+    return `<button class="btn ${done?'btn-g':'btn-p'} btn-sm" onclick="teaWizPickType('${t.key}')">${t.label}${done?' ✓':''}</button>`;
   }).join('');
   // update the type dropdown to only show types this student has
   const typeSel=document.getElementById('tea-wiz-type-sel');
@@ -2407,8 +2397,8 @@ function teaWizPickType(type){
   const s=DB.users.find(u=>u.id===TWZ.sid);if(!s)return;
   const existing=DB.teacherComments[TWZ.sid]?.[type]||{};
   document.getElementById('tea-wiz-info').innerHTML=
-    `<strong>${escapeHtml(s.name)}</strong> <span style="color:var(--muted);font-size:12px">${escapeHtml(s.class)}·座${escapeHtml(String(s.seat))}</span> — ${escapeHtml(typeName(type))} · ${escapeHtml(iname(s[type]))}`+
-    (s[type+'_ac']?`<div style="font-size:11px;color:var(--muted);margin-top:4px">指定：${escapeHtml(s[type==='elective'?'elec_ac':type+'_ac']||'')} — <em>${escapeHtml(s[type==='elective'?'elec_at':type+'_at']||'')}</em></div>`:'');
+    `<strong>${s.name}</strong> <span style="color:var(--muted);font-size:12px">${s.class}·座${s.seat}</span> — ${typeName(type)} · ${iname(s[type])}`+
+    (s[type+'_ac']?`<div style="font-size:11px;color:var(--muted);margin-top:4px">指定：${s[type==='elective'?'elec_ac':type+'_ac']||''} — <em>${s[type==='elective'?'elec_at':type+'_at']||''}</em></div>`:'');
   document.getElementById('tea-wiz-score').value=existing.score||'';
   document.getElementById('tea-wiz-comment').value=existing.comment||'';
   teaWizShowStep(4);
@@ -2470,7 +2460,7 @@ function teaWizOpenDirect(sid,type){
   TWZ.cls=s.class;
   const existing=DB.teacherComments[sid]?.[type]||{};
   document.getElementById('tea-wiz-info').innerHTML=
-    `<strong>${escapeHtml(s.name)}</strong> <span style="color:var(--muted);font-size:12px">${escapeHtml(s.class)}·座${escapeHtml(String(s.seat))}</span> — ${escapeHtml(typeName(type))} · ${escapeHtml(iname(s[type]))}`;
+    `<strong>${s.name}</strong> <span style="color:var(--muted);font-size:12px">${s.class}·座${s.seat}</span> — ${typeName(type)} · ${iname(s[type])}`;
   document.getElementById('tea-wiz-score').value=existing.score||'';
   document.getElementById('tea-wiz-comment').value=existing.comment||'';
   [1,2,3].forEach(i=>{
@@ -2491,7 +2481,7 @@ function openTeaStuModal(tid){
   const sel=DB.teacherStudents[tid]||[];
   // class tabs
   const clsEl=document.getElementById('tsm-class-tabs');
-  clsEl.innerHTML=DB.classes.map((c,i)=>`<button class="btn btn-s btn-sm ${i===0?'btn-p':''}" onclick="tsmFilterClass(${jsa(c)},this)">${escapeHtml(c)}</button>`).join('')+
+  clsEl.innerHTML=DB.classes.map((c,i)=>`<button class="btn btn-s btn-sm ${i===0?'btn-p':''}" onclick="tsmFilterClass('${c}',this)">${c}</button>`).join('')+
     `<button class="btn btn-s btn-sm" onclick="tsmFilterClass('',this)">全部</button>`;
   tsmRenderList(tid,'');
   openOverlay('tea-stu-modal');
@@ -2511,11 +2501,11 @@ function tsmRenderList(tid,cls){
   const stus=students().filter(s=>!cls||s.class===cls).sort((a,b)=>DB.classes.indexOf(a.class)-DB.classes.indexOf(b.class)||a.seat-b.seat);
   document.getElementById('tsm-stu-list').innerHTML=stus.map(s=>`
     <label style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--cream);cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--gold-bg)'" onmouseout="this.style.background=''">
-      <input type="checkbox" value="${escapeAttr(s.id)}" ${sel.includes(s.id)?'checked':''} style="width:15px;height:15px;accent-color:var(--gold)">
+      <input type="checkbox" value="${s.id}" ${sel.includes(s.id)?'checked':''} style="width:15px;height:15px;accent-color:var(--gold)">
       <div>
-        <strong>${escapeHtml(s.name)}</strong>
-        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:6px">${escapeHtml(s.class)}·座${escapeHtml(String(s.seat))}</span>
-        <div style="font-size:11px;color:var(--muted)">${escapeHtml([s.major&&iname(s.major),s.minor&&iname(s.minor),s.elective&&iname(s.elective)].filter(Boolean).join(' / '))}</div>
+        <strong>${s.name}</strong>
+        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:6px">${s.class}·座${s.seat}</span>
+        <div style="font-size:11px;color:var(--muted)">${[s.major&&iname(s.major),s.minor&&iname(s.minor),s.elective&&iname(s.elective)].filter(Boolean).join(' / ')}</div>
       </div>
     </label>`).join('');
 }
@@ -2574,13 +2564,13 @@ function renderJuryTable(){
       const v=locked?'0':(my[f]??'');
       const isEmpty=v===''||v===null||v===undefined;
       const red=!isEmpty&&parseFloat(v)<60;
-      return `<input class="score-inp${isEmpty&&!locked?' empty-warn':''}${red?' red-score':''}" id="js-${f}-${i}" type="text" inputmode="decimal" value="${locked?'0':escapeAttr(String(v))}" placeholder="${locked?'0':'—'}" ${locked?'disabled':''} onclick="if(!this.disabled)openNP('js-${f}-${i}',${jsa(f==='scale'?'音階/視奏':f==='assigned'?'指定曲分數':'自選曲分數')},v=>{saveJCell(${i},${jsa(roomId)},${jsa(entryKey)},${jsa(f)},v);})" readonly>`;
+      return `<input class="score-inp${isEmpty&&!locked?' empty-warn':''}${red?' red-score':''}" id="js-${f}-${i}" type="text" inputmode="decimal" value="${locked?'0':v}" placeholder="${locked?'0':'—'}" ${locked?'disabled':''} onclick="if(!this.disabled)openNP('js-${f}-${i}','${f==='scale'?'音階/視奏':f==='assigned'?'指定曲分數':'自選曲分數'}',v=>{saveJCell(${i},'${roomId}','${entryKey}','${f}',v);})" readonly>`;
     };
 
     // 曲目格（文字過長自動縮小顯示）
     const pieceCell=(composer,title)=>`<td class="piece-cell">
-      <div class="pc-composer" title="${escapeAttr(composer||'')}">${composer?escapeHtml(composer):'<span style="color:var(--border)">—</span>'}</div>
-      <div class="pc-title" title="${escapeAttr(title||'')}">${escapeHtml(title||'')}</div>
+      <div class="pc-composer" title="${composer||''}">${composer||'<span style="color:var(--border)">—</span>'}</div>
+      <div class="pc-title" title="${title||''}">${title||''}</div>
     </td>`;
 
     // 扣/缺考欄
@@ -2589,15 +2579,15 @@ function renderJuryTable(){
           <span class="badge b-absent" style="font-size:8px;display:inline-block;line-height:1.4">⛔<br>扣考</span>
         </td>`
       :`<td class="absent-cell" style="vertical-align:middle">
-          <input type="checkbox" ${absent?'checked':''} onchange="toggleAbsent(${i},${jsa(roomId)},${jsa(entryKey)})" style="width:16px;height:16px;cursor:pointer;accent-color:var(--rust)">
+          <input type="checkbox" ${absent?'checked':''} onchange="toggleAbsent(${i},'${roomId}','${entryKey}')" style="width:16px;height:16px;cursor:pointer;accent-color:var(--rust)">
         </td>`;
 
     // 學生資訊欄（含扣考原因）
     const nameCell=`<td class="s-name-col" style="vertical-align:middle;padding:6px 10px">
-      <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px" title="${escapeAttr(e.name)}">${escapeHtml(e.name)}</div>
-      <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);white-space:nowrap">${escapeHtml(e.class)}·座${escapeHtml(String(e.seat))}·${escapeHtml(e.instName)}</div>
-      <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted)">${escapeHtml(typeName(e.type))}</div>
-      ${dq?`<div style="font-size:8px;color:var(--red);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px" title="${escapeAttr('⛔ '+dq.reason)}">⛔ ${escapeHtml(dq.reason)}</div>`:''}
+      <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px" title="${e.name}">${e.name}</div>
+      <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);white-space:nowrap">${e.class}·座${e.seat}·${e.instName}</div>
+      <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted)">${typeName(e.type)}</div>
+      ${dq?`<div style="font-size:8px;color:var(--red);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px" title="⛔ ${dq.reason}">⛔ ${dq.reason}</div>`:''}
     </td>`;
 
     // ── 單行設計：序、學生、扣/缺、音階、指定分、指定曲、自選分、自選曲、評語 ──
@@ -2611,7 +2601,7 @@ function renderJuryTable(){
       <td class="score-cell" style="border-right:none;width:50px">${sc('free')}</td>
       ${pieceCell(e.fc,e.ft)}
       <td style="padding:4px 6px;vertical-align:middle;border-left:1px solid var(--border);min-width:200px">
-        <textarea class="comment-inp" id="jco-${i}" ${locked?'disabled':''} placeholder="${dq?escapeAttr('扣考，無需評語'):escapeAttr('評語...')}" onblur="saveJCell(${i},${jsa(roomId)},${jsa(entryKey)},${jsa('comment')},this.value)">${dq?'':escapeHtml(my.comment||'')}</textarea>
+        <textarea class="comment-inp" id="jco-${i}" ${locked?'disabled':''} placeholder="${dq?'扣考，無需評語':'評語...'}" onblur="saveJCell(${i},'${roomId}','${entryKey}','comment',this.value)">${dq?'':(my.comment||'')}</textarea>
       </td>
     </tr>`);
   });
@@ -2722,7 +2712,7 @@ async function syncPendingToFirebase(){
 
 window.addEventListener('online',()=>{
   ST.isOnline=true;
-  document.getElementById('off-bar')?.classList.remove('show');
+  document.getElementById('off-bar').classList.remove('show');
   showToast('已重新連線，正在同步...','ok');
   setTimeout(syncPendingToFirebase,800);
 });
@@ -2746,7 +2736,7 @@ function checkJuryBeforeSubmit(){
   if(missing.length){
     body.innerHTML=`<div style="color:var(--rust);font-family:'DM Mono',monospace;font-size:11px;margin-bottom:14px">⚠ 以下學生尚有未填分數</div>`+
       missing.map(m=>`<div style="padding:8px 12px;background:var(--cream);border-radius:var(--r);margin-bottom:6px;font-size:13px">
-        <strong>${escapeHtml(m.name)}</strong> <span style="color:var(--muted);font-size:11px">${escapeHtml(m.inst)}·${escapeHtml(m.type)}</span>
+        <strong>${m.name}</strong> <span style="color:var(--muted);font-size:11px">${m.inst}·${m.type}</span>
         <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--rust);margin-top:4px">未填：${m.fields.map(f=>({scale:'音階',assigned:'指定曲',free:'自選曲'})[f]).join('、')}</div>
       </div>`).join('');
     confirmBtn.style.display='none';
@@ -2873,13 +2863,13 @@ function renderSchInstUI(){
     // 大項 label（可拖曳整個大項）
     const catDiv=document.createElement('div');
     catDiv.style.cssText='display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:8px;width:100%';
-    catDiv.innerHTML=`<span style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1.5px;color:var(--gold);min-width:60px">${escapeHtml(cat?.name||catId)}</span>`;
+    catDiv.innerHTML=`<span style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1.5px;color:var(--gold);min-width:60px">${cat?.name||catId}</span>`;
     insts.forEach(inst=>{
       const idx=SCH_STATE.instOrder.indexOf(inst);
       const tag=document.createElement('div');
       tag.style.cssText=`display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid var(--border);border-radius:20px;cursor:grab;font-family:'DM Mono',monospace;font-size:9px;transition:all .15s;background:${inst.active?'var(--gold);color:var(--ink)':'var(--white)'}`;
       tag.draggable=true;tag.dataset.idx=idx;
-      tag.textContent=inst.name;
+      tag.innerHTML=inst.name;
       tag.addEventListener('click',()=>{
         inst.active=!inst.active;
         tag.style.background=inst.active?'var(--gold)':'var(--white)';
@@ -2912,7 +2902,7 @@ function renderSchTypeUI(){
     const tag=document.createElement('div');
     tag.style.cssText=`display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid var(--border);border-radius:20px;cursor:grab;font-family:'DM Mono',monospace;font-size:9px;transition:all .15s;background:${t.active?'var(--steel);color:#fff':'var(--white)'}`;
     tag.draggable=true;tag.dataset.idx=idx;
-    tag.textContent=t.label;
+    tag.innerHTML=t.label;
     tag.addEventListener('click',()=>{t.active=!t.active;tag.style.background=t.active?'var(--steel)':'var(--white)';tag.style.color=t.active?'#fff':'';});
     tag.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain','type:'+idx);tag.style.opacity='.4';});
     tag.addEventListener('dragend',()=>{tag.style.opacity='1';});
@@ -2936,7 +2926,7 @@ function renderSchClassUI(){
     const tag=document.createElement('div');
     tag.style.cssText=`display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid var(--border);border-radius:20px;cursor:grab;font-family:'DM Mono',monospace;font-size:9px;transition:all .15s;background:${c.active?'var(--sage);color:#fff':'var(--white)'}`;
     tag.draggable=true;tag.dataset.idx=idx;
-    tag.textContent=c.cls;
+    tag.innerHTML=c.cls;
     tag.addEventListener('click',()=>{c.active=!c.active;tag.style.background=c.active?'var(--sage)':'var(--white)';tag.style.color=c.active?'#fff':'';});
     tag.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain','cls:'+idx);tag.style.opacity='.4';});
     tag.addEventListener('dragend',()=>{tag.style.opacity='1';});
@@ -3016,15 +3006,15 @@ function renderSchedule(){
     div.innerHTML=`<div class="dh">⠿</div>
       <div class="ei-num" style="${dq?'color:var(--red)':''}">${String(e._displayOrder).padStart(2,'0')}</div>
       <div class="ei-info" style="flex:1">
-        <div class="ei-name">${escapeHtml(e.name)} <span style="font-size:12px;font-weight:400;color:var(--muted)">${escapeHtml(e.class)}·座${escapeHtml(String(e.seat))}</span>${dq?`<span class="badge b-absent" style="margin-left:6px">⛔ 扣考</span>`:''}</div>
-        <div class="ei-detail">${escapeHtml(e.instName)}·${escapeHtml(typeName(e.type))}·${escapeHtml(e.roomName)}${e.roomLocation?' 📍'+escapeHtml(e.roomLocation):''}</div>
-        ${dq?`<div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--red);margin-top:2px">原因：${escapeHtml(dq.reason)}${dq.note?' ／ '+escapeHtml(dq.note):''}</div>`:''}
-        <div class="ei-rep">${e.ac?'指定：'+escapeHtml(e.ac)+' — '+escapeHtml(e.at):''}${e.fc?'\n自選：'+escapeHtml(e.fc)+' — '+escapeHtml(e.ft):''}</div>
+        <div class="ei-name">${e.name} <span style="font-size:12px;font-weight:400;color:var(--muted)">${e.class}·座${e.seat}</span>${dq?`<span class="badge b-absent" style="margin-left:6px">⛔ 扣考</span>`:''}</div>
+        <div class="ei-detail">${e.instName}·${typeName(e.type)}·${e.roomName}${e.roomLocation?' 📍'+e.roomLocation:''}</div>
+        ${dq?`<div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--red);margin-top:2px">原因：${dq.reason}${dq.note?' ／ '+dq.note:''}</div>`:''}
+        <div class="ei-rep">${e.ac?'指定：'+e.ac+' — '+e.at:''}${e.fc?'\n自選：'+e.fc+' — '+e.ft:''}</div>
       </div>
       ${typeBadge(e.type)}
       <div class="bg" style="margin-left:8px;flex-shrink:0">
-        <button class="btn ${dq?'btn-s':'btn-o'} btn-xs" onclick="openDisqModal(${jsa(e.studentId)},${jsa(e.type)},${jsa(e.name)},${jsa(e.instName)})">${dq?'修改扣考':'設扣考'}</button>
-        ${dq?`<button class="btn btn-s btn-xs" onclick="removeDisq(${jsa(entryKey)})">取消扣考</button>`:''}
+        <button class="btn ${dq?'btn-s':'btn-o'} btn-xs" onclick="openDisqModal('${e.studentId}','${e.type}','${e.name}','${e.instName}')">${dq?'修改扣考':'設扣考'}</button>
+        ${dq?`<button class="btn btn-s btn-xs" onclick="removeDisq('${entryKey}')">取消扣考</button>`:''}
       </div>`;
     setupDrag(div,container);container.appendChild(div);
   });
@@ -3042,12 +3032,10 @@ window.schResetFilters=schResetFilters;
 
 // legacy stubs（避免舊呼叫出錯）
 function schInitSortBar(){}
-function schToggleSortKey(){}
 function onSchRoomChange(){}
 function schRoomCatToggle(){}
 function schRoomInstToggle(){}
 window.schInitSortBar=schInitSortBar;
-window.schToggleSortKey=schToggleSortKey;
 window.onSchRoomChange=onSchRoomChange;
 window.schRoomCatToggle=schRoomCatToggle;
 window.schRoomInstToggle=schRoomInstToggle;
@@ -3067,11 +3055,11 @@ function renderDisqList(){
     const cls=stu?stu.class:'';
     const inst=stu?iname(stu[type]):'';
     return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr auto auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--cream)">
-      <div><strong>${escapeHtml(name)}</strong> <span style="font-size:11px;color:var(--muted)">${escapeHtml(cls)}</span></div>
-      <div style="font-size:12px">${escapeHtml(inst)}·${escapeHtml(typeName(type))}</div>
-      <div style="font-size:12px;color:var(--red)">${escapeHtml(dq.reason)}${dq.note?' <span style="color:var(--muted)">/ '+escapeHtml(dq.note)+'</span>':''}</div>
-      <button class="btn btn-s btn-xs" onclick="openDisqModal(${jsa(sid)},${jsa(type)},${jsa(name)},${jsa(inst)})">修改</button>
-      <button class="btn btn-d btn-xs" onclick="removeDisq(${jsa(k)})">移除</button>
+      <div><strong>${name}</strong> <span style="font-size:11px;color:var(--muted)">${cls}</span></div>
+      <div style="font-size:12px">${inst}·${typeName(type)}</div>
+      <div style="font-size:12px;color:var(--red)">${dq.reason}${dq.note?' <span style=\"color:var(--muted)\">/ '+dq.note+'</span>':''}</div>
+      <button class="btn btn-s btn-xs" onclick="openDisqModal('${sid}','${type}','${name}','${inst}')">修改</button>
+      <button class="btn btn-d btn-xs" onclick="removeDisq('${k}')">移除</button>
     </div>`;
   }).join('');
   el.innerHTML=rows;
@@ -3194,27 +3182,27 @@ function renderAdminStudents(){
   if(instF)stus=stus.filter(s=>s.major===instF||s.minor===instF||s.elective===instF);
   stus=stus.sort((a,b)=>a.seat-b.seat||DB.classes.indexOf(a.class)-DB.classes.indexOf(b.class));
   tbody.innerHTML=stus.map(s=>`<tr>
-    <td>${escapeHtml(s.class)}</td><td>${escapeHtml(String(s.seat))}</td><td><strong>${escapeHtml(s.name)}</strong></td>
-    <td>${escapeHtml(iname(s.major))}</td><td>${escapeHtml(iname(s.minor))}</td><td>${escapeHtml(iname(s.elective))}</td>
+    <td>${s.class}</td><td>${s.seat}</td><td><strong>${s.name}</strong></td>
+    <td>${iname(s.major)}</td><td>${iname(s.minor)}</td><td>${iname(s.elective)}</td>
     <td style="text-align:center"><span class="dot ${s.repDone?'dg':'dr'}"></span></td>
     <td style="text-align:center"><span class="dot ${s.teaDone?'dg':'dr'}"></span></td>
-    <td><div class="bg"><button class="btn btn-s btn-xs" onclick="editUser(${jsa(s.id)})">編輯</button><button class="btn btn-s btn-xs" onclick="resetUserPwd(${jsa(s.id)})">重置密碼</button><button class="btn btn-d btn-xs" onclick="deleteUser(${jsa(s.id)})">刪</button></div></td>
+    <td><div class="bg"><button class="btn btn-s btn-xs" onclick="editUser('${s.id}')">編輯</button><button class="btn btn-s btn-xs" onclick="resetUserPwd('${s.id}')">重置密碼</button><button class="btn btn-d btn-xs" onclick="deleteUser('${s.id}')">刪</button></div></td>
   </tr>`).join('')||'<tr><td colspan="9" style="text-align:center;padding:16px;color:var(--muted)">無資料</td></tr>';
 }
 
 function renderAdminTeachers(){
   const tbody=document.getElementById('admin-tea-tbody');if(!tbody)return;
   tbody.innerHTML=teachers().map(t=>{
-    const myStus=(DB.teacherStudents[t.id]||[]).map(sid=>escapeHtml(DB.users.find(u=>u.id===sid)?.name||sid)).join('、')||'尚未指派';
+    const myStus=(DB.teacherStudents[t.id]||[]).map(sid=>DB.users.find(u=>u.id===sid)?.name||sid).join('、')||'尚未指派';
     return `<tr>
-    <td><strong>${escapeHtml(t.name)}</strong></td>
-    <td style="font-family:'DM Mono',monospace;font-size:11px">${escapeHtml(t.account)}</td>
+    <td><strong>${t.name}</strong></td>
+    <td style="font-family:'DM Mono',monospace;font-size:11px">${t.account}</td>
     <td style="font-size:12px;color:var(--muted);max-width:220px">${myStus}</td>
     <td><div class="bg">
-      <button class="btn btn-b btn-xs" onclick="openTeaStuModal(${jsa(t.id)})">指派學生</button>
-      <button class="btn btn-s btn-xs" onclick="editUser(${jsa(t.id)})">編輯</button>
-      <button class="btn btn-s btn-xs" onclick="resetUserPwd(${jsa(t.id)})">重置密碼</button>
-      <button class="btn btn-d btn-xs" onclick="deleteUser(${jsa(t.id)})">刪</button>
+      <button class="btn btn-b btn-xs" onclick="openTeaStuModal('${t.id}')">指派學生</button>
+      <button class="btn btn-s btn-xs" onclick="editUser('${t.id}')">編輯</button>
+      <button class="btn btn-s btn-xs" onclick="resetUserPwd('${t.id}')">重置密碼</button>
+      <button class="btn btn-d btn-xs" onclick="deleteUser('${t.id}')">刪</button>
     </div></td>
   </tr>`;}).join('');
 }
@@ -3222,9 +3210,9 @@ function renderAdminTeachers(){
 function renderAdminAdmins(){
   const tbody=document.getElementById('admin-adm-tbody');if(!tbody)return;
   tbody.innerHTML=admins().map(a=>`<tr>
-    <td><strong>${escapeHtml(a.name)}</strong></td>
-    <td style="font-family:'DM Mono',monospace;font-size:11px">${escapeHtml(a.account)}</td>
-    <td><div class="bg"><button class="btn btn-s btn-xs" onclick="editUser(${jsa(a.id)})">編輯</button><button class="btn btn-s btn-xs" onclick="resetUserPwd(${jsa(a.id)})">重置密碼</button><button class="btn btn-d btn-xs" onclick="deleteUser(${jsa(a.id)})">刪除</button></div></td>
+    <td><strong>${a.name}</strong></td>
+    <td style="font-family:'DM Mono',monospace;font-size:11px">${a.account}</td>
+    <td><div class="bg"><button class="btn btn-s btn-xs" onclick="editUser('${a.id}')">編輯</button><button class="btn btn-s btn-xs" onclick="resetUserPwd('${a.id}')">重置密碼</button><button class="btn btn-d btn-xs" onclick="deleteUser('${a.id}')">刪除</button></div></td>
   </tr>`).join('');
 }
 
@@ -3234,7 +3222,7 @@ function showAddUser(role){
   let extra='';
   if(role==='student')extra=`
     <div class="fr">
-      <div class="fg"><label>班級</label><select id="em-class">${DB.classes.map(c=>`<option>${escapeHtml(c)}</option>`).join('')}</select></div>
+      <div class="fg"><label>班級</label><select id="em-class">${DB.classes.map(c=>`<option>${c}</option>`).join('')}</select></div>
       <div class="fg"><label>座號</label><input type="number" id="em-seat" min="1" value="1"></div>
     </div>`;
   document.getElementById('edit-modal-body').innerHTML=`
@@ -3262,16 +3250,16 @@ function editUser(id){
   let extra='';
   if(u.role==='student')extra=`
     <div class="fr">
-      <div class="fg"><label>班級</label><select id="em-class">${DB.classes.map(c=>`<option ${c===u.class?'selected':''}>${escapeHtml(c)}</option>`).join('')}</select></div>
-      <div class="fg"><label>座號</label><input type="number" id="em-seat" value="${escapeAttr(String(u.seat))}"></div>
+      <div class="fg"><label>班級</label><select id="em-class">${DB.classes.map(c=>`<option ${c===u.class?'selected':''}>${c}</option>`).join('')}</select></div>
+      <div class="fg"><label>座號</label><input type="number" id="em-seat" value="${u.seat}"></div>
     </div>
     <div class="fr">
-      <div class="fg"><label>主修</label><select id="em-major"><option value="">—</option>${DB.instruments.items.map(i=>`<option value="${escapeAttr(i.id)}" ${i.id===u.major?'selected':''}>${escapeHtml(i.name)}</option>`).join('')}</select></div>
-      <div class="fg"><label>副修</label><select id="em-minor"><option value="">—</option>${DB.instruments.items.map(i=>`<option value="${escapeAttr(i.id)}" ${i.id===u.minor?'selected':''}>${escapeHtml(i.name)}</option>`).join('')}</select></div>
-      <div class="fg"><label>選修</label><select id="em-elective"><option value="">—</option>${DB.instruments.items.map(i=>`<option value="${escapeAttr(i.id)}" ${i.id===u.elective?'selected':''}>${escapeHtml(i.name)}</option>`).join('')}</select></div>
+      <div class="fg"><label>主修</label><select id="em-major"><option value="">—</option>${DB.instruments.items.map(i=>`<option value="${i.id}" ${i.id===u.major?'selected':''}>${i.name}</option>`).join('')}</select></div>
+      <div class="fg"><label>副修</label><select id="em-minor"><option value="">—</option>${DB.instruments.items.map(i=>`<option value="${i.id}" ${i.id===u.minor?'selected':''}>${i.name}</option>`).join('')}</select></div>
+      <div class="fg"><label>選修</label><select id="em-elective"><option value="">—</option>${DB.instruments.items.map(i=>`<option value="${i.id}" ${i.id===u.elective?'selected':''}>${i.name}</option>`).join('')}</select></div>
     </div>`;
   document.getElementById('edit-modal-body').innerHTML=`
-    <div class="fr"><div class="fg"><label>姓名</label><input type="text" id="em-name" value="${escapeAttr(u.name)}"></div><div class="fg"><label>帳號</label><input type="text" id="em-account" value="${escapeAttr(u.account)}"></div></div>
+    <div class="fr"><div class="fg"><label>姓名</label><input type="text" id="em-name" value="${u.name}"></div><div class="fg"><label>帳號</label><input type="text" id="em-account" value="${u.account}"></div></div>
     ${extra}
     <div class="fg" style="max-width:220px"><label>修改密碼（留空則不變）</label><input type="text" id="em-pass-edit" placeholder="輸入新密碼，留空不改"></div>`;
   document.getElementById('edit-modal-save').onclick=()=>{
@@ -3353,9 +3341,9 @@ function renderCatList(){
   DB.instruments.categories.sort((a,b)=>a.order-b.order).forEach((cat,i)=>{
     const div=document.createElement('div');div.className='exam-item';div.draggable=true;
     div.dataset.catId=cat.id;
-    div.innerHTML=`<div class="dh">⠿</div><div class="ei-info"><div class="ei-name">${escapeHtml(cat.name)}</div></div>
-      <button class="btn btn-s btn-xs" onclick="renameCategory(${jsa(cat.id)})">改名</button>
-      <button class="btn btn-d btn-xs" onclick="delCategory(${jsa(cat.id)})">刪</button>`;
+    div.innerHTML=`<div class="dh">⠿</div><div class="ei-info"><div class="ei-name">${cat.name}</div></div>
+      <button class="btn btn-s btn-xs" onclick="renameCategory('${cat.id}')">改名</button>
+      <button class="btn btn-d btn-xs" onclick="delCategory('${cat.id}')">刪</button>`;
     div.addEventListener('dragstart',e=>{div.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
     div.addEventListener('dragend',()=>{
       div.classList.remove('dragging');
@@ -3366,7 +3354,7 @@ function renderCatList(){
       });
       fbSaveInstruments();
     });
-    div.addEventListener('dragover',e=>{e.preventDefault();const dr=c.querySelector('.dragging');if(!dr)return;const after=getDragAfter(c,e.clientY);if(after)c.insertBefore(dr,after);else c.appendChild(dr);});
+    div.addEventListener('dragover',e=>{e.preventDefault();const after=getDragAfter(c,e.clientY);const dr=c.querySelector('.dragging');if(after)c.insertBefore(dr,after);else c.appendChild(dr);});
     c.appendChild(div);
   });
   const sel=document.getElementById('inst-cat-sel');
@@ -3378,9 +3366,9 @@ function renderInstList(){
   DB.instruments.items.filter(i=>i.cat===catId).sort((a,b)=>a.order-b.order).forEach(inst=>{
     const div=document.createElement('div');div.className='exam-item';div.draggable=true;
     div.dataset.instId=inst.id;
-    div.innerHTML=`<div class="dh">⠿</div><div class="ei-info"><div class="ei-name">${escapeHtml(inst.name)}</div></div>
-      <button class="btn btn-s btn-xs" onclick="renameInst(${jsa(inst.id)})">改名</button>
-      <button class="btn btn-d btn-xs" onclick="delInst(${jsa(inst.id)})">刪</button>`;
+    div.innerHTML=`<div class="dh">⠿</div><div class="ei-info"><div class="ei-name">${inst.name}</div></div>
+      <button class="btn btn-s btn-xs" onclick="renameInst('${inst.id}')">改名</button>
+      <button class="btn btn-d btn-xs" onclick="delInst('${inst.id}')">刪</button>`;
     div.addEventListener('dragstart',e=>{div.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
     div.addEventListener('dragend',()=>{
       div.classList.remove('dragging');
@@ -3390,7 +3378,7 @@ function renderInstList(){
       });
       fbSaveInstruments();
     });
-    div.addEventListener('dragover',e=>{e.preventDefault();const dr=c.querySelector('.dragging');if(!dr)return;const after=getDragAfter(c,e.clientY);if(after)c.insertBefore(dr,after);else c.appendChild(dr);});
+    div.addEventListener('dragover',e=>{e.preventDefault();const after=getDragAfter(c,e.clientY);const dr=c.querySelector('.dragging');if(after)c.insertBefore(dr,after);else c.appendChild(dr);});
     c.appendChild(div);
   });
 }
@@ -3429,20 +3417,20 @@ function delInst(id){const idx=DB.instruments.items.findIndex(i=>i.id===id);if(i
 function renderRooms(){
   const tbody=document.getElementById('rooms-tbody');if(!tbody)return;
   tbody.innerHTML=DB.rooms.map(r=>`<tr>
-    <td><strong>${escapeHtml(r.name)}</strong></td>
-    <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)">${escapeHtml(r.location||'—')}</td>
+    <td><strong>${r.name}</strong></td>
+    <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)">${r.location||'—'}</td>
     <td><span style="font-family:'DM Mono',monospace;background:var(--ink);color:var(--paper);padding:2px 7px;border-radius:var(--r);letter-spacing:2px">••••••</span>
-      <button class="btn btn-s btn-xs" style="margin-left:6px" onclick="revealCode(${jsa(r.id)},this)">顯示</button></td>
-    <td><div class="bg"><button class="btn btn-s btn-xs" onclick="editRoom(${jsa(r.id)})">編輯</button><button class="btn btn-d btn-xs" onclick="delRoom(${jsa(r.id)})">刪</button></div></td>
+      <button class="btn btn-s btn-xs" style="margin-left:6px" onclick="revealCode('${r.id}',this)">顯示</button></td>
+    <td><div class="bg"><button class="btn btn-s btn-xs" onclick="editRoom('${r.id}')">編輯</button><button class="btn btn-d btn-xs" onclick="delRoom('${r.id}')">刪</button></div></td>
   </tr>`).join('');
 }
-function revealCode(id,btn){const r=DB.rooms.find(x=>x.id===id);if(!r)return;btn.parentNode.innerHTML=`<code style="font-family:'DM Mono',monospace;background:var(--cream);padding:3px 8px;border-radius:var(--r);letter-spacing:3px">${escapeHtml(r.code)}</code>`;}
+function revealCode(id,btn){const r=DB.rooms.find(x=>x.id===id);if(!r)return;btn.parentNode.innerHTML=`<code style="font-family:'DM Mono',monospace;background:var(--cream);padding:3px 8px;border-radius:var(--r);letter-spacing:3px">${r.code}</code>`;}
 function addRoom(){
   document.getElementById('edit-modal-title').textContent='新增考場';
   const catCheckboxes=DB.instruments.categories.map(cat=>`
     <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer">
-      <input type="checkbox" value="${escapeAttr(cat.id)}">
-      <span style="font-size:13px">${escapeHtml(cat.name)}</span>
+      <input type="checkbox" value="${cat.id}">
+      <span style="font-size:13px">${cat.name}</span>
     </label>`).join('');
   document.getElementById('edit-modal-body').innerHTML=`
     <div class="fr">
@@ -3470,15 +3458,15 @@ function editRoom(id){
   document.getElementById('edit-modal-title').textContent='編輯考場 — '+r.name;
   const catCheckboxes=DB.instruments.categories.map(cat=>`
     <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer">
-      <input type="checkbox" value="${escapeAttr(cat.id)}" ${(r.allowedCats||r.cats||[]).includes(cat.id)?'checked':''}>
-      <span style="font-size:13px">${escapeHtml(cat.name)}</span>
+      <input type="checkbox" value="${cat.id}" ${(r.allowedCats||r.cats||[]).includes(cat.id)?'checked':''}>
+      <span style="font-size:13px">${cat.name}</span>
     </label>`).join('');
   document.getElementById('edit-modal-body').innerHTML=`
     <div class="fr">
-      <div class="fg"><label>考場名稱</label><input type="text" id="rm-name" value="${escapeAttr(r.name)}"></div>
-      <div class="fg"><label>評審代碼</label><input type="text" id="rm-code" value="${escapeAttr(r.code)}" style="font-family:'DM Mono',monospace;letter-spacing:3px"></div>
+      <div class="fg"><label>考場名稱</label><input type="text" id="rm-name" value="${r.name}"></div>
+      <div class="fg"><label>評審代碼</label><input type="text" id="rm-code" value="${r.code}" style="font-family:'DM Mono',monospace;letter-spacing:3px"></div>
     </div>
-    <div class="fg" style="margin-bottom:12px"><label>考試地點</label><input type="text" id="rm-location" value="${escapeAttr(r.location||'')}" placeholder="如：音樂廳 A 室..."></div>
+    <div class="fg" style="margin-bottom:12px"><label>考試地點</label><input type="text" id="rm-location" value="${r.location||''}" placeholder="如：音樂廳 A 室..."></div>
     <div class="fg"><label>此考場包含的樂器大項（複選）</label>
       <div style="background:var(--cream);padding:12px;border-radius:var(--r);margin-top:4px" id="rm-cats">${catCheckboxes}</div>
     </div>`;
@@ -3499,13 +3487,13 @@ function renderClassList(){
   const c=document.getElementById('class-list');if(!c)return;c.innerHTML='';
   DB.classes.forEach((cls,i)=>{
     const div=document.createElement('div');div.className='exam-item';div.draggable=true;
-    div.innerHTML=`<div class="dh">⠿</div><div class="ei-info"><div class="ei-name">${escapeHtml(cls)}</div></div>
+    div.innerHTML=`<div class="dh">⠿</div><div class="ei-info"><div class="ei-name">${cls}</div></div>
       <button class="btn btn-s btn-xs" onclick="renameClass(${i})">改名</button>
       <button class="btn btn-d btn-xs" onclick="delClass(${i})">刪</button>`;
     // drag for classes
     div.addEventListener('dragstart',e=>{div.classList.add('dragging');e.dataTransfer.setData('text/plain',i);});
     div.addEventListener('dragend',()=>div.classList.remove('dragging'));
-    div.addEventListener('dragover',e=>{e.preventDefault();const dr=c.querySelector('.dragging');if(!dr)return;const after=getDragAfter(c,e.clientY);if(after)c.insertBefore(dr,after);else c.appendChild(dr);});
+    div.addEventListener('dragover',e=>{e.preventDefault();const after=getDragAfter(c,e.clientY);const dr=c.querySelector('.dragging');if(after)c.insertBefore(dr,after);else c.appendChild(dr);});
     div.addEventListener('drop',()=>{
       // Rebuild DB.classes from current DOM order
       const items=[...c.querySelectorAll('.exam-item')];
@@ -3600,10 +3588,10 @@ function renderAccessControl(){
     el.innerHTML=pages.map(p=>{
       const s=stateLabel(DB.config[configKey][p.id]);
       return `<div class="access-grid" style="grid-template-columns:1fr auto auto auto auto">
-        <div class="access-label">${escapeHtml(p.label)}</div>
-        <button class="btn btn-g btn-sm" onclick="setAccess(${jsa(configKey)},${jsa(p.id)},true)">公開</button>
-        <button class="btn btn-o btn-sm" onclick="setAccess(${jsa(configKey)},${jsa(p.id)},${jsa('pending')})">尚未開放</button>
-        <button class="btn btn-d btn-sm" onclick="setAccess(${jsa(configKey)},${jsa(p.id)},false)">關閉</button>
+        <div class="access-label">${p.label}</div>
+        <button class="btn btn-g btn-sm" onclick="setAccess('${configKey}','${p.id}',true)">公開</button>
+        <button class="btn btn-o btn-sm" onclick="setAccess('${configKey}','${p.id}','pending')">尚未開放</button>
+        <button class="btn btn-d btn-sm" onclick="setAccess('${configKey}','${p.id}',false)">關閉</button>
         <div style="font-family:'DM Mono',monospace;font-size:9px;padding:3px 10px;border-radius:20px;${s.cls}">${s.txt}</div>
       </div>`;
     }).join('');
@@ -3613,10 +3601,10 @@ function renderAccessControl(){
       const wrap=document.createElement('div');wrap.id=containerId+'-pending-msgs';wrap.style.cssText='margin-top:14px;padding-top:12px;border-top:1px solid var(--cream)';
       wrap.innerHTML='<div style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);margin-bottom:8px">「尚未開放」時顯示的提示文字（各頁可分別設定）</div>'+
         pages.map(p=>`<div class="fg" style="margin-bottom:8px">
-          <label>${escapeHtml(p.label)}</label>
-          <input type="text" id="pending-msg-${p.id}" value="${escapeAttr(DB.config.pendingMsg?.[p.id]||'')}" placeholder="例：成績尚未公布，敬請期待。" style="font-size:12px">
+          <label>${p.label}</label>
+          <input type="text" id="pending-msg-${p.id}" value="${DB.config.pendingMsg?.[p.id]||''}" placeholder="例：成績尚未公布，敬請期待。" style="font-size:12px">
         </div>`).join('')+
-        `<button class="btn btn-s btn-sm" onclick="savePendingMsgs(${jsa(configKey)},${jsa(containerId)})">儲存提示文字</button>`;
+        `<button class="btn btn-s btn-sm" onclick="savePendingMsgs('${configKey}','${containerId}')">儲存提示文字</button>`;
       el.appendChild(wrap);
     } else {
       pages.forEach(p=>{const inp=document.getElementById('pending-msg-'+p.id);if(inp)inp.value=DB.config.pendingMsg?.[p.id]||'';});
@@ -3672,8 +3660,8 @@ function renderInstRestrictUI(){
         ${DB.instruments.items.map(i=>{
           const active=(DB.config.instRestrict[t.key]||[]).includes(i.id);
           return `<label style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid var(--border);border-radius:20px;cursor:pointer;font-family:'DM Mono',monospace;font-size:9px;background:${active?'var(--gold)':'var(--white)'}">
-            <input type="checkbox" data-type="${t.key}" value="${escapeAttr(i.id)}" ${active?'checked':''} style="display:none" onchange="this.parentElement.style.background=this.checked?'var(--gold)':'var(--white)'">
-            ${escapeHtml(i.name)}
+            <input type="checkbox" data-type="${t.key}" value="${i.id}" ${active?'checked':''} style="display:none" onchange="this.parentElement.style.background=this.checked?'var(--gold)':'var(--white)'">
+            ${i.name}
           </label>`;
         }).join('')}
       </div>
@@ -3729,16 +3717,6 @@ function clearData(type){
 // ════════════════════════════════════════════════
 // RESULTS (術科成績)
 // ════════════════════════════════════════════════
-function dedAmountInputChange(el,entryKey){
-  DB.deductions[entryKey]={...DB.deductions[entryKey]||{},amount:+el.value};
-  renderResults();
-  fbSet('deductions',entryKey,DB.deductions[entryKey]||{});
-}
-function dedReasonInputChange(el,entryKey){
-  DB.deductions[entryKey]={...DB.deductions[entryKey]||{},reason:el.value};
-  fbSet('deductions',entryKey,DB.deductions[entryKey]||{});
-}
-
 function renderResults(){
   const el=document.getElementById('results-body');if(!el)return;
   const roomId=document.getElementById('result-room')?.value||'';
@@ -3771,8 +3749,8 @@ function renderResults(){
     return `<div class="card" style="margin-bottom:14px">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
         <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--muted)">${String(ei+1).padStart(2,'0')}</div>
-        <div><strong style="font-size:15px">${escapeHtml(e.name)}</strong> <span style="color:var(--muted);font-size:12px">${escapeHtml(e.class)}·座${escapeHtml(String(e.seat))}</span></div>
-        <div style="color:var(--muted);font-size:12px">${escapeHtml(e.instName)}</div>
+        <div><strong style="font-size:15px">${e.name}</strong> <span style="color:var(--muted);font-size:12px">${e.class}·座${e.seat}</span></div>
+        <div style="color:var(--muted);font-size:12px">${e.instName}</div>
         ${typeBadge(e.type)}
         <div style="margin-left:auto;text-align:right">
           ${result.finalScore!==null?`<div style="font-family:'Cormorant Garamond',serif;font-size:28px;color:var(--gold)" class="${finalWithDed<60?'red-score':''}">${finalWithDed!==null?finalWithDed.toFixed(2):'—'}</div><div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted)">最終成績</div>`:'<div style="font-family:\'DM Mono\',monospace;font-size:11px;color:var(--muted)">尚無評分</div>'}
@@ -3800,7 +3778,7 @@ function renderResults(){
             <span>評語彙整（共 ${jurorIds.length} 位評審）</span><span class="cf-arrow">▼</span>
           </div>
           <div class="comment-folder-b">
-            ${jurorIds.map((jid,ji)=>{const s=jurorData[jid];return s.comment?`<div style="margin-bottom:8px;padding:8px 10px;background:var(--cream);border-radius:var(--r)"><div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:4px">評審 ${ji+1}</div><div style="font-size:13px;line-height:1.8">${escapeHtml(s.comment)}</div></div>`:''}).join('')||'<div style="color:var(--muted);font-size:12px">尚無評語</div>'}
+            ${jurorIds.map((jid,ji)=>{const s=jurorData[jid];return s.comment?`<div style="margin-bottom:8px;padding:8px 10px;background:var(--cream);border-radius:var(--r)"><div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:4px">評審 ${ji+1}</div><div style="font-size:13px;line-height:1.8">${s.comment}</div></div>`:''}).join('')||'<div style="color:var(--muted);font-size:12px">尚無評語</div>'}
           </div>
         </div>
       </div>
@@ -3808,9 +3786,9 @@ function renderResults(){
       <!-- DEDUCTION + EDIT -->
       <div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--cream)">
         <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">扣分</span>
-        <input type="number" value="${ded.amount||0}" min="0" step="0.5" style="width:70px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);font-family:'DM Mono',monospace;font-size:13px;outline:none" onchange="dedAmountInputChange(this,${jsa(entryKey)})">
-        <input type="text" value="${escapeAttr(ded.reason||'')}" placeholder="扣分原因..." style="flex:1;padding:5px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;outline:none" onchange="dedReasonInputChange(this,${jsa(entryKey)})">
-        <button class="btn btn-o btn-xs" onclick="editJuryScores(${jsa(roomId)},${jsa(entryKey)},${jsa(e.name)})">✏ 修改評分</button>
+        <input type="number" value="${ded.amount||0}" min="0" step="0.5" style="width:70px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);font-family:'DM Mono',monospace;font-size:13px;outline:none" onchange="DB.deductions['${entryKey}']={...DB.deductions['${entryKey}']||{},amount:+this.value};renderResults();fbSet('deductions','${entryKey}',DB.deductions['${entryKey}']||{})">
+        <input type="text" value="${ded.reason||''}" placeholder="扣分原因..." style="flex:1;padding:5px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;outline:none" onchange="DB.deductions['${entryKey}']={...DB.deductions['${entryKey}']||{},reason:this.value};fbSet('deductions','${entryKey}',DB.deductions['${entryKey}']||{})">
+        <button class="btn btn-o btn-xs" onclick="editJuryScores('${roomId}','${entryKey}','${e.name}')">✏ 修改評分</button>
       </div>
     </div>`;
   }).join('');
@@ -3897,12 +3875,12 @@ function adimSearch(){
     if(s.minor)types.push({key:'minor',label:'副修·'+iname(s.minor)});
     if(s.elective)types.push({key:'elective',label:'選修·'+iname(s.elective)});
     return types.map(t=>`
-      <div onclick="adimSelect(${jsa(s.id)},${jsa(t.key)},${jsa(s.name)},${jsa(t.label)})"
+      <div onclick="adimSelect('${s.id}','${t.key}','${s.name}','${t.label}')"
         style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--cream);transition:background .15s"
         onmouseover="this.style.background='var(--gold-bg)'" onmouseout="this.style.background=''">
-        <strong>${escapeHtml(s.name)}</strong>
-        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:6px">${escapeHtml(s.class)}·座${escapeHtml(String(s.seat))}·${escapeHtml(s.account)}</span>
-        <span style="font-family:'DM Mono',monospace;font-size:9px;margin-left:8px;color:var(--steel)">${escapeHtml(t.label)}</span>
+        <strong>${s.name}</strong>
+        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:6px">${s.class}·座${s.seat}·${s.account}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:9px;margin-left:8px;color:var(--steel)">${t.label}</span>
       </div>`).join('');
   }).join('');
 }
@@ -3911,7 +3889,7 @@ window.adimSearch=adimSearch;
 function adimSelect(sid,type,name,label){
   _adimSelectedSid=sid;_adimSelectedType=type;
   document.getElementById('adim-selected').style.display='block';
-  document.getElementById('adim-selected').innerHTML=`<strong>${escapeHtml(name)}</strong> <span style="color:var(--muted);font-size:12px">${escapeHtml(label)}</span> <span style="color:var(--sage);font-size:12px">✓ 已選擇</span>`;
+  document.getElementById('adim-selected').innerHTML=`<strong>${name}</strong> <span style="color:var(--muted);font-size:12px">${label}</span> <span style="color:var(--sage);font-size:12px">✓ 已選擇</span>`;
   document.getElementById('adim-results').innerHTML='';
   document.getElementById('adim-reason-area').style.display='block';
   document.getElementById('adim-note-area').style.display='block';
@@ -3939,7 +3917,7 @@ function renderTeaSchedulePage(){
   const msgDiv=document.getElementById('tea-schedule-access-msg');
   const contentDiv=document.getElementById('tea-schedule-content');
   if(!msgDiv||!contentDiv)return;
-  const hasAccess=(DB.config.teacherAccess||{})['stu-schedule']!==false;
+  const hasAccess=DB.config.teacherAccess['stu-schedule']!==false;
   if(!hasAccess){
     msgDiv.style.display='block';contentDiv.style.display='none';
     const txt=document.getElementById('tea-schedule-msg-text');
@@ -3951,7 +3929,7 @@ function renderTeaSchedulePage(){
   const btnContainer=document.getElementById('tea-schedule-room-btns');
   if(btnContainer){
     btnContainer.innerHTML='<button class="btn btn-p btn-sm" onclick="teaSchSelectRoom(\'\',this)">全部考場</button>'+
-      DB.rooms.map(r=>`<button class="btn btn-s btn-sm" onclick="teaSchSelectRoom(${jsa(r.id)},this)">${escapeHtml(r.name)}</button>`).join('');
+      DB.rooms.map(r=>`<button class="btn btn-s btn-sm" onclick="teaSchSelectRoom('${r.id}',this)">${r.name}</button>`).join('');
   }
   teaSchSelectRoom('',null);
 }
@@ -3968,14 +3946,14 @@ function teaSchSelectRoom(roomId,btn){
   if(roomId)entries=entries.filter(e=>e.roomId===roomId);
   tbody.innerHTML=entries.map(e=>`<tr>
     <td style="font-family:'DM Mono',monospace;color:var(--ink);font-weight:600">${e.order}</td>
-    <td style="color:var(--ink)">${escapeHtml(e.roomName)}</td>
-    <td style="color:var(--ink);font-family:'DM Mono',monospace;font-size:11px">${escapeHtml(e.roomLocation||'—')}</td>
-    <td style="color:var(--ink)">${escapeHtml(e.class)}</td>
-    <td style="color:var(--ink);font-weight:600">${escapeHtml(e.name)}</td>
-    <td style="color:var(--ink)">${escapeHtml(e.instName)}</td>
+    <td style="color:var(--ink)">${e.roomName}</td>
+    <td style="color:var(--ink);font-family:'DM Mono',monospace;font-size:11px">${e.roomLocation||'—'}</td>
+    <td style="color:var(--ink)">${e.class}</td>
+    <td style="color:var(--ink);font-weight:600">${e.name}</td>
+    <td style="color:var(--ink)">${e.instName}</td>
     <td>${typeBadge(e.type)}</td>
-    <td style="font-size:12px;color:var(--ink)">${e.ac?escapeHtml(e.ac)+' — <em>'+escapeHtml(e.at)+'</em>':'—'}</td>
-    <td style="font-size:12px;color:var(--ink)">${e.fc?escapeHtml(e.fc)+' — <em>'+escapeHtml(e.ft)+'</em>':'—'}</td>
+    <td style="font-size:12px;color:var(--ink)">${e.ac?e.ac+' — <em>'+e.at+'</em>':'—'}</td>
+    <td style="font-size:12px;color:var(--ink)">${e.fc?e.fc+' — <em>'+e.ft+'</em>':'—'}</td>
   </tr>`).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;font-family:\'DM Mono\',monospace;font-size:12px">查無資料</td></tr>';
 }
 window.teaSchSelectRoom=teaSchSelectRoom;
@@ -3984,38 +3962,10 @@ window.teaSchSelectRoom=teaSchSelectRoom;
 // STATS
 // ════════════════════════════════════════════════
 function updateStats(){
-  const elS=document.getElementById('stat-s');
-  const elR=document.getElementById('stat-r');
-  const elT=document.getElementById('stat-t');
-  const elAvg=document.getElementById('stat-avg');
   const stus=students();const done=stus.filter(s=>s.repDone).length;
-  if(elS)elS.textContent=String(stus.length);
-  if(elR)elR.textContent=String(done);
-  if(elT)elT.textContent=String(teachers().length);
-  if(elAvg){
-    const finals=[];
-    getScheduleEntries().forEach(e=>{
-      const entryKey=e.studentId+'_'+e.type;
-      const jurorData=DB.juryScores[e.roomId]?.[entryKey];
-      if(!jurorData||!Object.keys(jurorData).length)return;
-      const scoreArr=Object.values(jurorData);
-      if(!scoreArr.length)return;
-      const result=calcFinal(scoreArr);
-      if(result.finalScore===null||result.finalScore===undefined)return;
-      const ded=DB.deductions[entryKey]?.amount||0;
-      finals.push(Math.max(0,result.finalScore-ded));
-    });
-    if(finals.length){
-      const avg=finals.reduce((a,b)=>a+b,0)/finals.length;
-      elAvg.textContent=avg.toFixed(1);
-      elAvg.className='sn'+(avg<60?' red-score':'');
-      elAvg.style.color=avg<60?'var(--red)':'var(--gold)';
-    }else{
-      elAvg.textContent='—';
-      elAvg.className='sn';
-      elAvg.style.color='var(--gold)';
-    }
-  }
+  document.getElementById('stat-s').textContent=stus.length;
+  document.getElementById('stat-r').textContent=done;
+  document.getElementById('stat-t').textContent=teachers().length;
 }
 
 // ════════════════════════════════════════════════
@@ -4024,7 +3974,7 @@ function updateStats(){
 function setupDrag(el,container){
   el.addEventListener('dragstart',e=>{el.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
   el.addEventListener('dragend',()=>el.classList.remove('dragging'));
-  el.addEventListener('dragover',e=>{e.preventDefault();const dr=container.querySelector('.dragging');if(!dr)return;const after=getDragAfter(container,e.clientY);if(after)container.insertBefore(dr,after);else container.appendChild(dr);renumberItems(container);});
+  el.addEventListener('dragover',e=>{e.preventDefault();const after=getDragAfter(container,e.clientY);const dr=container.querySelector('.dragging');if(after)container.insertBefore(dr,after);else container.appendChild(dr);renumberItems(container);});
 }
 function getDragAfter(container,y){
   return [...container.querySelectorAll('.exam-item:not(.dragging)')].reduce((cl,el)=>{
@@ -4079,20 +4029,18 @@ function closeOverlay(id){document.getElementById(id)?.classList.remove('on');}
 // overlay listeners handled in attachListeners above
 
 function showToast(msg,type=''){
-  const t=document.getElementById('toast');if(!t)return;
-  t.textContent=msg;t.className='toast on '+type;
+  const t=document.getElementById('toast');t.textContent=msg;t.className='toast on '+type;
   clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),3000);
 }
 function showSyncStatus(state,text){
-  const el=document.getElementById('sync');const dot=document.getElementById('sy-dot');const txt=document.getElementById('sy-txt');
-  if(!el||!dot||!txt)return;
-  txt.textContent=text;
+  const el=document.getElementById('sync');const dot=document.getElementById('sy-dot');
+  document.getElementById('sy-txt').textContent=text;
   dot.className='sy-dot '+({sync:'sy-sync',ok:'sy-ok',pend:'sy-pend'}[state]||'');
   el.classList.add('on');clearTimeout(el._t);
   if(state==='ok')el._t=setTimeout(()=>el.classList.remove('on'),2500);
 }
 // online handler 已整合至 Firebase enablePersistence 區塊，避免重複綁定
-window.addEventListener('offline',()=>{ST.isOnline=false;document.getElementById('off-bar')?.classList.add('show');});
+window.addEventListener('offline',()=>{ST.isOnline=false;document.getElementById('off-bar').classList.add('show');});
 
 // ════════════════════════════════════════════════
 // EXPOSE FUNCTIONS TO GLOBAL SCOPE (needed for onclick= in HTML)
@@ -4115,41 +4063,15 @@ const _expose = [
   'addClass','renameClass','delClass',
   'saveTiming','saveAnnounce','saveWeights','addTrim','saveTrimRules','fbSaveConfig',
   'setAccess','saveRepHint','saveTyText','clearData','saveTeaScheduleMsg',
-  'renderResults','editJuryScores','exportResultsCSV','dedAmountInputChange','dedReasonInputChange',
+  'renderResults','editJuryScores','exportResultsCSV',
   'npKey','npDel','npConfirm','npBg',
   'openNP',
   'schSelectRoom','schSeatDir','schApplySort','schInitRoomTabs','schInitSortUI',
   'saveInstRestrict','saveRepConfirmMsg','savePendingMsgs','showPendingPage',
   'renderInstRestrictUI',
 ];
-const __exportFns={
-  doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,
-  closeOverlay,openOverlay,showToast,
-  filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,
-  doLookup,clearLookup,
-  openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,
-  checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,
-  generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schInitSortBar,schToggleSortKey,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,
-  openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,
-  renderTeaSchedulePage,teaSchSelectRoom,
-  swAdminTab,swUserTab,
-  showAddUser,editUser,resetUserPwd,deleteUser,importCSV,downloadSample,
-  addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,
-  renderInstList,
-  addRoom,editRoom,delRoom,revealCode,
-  addClass,renameClass,delClass,
-  saveTiming,saveAnnounce,saveWeights,addTrim,saveTrimRules,fbSaveConfig,
-  setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,
-  renderResults,editJuryScores,exportResultsCSV,dedAmountInputChange,dedReasonInputChange,
-  npKey,npDel,npConfirm,npBg,
-  openNP,
-  schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,
-  saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,
-  renderInstRestrictUI,
-};
 _expose.forEach(function(name){
-  const fn=__exportFns[name];
-  if(typeof fn==='function')window[name]=fn;
+  try{ if(typeof eval(name)==='function') window[name]=eval(name); }catch(e){}
 });
 
 // ★ 頁面載入後立即從 Firebase 同步 users，讓登入時帳密是最新狀態
