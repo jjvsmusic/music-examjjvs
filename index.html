@@ -468,7 +468,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
       <div class="lf"><label>帳號</label><input id="l-user" type="text" placeholder="學號 / 帳號" autocomplete="username"></div>
       <div class="lf"><label>密碼</label><input id="l-pass" type="password" placeholder="預設：000" autocomplete="current-password"></div>
       <div class="login-err" id="l-err"></div>
-      <button class="login-btn" onclick="doLogin()">登入系統</button>
+      <button class="login-btn" id="l-btn" onclick="doLogin()">登入系統</button>
       <hr class="login-sep">
       <div class="lf" style="margin-bottom:10px"><label>評審考場代碼（評審專用）</label>
         <input id="l-jury-code" type="text" placeholder="輸入考場代碼" style="letter-spacing:3px;font-family:'DM Mono',monospace;text-transform:uppercase">
@@ -1497,6 +1497,21 @@ function fbLoad(col, cb){
   });
 }
 
+// ════ 頁面一載入就預先從 Firebase 讀取 users，確保登入時帳密已同步 ════
+function preloadUsersForLogin(){
+  if(!window._FB){return;}
+  const loginBtn=document.getElementById('l-btn');
+  if(loginBtn){loginBtn.disabled=true;loginBtn.textContent='讀取中...';}
+  fbLoad('users',docs=>{
+    if(docs.length){
+      // ★ 完整取代 DB.users（確保帳號/密碼與 Firebase 一致）
+      DB.users.length=0;
+      docs.forEach(fd=>{const{_updatedAt,...rest}=fd;DB.users.push(rest);});
+    }
+    if(loginBtn){loginBtn.disabled=false;loginBtn.textContent='登入系統';}
+  });
+}
+
 // ════ 啟動時從 Firebase 讀回所有資料 ════
 function loadAllFromFirebase(done){
   if(!window._FB){done();return;}
@@ -1507,18 +1522,11 @@ function loadAllFromFirebase(done){
   pending++;
   fbLoad('users',docs=>{
     if(docs.length){
-      // 用 Firebase 資料覆蓋，但保留程式碼裡沒有的欄位
-      // ★ 修正：確保所有欄位都被合併，不遺漏
-      docs.forEach(fd=>{
-        const local=DB.users.find(u=>u.id===fd.id);
-        if(local){
-          // Merge FB fields into local, keeping local fields not in FB
-          Object.keys(fd).forEach(k=>{if(k!=='_updatedAt')local[k]=fd[k];});
-        } else {
-          const {_updatedAt,...rest}=fd;
-          DB.users.push(rest);
-        }
-      });
+      // ★ Firebase 有資料時，完整取代 DB.users（避免已刪除的預設帳號殘留）
+      DB.users.length=0;
+      docs.forEach(fd=>{const{_updatedAt,...rest}=fd;DB.users.push(rest);});
+      // ★ 修正 ST.user 引用：讓它指向新陣列裡對應的物件
+      if(ST.user){const fresh=DB.users.find(u=>u.id===ST.user.id);if(fresh)ST.user=fresh;}
     } else {
       // 第一次：把預設 users 全部寫進 Firebase
       DB.users.forEach(u=>fbSet('users',u.id,u));
@@ -3777,6 +3785,9 @@ const _expose = [
 _expose.forEach(function(name){
   try{ if(typeof eval(name)==='function') window[name]=eval(name); }catch(e){}
 });
+
+// ★ 頁面載入後立即從 Firebase 同步 users，讓登入時帳密是最新狀態
+(window._fbAuthReady||Promise.resolve()).then(function(){preloadUsersForLogin();});
 
 } // end __init__
 
