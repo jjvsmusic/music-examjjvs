@@ -220,22 +220,36 @@ td{padding:9px 12px;font-size:13px;vertical-align:middle}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
 
 /* JURY SIGNUP */
-.jsup-card{background:var(--white);border:2px solid var(--gold);border-radius:var(--r);padding:20px;margin-bottom:16px}
-.jsup-note{background:#fff8e6;border-left:4px solid var(--gold);padding:12px 16px;border-radius:var(--r);font-size:13px;line-height:1.9;color:var(--ink);margin-bottom:18px}
-.jsup-room-item{border:1px solid var(--border);border-radius:var(--r);margin-bottom:10px;overflow:hidden;transition:border-color .2s}
-.jsup-room-item.selected{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-bg)}
-.jsup-room-h{background:var(--ink);color:var(--paper);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px}
-.jsup-room-name{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--gold)}
-.jsup-room-dt{font-family:'DM Mono',monospace;font-size:9px;color:rgba(255,255,255,.55)}
-.jsup-room-b{padding:14px 16px;background:var(--white)}
-.jsup-opt-row{display:flex;align-items:flex-start;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:var(--r);margin-bottom:7px;cursor:pointer;transition:background .15s}
-.jsup-opt-row:hover,.jsup-opt-row.chosen{background:var(--gold-bg);border-color:var(--gold)}
-.jsup-opt-row input[type=radio]{margin-top:2px;accent-color:var(--gold)}
-.jsup-opt-label{font-size:13px;color:var(--ink);line-height:1.5}
-.jsup-sub-box{background:var(--cream);border-radius:var(--r);padding:12px 14px;margin-top:8px;border:1px solid var(--border)}
+.jsup-card{background:var(--white);border:2px solid var(--gold);border-radius:var(--r);padding:22px;margin-bottom:16px}
+.jsup-note{background:#fff8e6;border-left:4px solid var(--gold);padding:12px 16px;border-radius:var(--r);font-size:13px;line-height:1.9;color:var(--ink);margin-bottom:20px;white-space:pre-line}
+/* 考場資訊展示區 */
+.jsup-info-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;margin-bottom:22px}
+.jsup-info-card{border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.jsup-info-h{background:var(--ink);padding:10px 14px}
+.jsup-info-name{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--gold)}
+.jsup-info-loc{font-family:'DM Mono',monospace;font-size:8px;color:rgba(255,255,255,.45);margin-top:3px}
+.jsup-info-b{padding:10px 14px;background:var(--white)}
+.jsup-info-dt{font-size:13px;color:var(--ink);font-weight:600;line-height:1.7}
+.jsup-info-dt-label{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px;margin-bottom:2px}
+/* 勾選填報區 */
+.jsup-select-section{border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:18px}
+.jsup-select-h{background:var(--cream);padding:10px 16px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.jsup-row{border-bottom:1px solid var(--cream);padding:12px 16px;background:var(--white);transition:background .15s}
+.jsup-row:last-child{border-bottom:none}
+.jsup-row-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.jsup-row-name{font-size:13px;font-weight:700;color:var(--ink);min-width:100px}
+.jsup-row-dt{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)}
+.jsup-row-opts{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;margin-left:0}
+.jsup-opt-btn{padding:5px 13px;border-radius:20px;border:1px solid var(--border);background:var(--cream);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;cursor:pointer;transition:all .18s;color:var(--ink);white-space:nowrap}
+.jsup-opt-btn:hover{border-color:var(--gold);background:var(--gold-bg)}
+.jsup-opt-btn.active-attend{background:var(--sage);color:#fff;border-color:var(--sage)}
+.jsup-opt-btn.active-other{background:var(--orange);color:#fff;border-color:var(--orange)}
+.jsup-opt-btn.active-sub{background:var(--rust);color:#fff;border-color:var(--rust)}
+.jsup-expand{margin-top:10px;padding:12px 14px;border-radius:var(--r);border:1px solid var(--border);background:var(--cream);animation:fadeUp .2s ease}
 .jsup-status-badge{padding:3px 10px;border-radius:20px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px}
 .jsup-status-attend{background:#d4edda;color:#155724;border:1px solid #28a745}
 .jsup-status-sub{background:#fff3cd;color:#856404;border:1px solid #ffc107}
+.jsup-status-other{background:#e2e3e5;color:#383d41;border:1px solid #d6d8db}
 .jsup-status-none{background:var(--cream);color:var(--muted);border:1px solid var(--border)}
 .jsup-admin-row{display:grid;grid-template-columns:160px 120px 1fr auto;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--cream)}
 @media(max-width:700px){.jsup-admin-row{grid-template-columns:1fr 1fr}}
@@ -1089,15 +1103,32 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
       <!-- ★ 期末考評分報名區 -->
       <div id="tea-jury-signup" style="display:none">
         <div class="jsup-card">
-          <div class="card-t" style="display:flex;align-items:center;justify-content:space-between">
+          <div class="card-t" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
             <span>📋 期末考評分參與確認</span>
             <span id="jsup-submit-status" style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)"></span>
           </div>
+
+          <!-- 說明文字 -->
           <div class="jsup-note" id="jsup-note-text"></div>
-          <div id="jsup-rooms-body"></div>
+
+          <!-- ① 考場資訊展示（純資訊，不選項） -->
+          <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:8px">① 考場資訊一覽</div>
+          <div class="jsup-info-grid" id="jsup-info-grid"></div>
+
+          <!-- ② 勾選填報區（每考場一列，含選項） -->
+          <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:8px">② 請選擇您對各考場的出席狀態</div>
+          <div class="jsup-select-section">
+            <div class="jsup-select-h">📌 請依考場逐一勾選（可複選確認參加的考場）</div>
+            <div id="jsup-rows-body"></div>
+          </div>
+
+          <!-- ③ 整體補充說明 -->
+          <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:6px">③ 補充說明（選填）</div>
+          <textarea id="jsup-global-note" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;min-height:80px;outline:none;resize:vertical;font-family:'Noto Serif TC',serif;line-height:1.8;background:var(--paper)" placeholder="如有其他需要說明的事項，請填寫於此..."></textarea>
+
           <div class="bg" style="margin-top:16px">
             <button class="btn btn-g" onclick="submitJurySignup()">✓ 確認送出報名</button>
-            <button class="btn btn-s btn-sm" onclick="saveJurySignupDraft()">儲存草稿</button>
+            <button class="btn btn-s btn-sm" onclick="saveJurySignupDraft()">暫時儲存</button>
           </div>
         </div>
       </div>
@@ -1757,8 +1788,9 @@ const DB = {
     pendingMsg:{},
     jurySignupNote:'有兩位（含）以上學生的老師需參與期末考現場評分。若考試當天有事無法出席，請務必自行安排代評老師，並填寫代評資訊。',
     jurySignupOptions:[
-      {id:'opt_attend',label:'確認參加評分',hasText:false,isSub:false},
-      {id:'opt_sub',label:'當日無法參加，已找代評老師',hasText:false,isSub:true},
+      {id:'opt_attend',label:'確認參加',isAttend:true,isSub:false,hasText:false},
+      {id:'opt_sub',label:'已找代評老師',isAttend:false,isSub:true,hasText:false},
+      {id:'opt_one',label:'學生僅一人，免評',isAttend:false,isSub:false,hasText:false},
     ],
   }
 };
@@ -5683,15 +5715,15 @@ window.switchTeaSubTab=switchTeaSubTab;
 // JURY SIGNUP — TEACHER SIDE
 // ════════════════════════════════════════════════
 
-// 計算該老師指導學生數
-function getMyStudentCount(){
-  return getMyStudents().length;
-}
-
-// 格式化考場日期時間
 function fmtRoomDt(r){
-  const fmt=dt=>{if(!dt)return '';const d=new Date(dt);return isNaN(d)?dt:d.toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});};
-  if(r.dateStart)return fmt(r.dateStart)+(r.dateEnd?' ~ '+fmt(r.dateEnd):'');
+  const fmt=dt=>{
+    if(!dt)return '';
+    const d=new Date(dt);
+    if(isNaN(d))return dt;
+    return d.toLocaleString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',weekday:'short'});
+  };
+  if(r.dateStart&&r.dateEnd)return fmt(r.dateStart)+' ～ '+fmt(r.dateEnd);
+  if(r.dateStart)return fmt(r.dateStart);
   return '日期待定';
 }
 
@@ -5700,195 +5732,287 @@ function renderJurySignupPage(){
   const noteEl=document.getElementById('jsup-note-text');
   if(noteEl)noteEl.textContent=DB.config.jurySignupNote||'';
 
-  const body=document.getElementById('jsup-rooms-body');
-  if(!body)return;
-
   const tid=ST.user?.id;
-  if(!tid){body.innerHTML='<p style="color:var(--muted)">請先登入</p>';return;}
-
   const existing=DB.jurySignup[tid]||{};
   const opts=DB.config.jurySignupOptions||[];
 
-  // 顯示已送出狀態
+  // 已送出狀態
   const statusEl=document.getElementById('jsup-submit-status');
   if(statusEl){
     if(existing._submitted){
-      const d=existing._submittedAt?new Date(existing._submittedAt).toLocaleString('zh-TW'):'';
-      statusEl.textContent='✓ 已送出 '+d;
-      statusEl.style.color='var(--sage)';
-    } else if(existing._draft){
-      statusEl.textContent='草稿已儲存';
-      statusEl.style.color='var(--orange)';
-    } else {
-      statusEl.textContent='尚未填寫';
-      statusEl.style.color='var(--muted)';
+      const d=existing._submittedAt?new Date(existing._submittedAt).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+      statusEl.innerHTML=`<span style="color:var(--sage)">✓ 已送出 ${d}</span>`;
+    }else if(existing._draft){
+      statusEl.innerHTML=`<span style="color:var(--orange)">草稿已暫存</span>`;
+    }else{
+      statusEl.innerHTML=`<span style="color:var(--muted)">尚未填寫</span>`;
     }
   }
 
-  // 為每個考場產生一組選項
-  body.innerHTML=DB.rooms.map(r=>{
+  // ── ① 考場資訊卡片 ──
+  const infoGrid=document.getElementById('jsup-info-grid');
+  if(infoGrid){
+    infoGrid.innerHTML=DB.rooms.map(r=>{
+      const fmtDtStart=dt=>{if(!dt)return '';const d=new Date(dt);return isNaN(d)?dt:d.toLocaleString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit',weekday:'short'});};
+      const fmtTime=dt=>{if(!dt)return '';const d=new Date(dt);return isNaN(d)?dt:d.toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});};
+      const dateStr=r.dateStart?fmtDtStart(r.dateStart):'日期待定';
+      const timeStr=r.dateStart?(fmtTime(r.dateStart)+(r.dateEnd?' ～ '+fmtTime(r.dateEnd):'')):'';
+      return `<div class="jsup-info-card">
+        <div class="jsup-info-h">
+          <div class="jsup-info-name">${r.name}</div>
+          ${r.location?`<div class="jsup-info-loc">📍 ${r.location}</div>`:''}
+        </div>
+        <div class="jsup-info-b">
+          <div class="jsup-info-dt-label">考試日期</div>
+          <div class="jsup-info-dt">${dateStr}</div>
+          ${timeStr?`<div class="jsup-info-dt-label" style="margin-top:6px">考試時間</div><div class="jsup-info-dt">${timeStr}</div>`:''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── ② 選項填報列 ──
+  const rowsBody=document.getElementById('jsup-rows-body');
+  if(!rowsBody)return;
+
+  rowsBody.innerHTML=DB.rooms.map(r=>{
     const rd=existing[r.id]||{};
     const chosenOpt=rd.optId||'';
-    const subName=rd.subName||'';
-    const subPhone=rd.subPhone||'';
-    const subRoomId=rd.subRoomId||'';
-    const note=rd.note||'';
 
-    const optRows=opts.map(opt=>{
-      const isChosen=chosenOpt===opt.id;
-      const subSection=(opt.isSub&&isChosen)?`
-        <div class="jsup-sub-box" id="jsup-sub-${r.id}-${opt.id}">
-          <p style="font-family:'DM Mono',monospace;font-size:9px;color:var(--rust);letter-spacing:1px;margin-bottom:10px">⚠ 請填寫代評老師資訊</p>
-          <div class="fr" style="margin-bottom:8px">
-            <div class="fg"><label>代評老師姓名（必填）</label>
-              <input type="text" id="jsup-subname-${r.id}" value="${subName}" placeholder="代評老師姓名" oninput="jsupAutoSave('${r.id}')">
-            </div>
-            <div class="fg"><label>代評老師電話（必填）</label>
-              <input type="text" id="jsup-subphone-${r.id}" value="${subPhone}" placeholder="0912-345-678" oninput="jsupAutoSave('${r.id}')">
-            </div>
-          </div>
-          <div class="fg">
-            <label>代評老師負責的考場（請選擇）</label>
-            <select id="jsup-subroom-${r.id}" onchange="jsupAutoSave('${r.id}')">
-              <option value="">— 請選考場 —</option>
-              ${DB.rooms.map(rr=>`<option value="${rr.id}" ${subRoomId===rr.id?'selected':''}>${rr.name}　${fmtRoomDt(rr)}</option>`).join('')}
-            </select>
-          </div>
-        </div>`:'';
-      const textSection=(opt.hasText&&isChosen)?`
-        <div style="margin-top:8px">
-          <textarea id="jsup-opttext-${r.id}-${opt.id}" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;min-height:60px;outline:none;resize:vertical" placeholder="請填寫說明..." oninput="jsupAutoSave('${r.id}')">${rd.optText||''}</textarea>
-        </div>`:'';
-      return `<label class="jsup-opt-row${isChosen?' chosen':''}" onclick="jsupPickOpt('${r.id}','${opt.id}',${opt.isSub?'true':'false'},${opt.hasText?'true':'false'})">
-        <input type="radio" name="jsup-opt-${r.id}" value="${opt.id}" ${isChosen?'checked':''} style="flex-shrink:0;margin-top:3px;accent-color:var(--gold)">
-        <div style="flex:1">
-          <div class="jsup-opt-label">${opt.label}</div>
-          ${subSection}${textSection}
-        </div>
-      </label>`;
+    // 選項按鈕列
+    const optBtns=opts.map(opt=>{
+      let cls='jsup-opt-btn';
+      if(chosenOpt===opt.id){
+        cls+=(opt.isAttend?' active-attend':opt.isSub?' active-sub':' active-other');
+      }
+      return `<button class="${cls}" id="jsup-optbtn-${r.id}-${opt.id}" onclick="jsupPickOpt('${r.id}','${opt.id}')">${opt.label}</button>`;
     }).join('');
 
-    const hasResult=chosenOpt?opts.find(o=>o.id===chosenOpt):null;
-    const badgeCls=!chosenOpt?'jsup-status-none':(hasResult?.isSub?'jsup-status-sub':'jsup-status-attend');
-    const badgeLabel=!chosenOpt?'尚未選擇':(hasResult?.label||chosenOpt);
+    // 展開的額外欄位（依選項類型）
+    const chosenOptObj=opts.find(o=>o.id===chosenOpt);
+    let expandHtml='';
+    if(chosenOpt&&chosenOptObj){
+      if(chosenOptObj.isAttend){
+        // 確認參加 → 填手機號
+        expandHtml=`<div class="jsup-expand" id="jsup-expand-${r.id}">
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--sage);letter-spacing:1px;margin-bottom:8px">✓ 確認參加 — 請留下您的手機號碼</div>
+          <div class="fr" style="margin:0">
+            <div class="fg" style="max-width:240px">
+              <label>手機號碼（必填）</label>
+              <input type="tel" id="jsup-phone-${r.id}" value="${rd.phone||''}" placeholder="09XX-XXX-XXX" oninput="jsupDraftSave()">
+            </div>
+          </div>
+        </div>`;
+      }else if(chosenOptObj.isSub){
+        // 代評 → 填代評老師資訊
+        const subRoomOpts=DB.rooms.map(rr=>`<option value="${rr.id}" ${rd.subRoomId===rr.id?'selected':''}>${rr.name}　${fmtRoomDt(rr)}</option>`).join('');
+        expandHtml=`<div class="jsup-expand" id="jsup-expand-${r.id}">
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--rust);letter-spacing:1px;margin-bottom:10px">⚡ 請填寫代評老師資訊</div>
+          <div class="fr" style="margin:0;flex-wrap:wrap;gap:10px">
+            <div class="fg" style="min-width:150px;flex:1">
+              <label>代評老師姓名（必填）</label>
+              <input type="text" id="jsup-subname-${r.id}" value="${rd.subName||''}" placeholder="代評老師姓名" oninput="jsupDraftSave()">
+            </div>
+            <div class="fg" style="min-width:150px;flex:1">
+              <label>代評老師手機號（必填）</label>
+              <input type="tel" id="jsup-subphone-${r.id}" value="${rd.subPhone||''}" placeholder="09XX-XXX-XXX" oninput="jsupDraftSave()">
+            </div>
+          </div>
+          <div class="fg" style="margin-top:10px">
+            <label>代評老師負責的考場（必選）</label>
+            <select id="jsup-subroom-${r.id}" onchange="jsupDraftSave()">
+              <option value="">— 請選考場 —</option>
+              ${subRoomOpts}
+            </select>
+          </div>
+        </div>`;
+      }else if(chosenOptObj.hasText){
+        // 有附加說明欄
+        expandHtml=`<div class="jsup-expand" id="jsup-expand-${r.id}">
+          <div class="fg" style="margin:0">
+            <label>請填寫說明</label>
+            <textarea id="jsup-opttext-${r.id}" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;min-height:56px;outline:none;resize:vertical;background:var(--paper)" oninput="jsupDraftSave()">${rd.optText||''}</textarea>
+          </div>
+        </div>`;
+      }
+    }
 
-    return `<div class="jsup-room-item${chosenOpt?' selected':''}" id="jsup-ri-${r.id}">
-      <div class="jsup-room-h">
-        <div>
-          <div class="jsup-room-name">${r.name}</div>
-          ${r.location?`<div style="font-family:'DM Mono',monospace;font-size:8px;color:rgba(255,255,255,.45);margin-top:2px">📍 ${r.location}</div>`:''}
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <div class="jsup-room-dt">🗓 ${fmtRoomDt(r)}</div>
-          <span class="jsup-status-badge ${badgeCls}" id="jsup-badge-${r.id}">${badgeLabel}</span>
-        </div>
+    // 狀態badge
+    const badgeCls=!chosenOpt?'jsup-status-none':(chosenOptObj?.isAttend?'jsup-status-attend':chosenOptObj?.isSub?'jsup-status-sub':'jsup-status-other');
+    const badgeLabel=!chosenOpt?'尚未選擇':(chosenOptObj?.label||chosenOpt);
+
+    return `<div class="jsup-row" id="jsup-row-${r.id}">
+      <div class="jsup-row-head">
+        <span class="jsup-row-name">${r.name}</span>
+        <span class="jsup-row-dt">🗓 ${fmtRoomDt(r)}</span>
+        <span class="jsup-status-badge ${badgeCls}" id="jsup-badge-${r.id}" style="margin-left:auto">${badgeLabel}</span>
       </div>
-      <div class="jsup-room-b">
-        ${optRows}
-        <div class="fg" style="margin-top:8px;max-width:400px">
-          <label>補充備註（選填）</label>
-          <input type="text" id="jsup-note-${r.id}" value="${note}" placeholder="其他說明..." oninput="jsupAutoSave('${r.id}')">
-        </div>
-      </div>
+      <div class="jsup-row-opts">${optBtns}</div>
+      ${expandHtml}
     </div>`;
   }).join('');
+
+  // 全域補充說明
+  const gnote=document.getElementById('jsup-global-note');
+  if(gnote)gnote.value=existing._globalNote||'';
 }
 window.renderJurySignupPage=renderJurySignupPage;
 
-// 選擇選項後即時更新 UI
-function jsupPickOpt(roomId,optId,isSub,hasText){
-  // 更新 radio 選中狀態
-  document.querySelectorAll(`input[name="jsup-opt-${roomId}"]`).forEach(r=>r.checked=(r.value===optId));
-  // 更新 row 高亮
-  document.querySelectorAll(`#jsup-ri-${roomId} .jsup-opt-row`).forEach(row=>{
-    const ri=row.querySelector('input[type=radio]');
-    row.classList.toggle('chosen',ri&&ri.value===optId);
+// 點選選項按鈕
+function jsupPickOpt(roomId,optId){
+  const opts=DB.config.jurySignupOptions||[];
+  const opt=opts.find(o=>o.id===optId);
+  if(!opt)return;
+  const tid=ST.user?.id;
+  if(!DB.jurySignup[tid])DB.jurySignup[tid]={};
+  if(!DB.jurySignup[tid][roomId])DB.jurySignup[tid][roomId]={};
+
+  // 若已選同一選項，取消（toggle）
+  const wasChosen=DB.jurySignup[tid][roomId].optId===optId;
+  DB.jurySignup[tid][roomId].optId=wasChosen?'':optId;
+
+  // 更新按鈕樣式
+  opts.forEach(o=>{
+    const btn=document.getElementById(`jsup-optbtn-${roomId}-${o.id}`);
+    if(!btn)return;
+    btn.className='jsup-opt-btn';
+    if(!wasChosen&&o.id===optId){
+      btn.className+=(o.isAttend?' active-attend':o.isSub?' active-sub':' active-other');
+    }
   });
-  // 顯示/隱藏代評欄位
-  document.querySelectorAll(`[id^="jsup-sub-${roomId}-"]`).forEach(el=>el.style.display='none');
-  document.querySelectorAll(`[id^="jsup-opttext-${roomId}-"]`).forEach(el=>el.closest('div')&&(el.closest('div').style.display='none'));
-  const subEl=document.getElementById(`jsup-sub-${roomId}-${optId}`);
-  if(subEl)subEl.style.display='block';
-  // 更新 badge
-  const opt=DB.config.jurySignupOptions.find(o=>o.id===optId);
+
+  // 更新badge
   const badge=document.getElementById(`jsup-badge-${roomId}`);
   if(badge){
-    badge.textContent=opt?.label||optId;
-    badge.className='jsup-status-badge '+(isSub?'jsup-status-sub':'jsup-status-attend');
+    const cur=wasChosen?null:opt;
+    badge.textContent=cur?cur.label:'尚未選擇';
+    badge.className='jsup-status-badge '+(cur?(cur.isAttend?'jsup-status-attend':cur.isSub?'jsup-status-sub':'jsup-status-other'):'jsup-status-none');
   }
-  // 更新房間框 selected
-  const ri=document.getElementById(`jsup-ri-${roomId}`);
-  if(ri)ri.classList.add('selected');
-  jsupAutoSave(roomId);
+
+  // 展開/收起額外欄
+  const row=document.getElementById(`jsup-row-${roomId}`);
+  const oldExpand=document.getElementById(`jsup-expand-${roomId}`);
+  if(oldExpand)oldExpand.remove();
+
+  const newOptId=wasChosen?'':optId;
+  const newOpt=wasChosen?null:opt;
+  if(newOpt){
+    let expandHtml='';
+    const rd=DB.jurySignup[tid][roomId]||{};
+    if(newOpt.isAttend){
+      expandHtml=`<div class="jsup-expand" id="jsup-expand-${roomId}">
+        <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--sage);letter-spacing:1px;margin-bottom:8px">✓ 確認參加 — 請留下您的手機號碼</div>
+        <div class="fr" style="margin:0">
+          <div class="fg" style="max-width:240px">
+            <label>手機號碼（必填）</label>
+            <input type="tel" id="jsup-phone-${roomId}" value="${rd.phone||''}" placeholder="09XX-XXX-XXX" oninput="jsupDraftSave()">
+          </div>
+        </div>
+      </div>`;
+    }else if(newOpt.isSub){
+      const subRoomOpts=DB.rooms.map(rr=>`<option value="${rr.id}" ${rd.subRoomId===rr.id?'selected':''}>${rr.name}　${fmtRoomDt(rr)}</option>`).join('');
+      expandHtml=`<div class="jsup-expand" id="jsup-expand-${roomId}">
+        <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--rust);letter-spacing:1px;margin-bottom:10px">⚡ 請填寫代評老師資訊</div>
+        <div class="fr" style="margin:0;flex-wrap:wrap;gap:10px">
+          <div class="fg" style="min-width:150px;flex:1">
+            <label>代評老師姓名（必填）</label>
+            <input type="text" id="jsup-subname-${roomId}" value="${rd.subName||''}" placeholder="代評老師姓名" oninput="jsupDraftSave()">
+          </div>
+          <div class="fg" style="min-width:150px;flex:1">
+            <label>代評老師手機號（必填）</label>
+            <input type="tel" id="jsup-subphone-${roomId}" value="${rd.subPhone||''}" placeholder="09XX-XXX-XXX" oninput="jsupDraftSave()">
+          </div>
+        </div>
+        <div class="fg" style="margin-top:10px">
+          <label>代評老師負責的考場（必選）</label>
+          <select id="jsup-subroom-${roomId}" onchange="jsupDraftSave()">
+            <option value="">— 請選考場 —</option>
+            ${DB.rooms.map(rr=>`<option value="${rr.id}">${rr.name}　${fmtRoomDt(rr)}</option>`).join('')}
+          </select>
+        </div>
+      </div>`;
+    }else if(newOpt.hasText){
+      expandHtml=`<div class="jsup-expand" id="jsup-expand-${roomId}">
+        <div class="fg" style="margin:0">
+          <label>請填寫說明</label>
+          <textarea id="jsup-opttext-${roomId}" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;min-height:56px;outline:none;resize:vertical;background:var(--paper)" oninput="jsupDraftSave()"></textarea>
+        </div>
+      </div>`;
+    }
+    if(expandHtml&&row){
+      row.insertAdjacentHTML('beforeend',expandHtml);
+    }
+  }
+
+  jsupDraftSave();
 }
 window.jsupPickOpt=jsupPickOpt;
 
-// 自動收集並儲存草稿
-function jsupCollectRoomData(roomId){
+// 收集單一考場資料
+function jsupCollectRoom(roomId){
   const opts=DB.config.jurySignupOptions||[];
-  const checkedRadio=document.querySelector(`input[name="jsup-opt-${roomId}"]:checked`);
-  const optId=checkedRadio?.value||'';
+  const tid=ST.user?.id;
+  const cur=(DB.jurySignup[tid]||{})[roomId]||{};
+  const optId=cur.optId||'';
   const opt=opts.find(o=>o.id===optId);
   const d={optId};
+  if(opt?.isAttend) d.phone=document.getElementById(`jsup-phone-${roomId}`)?.value||'';
   if(opt?.isSub){
     d.subName=document.getElementById(`jsup-subname-${roomId}`)?.value||'';
     d.subPhone=document.getElementById(`jsup-subphone-${roomId}`)?.value||'';
     d.subRoomId=document.getElementById(`jsup-subroom-${roomId}`)?.value||'';
   }
-  if(opt?.hasText){
-    d.optText=document.getElementById(`jsup-opttext-${roomId}-${optId}`)?.value||'';
-  }
-  d.note=document.getElementById(`jsup-note-${roomId}`)?.value||'';
+  if(opt?.hasText) d.optText=document.getElementById(`jsup-opttext-${roomId}`)?.value||'';
   return d;
 }
 
-function jsupAutoSave(roomId){
+// 自動暫存（oninput 觸發）
+function jsupDraftSave(){
   const tid=ST.user?.id;if(!tid)return;
   if(!DB.jurySignup[tid])DB.jurySignup[tid]={};
-  DB.jurySignup[tid][roomId]=jsupCollectRoomData(roomId);
+  DB.rooms.forEach(r=>{DB.jurySignup[tid][r.id]=jsupCollectRoom(r.id);});
+  DB.jurySignup[tid]._globalNote=document.getElementById('jsup-global-note')?.value||'';
 }
-window.jsupAutoSave=jsupAutoSave;
+window.jsupDraftSave=jsupDraftSave;
 
+// 暫時儲存（手動）
 function saveJurySignupDraft(){
   const tid=ST.user?.id;if(!tid)return;
-  if(!DB.jurySignup[tid])DB.jurySignup[tid]={};
-  DB.rooms.forEach(r=>DB.jurySignup[tid][r.id]=jsupCollectRoomData(r.id));
+  jsupDraftSave();
   DB.jurySignup[tid]._draft=true;
   DB.jurySignup[tid]._submitted=false;
   fbSet('jurySignup',tid,DB.jurySignup[tid]);
   const statusEl=document.getElementById('jsup-submit-status');
-  if(statusEl){statusEl.textContent='草稿已儲存';statusEl.style.color='var(--orange)';}
-  showToast('草稿已儲存 ✓','ok');
+  if(statusEl)statusEl.innerHTML=`<span style="color:var(--orange)">草稿已暫存</span>`;
+  showToast('草稿已暫存 ✓','ok');
 }
 window.saveJurySignupDraft=saveJurySignupDraft;
 
+// 送出報名
 function submitJurySignup(){
   const tid=ST.user?.id;if(!tid)return;
-  if(!DB.jurySignup[tid])DB.jurySignup[tid]={};
+  jsupDraftSave();
   const opts=DB.config.jurySignupOptions||[];
   const errors=[];
   DB.rooms.forEach(r=>{
-    const d=jsupCollectRoomData(r.id);
-    DB.jurySignup[tid][r.id]=d;
-    if(!d.optId){errors.push(`請選擇「${r.name}」的出席狀態`);return;}
-    const opt=opts.find(o=>o.id===d.optId);
+    const rd=(DB.jurySignup[tid]||{})[r.id]||{};
+    if(!rd.optId){errors.push(`請選擇「${r.name}」的出席狀態`);return;}
+    const opt=opts.find(o=>o.id===rd.optId);
+    if(opt?.isAttend&&!rd.phone) errors.push(`「${r.name}」請填寫您的手機號碼`);
     if(opt?.isSub){
-      if(!d.subName)errors.push(`「${r.name}」請填寫代評老師姓名`);
-      if(!d.subPhone)errors.push(`「${r.name}」請填寫代評老師電話`);
-      if(!d.subRoomId)errors.push(`「${r.name}」請選擇代評老師負責的考場`);
+      if(!rd.subName) errors.push(`「${r.name}」請填寫代評老師姓名`);
+      if(!rd.subPhone) errors.push(`「${r.name}」請填寫代評老師手機號`);
+      if(!rd.subRoomId) errors.push(`「${r.name}」請選擇代評老師負責的考場`);
     }
   });
-  if(errors.length){
-    showToast(errors[0],'err');
-    return;
-  }
+  if(errors.length){showToast(errors[0],'err');return;}
   DB.jurySignup[tid]._submitted=true;
   DB.jurySignup[tid]._draft=false;
   DB.jurySignup[tid]._submittedAt=new Date().toISOString();
   DB.jurySignup[tid]._teacherName=ST.user?.name||'';
   fbSet('jurySignup',tid,DB.jurySignup[tid]);
   const statusEl=document.getElementById('jsup-submit-status');
-  if(statusEl){statusEl.textContent='✓ 已送出 '+new Date().toLocaleString('zh-TW');statusEl.style.color='var(--sage)';}
+  if(statusEl)statusEl.innerHTML=`<span style="color:var(--sage)">✓ 已送出 ${new Date().toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>`;
   showToast('報名已送出 ✓','ok');
 }
 window.submitJurySignup=submitJurySignup;
@@ -5898,12 +6022,9 @@ window.submitJurySignup=submitJurySignup;
 // ════════════════════════════════════════════════
 
 function renderJsupAdminPanel(){
-  // 說明文字
   const inp=document.getElementById('jsup-note-inp');
   if(inp)inp.value=DB.config.jurySignupNote||'';
-  // 選項列表
   renderJsupOptsList();
-  // 考場篩選器
   const rf=document.getElementById('jsup-admin-room-filter');
   if(rf){
     const prev=rf.value;
@@ -5918,48 +6039,37 @@ window.renderJsupAdminPanel=renderJsupAdminPanel;
 function renderJsupOptsList(){
   const el=document.getElementById('jsup-opts-list');if(!el)return;
   const opts=DB.config.jurySignupOptions||[];
-  el.innerHTML=opts.map((opt,i)=>`
-    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);margin-bottom:6px;background:var(--white)">
-      <div style="flex:1">
+  el.innerHTML=opts.length?opts.map((opt,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);margin-bottom:6px;background:var(--white);flex-wrap:wrap">
+      <div style="flex:1;min-width:120px">
         <input type="text" value="${opt.label}" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;outline:none;background:var(--paper)" onchange="jsupUpdateOptLabel(${i},this.value)">
       </div>
-      <label style="display:flex;align-items:center;gap:5px;font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);cursor:pointer;white-space:nowrap">
-        <input type="checkbox" ${opt.isSub?'checked':''} onchange="jsupUpdateOptSub(${i},this.checked)" style="accent-color:var(--rust)">代評選項
+      <label style="display:flex;align-items:center;gap:4px;font-family:'DM Mono',monospace;font-size:8px;color:var(--sage);cursor:pointer;white-space:nowrap">
+        <input type="checkbox" ${opt.isAttend?'checked':''} onchange="jsupUpdateOptFlag(${i},'isAttend',this.checked)" style="accent-color:var(--sage)">確認參加類型
       </label>
-      <label style="display:flex;align-items:center;gap:5px;font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);cursor:pointer;white-space:nowrap">
-        <input type="checkbox" ${opt.hasText?'checked':''} onchange="jsupUpdateOptHasText(${i},this.checked)" style="accent-color:var(--blue)">附加說明欄
+      <label style="display:flex;align-items:center;gap:4px;font-family:'DM Mono',monospace;font-size:8px;color:var(--rust);cursor:pointer;white-space:nowrap">
+        <input type="checkbox" ${opt.isSub?'checked':''} onchange="jsupUpdateOptFlag(${i},'isSub',this.checked)" style="accent-color:var(--rust)">代評類型
       </label>
-      <button class="btn btn-d btn-xs" onclick="jsupDelOption(${i})">刪</button>
-    </div>`).join('')||'<p style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted)">尚無選項</p>';
+      <label style="display:flex;align-items:center;gap:4px;font-family:'DM Mono',monospace;font-size:8px;color:var(--blue);cursor:pointer;white-space:nowrap">
+        <input type="checkbox" ${opt.hasText?'checked':''} onchange="jsupUpdateOptFlag(${i},'hasText',this.checked)" style="accent-color:var(--blue)">附加說明欄
+      </label>
+      <button class="btn btn-d btn-xs" onclick="jsupDelOption(${i})">刪除</button>
+    </div>`).join('')
+    :'<p style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);padding:8px 0">尚無選項，請新增</p>';
 }
 window.renderJsupOptsList=renderJsupOptsList;
 
 function addJsupOption(){
   if(!DB.config.jurySignupOptions)DB.config.jurySignupOptions=[];
-  DB.config.jurySignupOptions.push({id:'opt_'+Date.now(),label:'新選項',hasText:false,isSub:false});
+  DB.config.jurySignupOptions.push({id:'opt_'+Date.now(),label:'新選項',isAttend:false,isSub:false,hasText:false});
   renderJsupOptsList();
 }
 window.addJsupOption=addJsupOption;
-
-function jsupUpdateOptLabel(i,v){
-  if(DB.config.jurySignupOptions[i])DB.config.jurySignupOptions[i].label=v;
-}
+function jsupUpdateOptLabel(i,v){if(DB.config.jurySignupOptions[i])DB.config.jurySignupOptions[i].label=v;}
 window.jsupUpdateOptLabel=jsupUpdateOptLabel;
-
-function jsupUpdateOptSub(i,v){
-  if(DB.config.jurySignupOptions[i])DB.config.jurySignupOptions[i].isSub=v;
-}
-window.jsupUpdateOptSub=jsupUpdateOptSub;
-
-function jsupUpdateOptHasText(i,v){
-  if(DB.config.jurySignupOptions[i])DB.config.jurySignupOptions[i].hasText=v;
-}
-window.jsupUpdateOptHasText=jsupUpdateOptHasText;
-
-function jsupDelOption(i){
-  DB.config.jurySignupOptions.splice(i,1);
-  renderJsupOptsList();
-}
+function jsupUpdateOptFlag(i,flag,v){if(DB.config.jurySignupOptions[i])DB.config.jurySignupOptions[i][flag]=v;}
+window.jsupUpdateOptFlag=jsupUpdateOptFlag;
+function jsupDelOption(i){DB.config.jurySignupOptions.splice(i,1);renderJsupOptsList();}
 window.jsupDelOption=jsupDelOption;
 
 function saveJurySignupConfig(){
@@ -5967,7 +6077,6 @@ function saveJurySignupConfig(){
   DB.config.jurySignupNote=note;
   fbSet('jurySignupConfig','main',{note,options:DB.config.jurySignupOptions});
   showToast('設定已儲存 ✓','ok');
-  // 同步更新教師頁說明
   const noteEl=document.getElementById('jsup-note-text');
   if(noteEl)noteEl.textContent=note;
 }
@@ -5976,41 +6085,49 @@ window.saveJurySignupConfig=saveJurySignupConfig;
 function renderJsupAdminTable(){
   const roomFilter=document.getElementById('jsup-admin-room-filter')?.value||'';
   const opts=DB.config.jurySignupOptions||[];
+  const teaList=teachers();
 
   // ── 考場分組摘要 ──
   const summaryEl=document.getElementById('jsup-admin-summary');
   if(summaryEl){
-    // 統計每個考場的參與/不參與
-    const roomStats={}; // {roomId: {attend:[], sub:[], none:[]}}
-    DB.rooms.forEach(r=>roomStats[r.id]={name:r.name,attend:[],sub:[],none:[]});
-    teachers().forEach(t=>{
+    const roomStats={};
+    DB.rooms.forEach(r=>roomStats[r.id]={name:r.name,dt:fmtRoomDt(r),attend:[],sub:[],other:[],none:[]});
+    teaList.forEach(t=>{
       const su=DB.jurySignup[t.id]||{};
       DB.rooms.forEach(r=>{
-        const rd=su[r.id];
-        if(!rd||!rd.optId){roomStats[r.id].none.push(t.name);return;}
+        const rd=su[r.id]||{};
+        if(!rd.optId){roomStats[r.id].none.push(t.name);return;}
         const opt=opts.find(o=>o.id===rd.optId);
-        if(opt?.isSub)roomStats[r.id].sub.push(t.name);
-        else roomStats[r.id].attend.push(t.name);
+        if(opt?.isAttend) roomStats[r.id].attend.push(t.name);
+        else if(opt?.isSub) roomStats[r.id].sub.push(t.name);
+        else roomStats[r.id].other.push(t.name);
       });
     });
-
-    summaryEl.innerHTML='<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:4px">'+
-      DB.rooms.filter(r=>!roomFilter||r.id===roomFilter).map(r=>{
+    const shownRooms=DB.rooms.filter(r=>!roomFilter||r.id===roomFilter);
+    summaryEl.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:4px">`+
+      shownRooms.map(r=>{
         const s=roomStats[r.id];
-        return `<div style="border:1px solid var(--border);border-radius:var(--r);overflow:hidden;min-width:220px;flex:1">
-          <div style="background:var(--ink);color:var(--gold);padding:8px 14px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px">${r.name}　<span style="color:rgba(255,255,255,.5);font-size:8px">${fmtRoomDt(r)}</span></div>
-          <div style="padding:10px 14px;background:var(--white)">
-            <div style="margin-bottom:6px">
-              <span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--sage);letter-spacing:1px">✓ 確認參加（${s.attend.length}人）</span>
-              <div style="font-size:12px;color:var(--ink);margin-top:2px">${s.attend.join('、')||'—'}</div>
-            </div>
-            <div style="margin-bottom:6px">
-              <span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--orange);letter-spacing:1px">⚡ 代評（${s.sub.length}人）</span>
-              <div style="font-size:12px;color:var(--ink);margin-top:2px">${s.sub.join('、')||'—'}</div>
+        return `<div style="border:1px solid var(--border);border-radius:var(--r);overflow:hidden;min-width:240px;flex:1">
+          <div style="background:var(--ink);padding:9px 14px">
+            <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--gold)">${r.name}</div>
+            <div style="font-family:'DM Mono',monospace;font-size:8px;color:rgba(255,255,255,.4);margin-top:2px">🗓 ${s.dt}</div>
+          </div>
+          <div style="padding:12px 14px;background:var(--white);display:flex;flex-direction:column;gap:8px">
+            <div>
+              <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--sage);letter-spacing:1px;margin-bottom:3px">✓ 確認參加（${s.attend.length} 人）</div>
+              <div style="font-size:12px;color:var(--ink);line-height:1.8">${s.attend.length?s.attend.join('、'):'—'}</div>
             </div>
             <div>
-              <span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px">○ 尚未填報（${s.none.length}人）</span>
-              <div style="font-size:12px;color:var(--muted);margin-top:2px">${s.none.join('、')||'—'}</div>
+              <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--rust);letter-spacing:1px;margin-bottom:3px">⚡ 代評（${s.sub.length} 人）</div>
+              <div style="font-size:12px;color:var(--ink);line-height:1.8">${s.sub.length?s.sub.join('、'):'—'}</div>
+            </div>
+            ${s.other.length?`<div>
+              <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px;margin-bottom:3px">○ 其他（${s.other.length} 人）</div>
+              <div style="font-size:12px;color:var(--muted);line-height:1.8">${s.other.join('、')}</div>
+            </div>`:''}
+            <div>
+              <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--border);letter-spacing:1px;margin-bottom:3px">□ 尚未填報（${s.none.length} 人）</div>
+              <div style="font-size:12px;color:var(--muted);line-height:1.8">${s.none.length?s.none.join('、'):'—'}</div>
             </div>
           </div>
         </div>`;
@@ -6020,29 +6137,30 @@ function renderJsupAdminTable(){
   // ── 明細表格 ──
   const tbody=document.getElementById('jsup-admin-tbody');if(!tbody)return;
   const rows=[];
-  teachers().forEach(t=>{
+  teaList.forEach(t=>{
     const su=DB.jurySignup[t.id]||{};
-    const myStudentCount=(DB.teacherStudents[t.id]||[]).length;
+    const stuCount=(DB.teacherStudents[t.id]||[]).length;
     const submitted=su._submitted;
-    const rooms=roomFilter?DB.rooms.filter(r=>r.id===roomFilter):DB.rooms;
-    rooms.forEach(r=>{
+    const shownRooms=roomFilter?DB.rooms.filter(r=>r.id===roomFilter):DB.rooms;
+    shownRooms.forEach(r=>{
       const rd=su[r.id]||{};
       const opt=opts.find(o=>o.id===rd.optId);
       const statusLabel=!rd.optId?'未填報':(opt?.label||rd.optId);
-      const isSub=!!opt?.isSub;
-      const subInfo=isSub?(rd.subName?`${rd.subName}　${rd.subPhone||'—'}${rd.subRoomId?' → '+DB.rooms.find(rr=>rr.id===rd.subRoomId)?.name:''}` :'—'):'—';
+      const statusCls=!rd.optId?'jsup-status-none':(opt?.isAttend?'jsup-status-attend':opt?.isSub?'jsup-status-sub':'jsup-status-other');
+      const contactInfo=opt?.isAttend?(rd.phone||'—'):opt?.isSub?
+        `${rd.subName||'—'} ${rd.subPhone||''} ${rd.subRoomId?'→'+DB.rooms.find(rr=>rr.id===rd.subRoomId)?.name:''}`.trim():'—';
       rows.push(`<tr>
-        <td><strong>${t.name}</strong>${submitted?'<span style="font-family:\'DM Mono\',monospace;font-size:8px;color:var(--sage);margin-left:5px">✓已送出</span>':''}</td>
-        <td style="font-family:'DM Mono',monospace;font-size:12px;text-align:center">${myStudentCount}</td>
+        <td><strong>${t.name}</strong> ${submitted?'<span style="font-family:\'DM Mono\',monospace;font-size:7px;color:var(--sage);border:1px solid var(--sage);border-radius:10px;padding:1px 5px">✓送出</span>':''}</td>
+        <td style="text-align:center;font-family:'DM Mono',monospace;font-size:12px">${stuCount}</td>
         <td style="font-size:12px">${r.name}</td>
-        <td><span class="jsup-status-badge ${!rd.optId?'jsup-status-none':(isSub?'jsup-status-sub':'jsup-status-attend')}">${statusLabel}</span></td>
-        <td style="font-size:12px;color:var(--muted)">${subInfo}</td>
-        <td style="font-size:12px;color:var(--muted)">${rd.note||'—'}</td>
+        <td><span class="jsup-status-badge ${statusCls}">${statusLabel}</span></td>
+        <td style="font-size:11px;color:var(--muted)">${contactInfo}</td>
+        <td style="font-size:11px;color:var(--muted);max-width:160px">${su._globalNote||'—'}</td>
         <td style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">${su._submittedAt?new Date(su._submittedAt).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'—'}</td>
       </tr>`);
     });
   });
-  tbody.innerHTML=rows.join('')||'<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted);font-family:\'DM Mono\',monospace;font-size:11px">尚無教師填報資料</td></tr>';
+  tbody.innerHTML=rows.join('')||`<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px">尚無教師填報資料</td></tr>`;
 }
 window.renderJsupAdminTable=renderJsupAdminTable;
 
@@ -6051,17 +6169,19 @@ function exportJsupCSV(){
   const rows=[];
   teachers().forEach(t=>{
     const su=DB.jurySignup[t.id]||{};
-    const myStudentCount=(DB.teacherStudents[t.id]||[]).length;
+    const stuCount=(DB.teacherStudents[t.id]||[]).length;
     DB.rooms.forEach(r=>{
       const rd=su[r.id]||{};
       const opt=opts.find(o=>o.id===rd.optId);
       rows.push({
-        '教師姓名':t.name,'教師帳號':t.account,'指導學生數':myStudentCount,
+        '教師姓名':t.name,'帳號':t.account,'指導學生數':stuCount,
         '考場':r.name,'考場日期時間':fmtRoomDt(r),
-        '參與狀態':!rd.optId?'未填報':(opt?.label||rd.optId),
-        '代評老師姓名':rd.subName||'','代評老師電話':rd.subPhone||'',
-        '代評負責考場':rd.subRoomId?DB.rooms.find(rr=>rr.id===rd.subRoomId)?.name||rd.subRoomId:'',
-        '備註':rd.note||'',
+        '狀態':!rd.optId?'未填報':(opt?.label||rd.optId),
+        '手機號碼':opt?.isAttend?(rd.phone||''):'',
+        '代評老師姓名':opt?.isSub?(rd.subName||''):'',
+        '代評老師手機':opt?.isSub?(rd.subPhone||''):'',
+        '代評負責考場':opt?.isSub&&rd.subRoomId?DB.rooms.find(rr=>rr.id===rd.subRoomId)?.name||'':'',
+        '補充說明':su._globalNote||'',
         '已送出':su._submitted?'是':'否',
         '送出時間':su._submittedAt?new Date(su._submittedAt).toLocaleString('zh-TW'):'',
       });
@@ -6137,11 +6257,11 @@ const _expose = [
   'exportTeaOverviewCSV','openTeaSelfAddPanel','tsaSearch','adminCommentInit','adminCommentSave','adminCommentLoadStudent','adminCommentLoadType','adminCommentFromImage','adminCommentImportCSV','adminCommentDownloadSample',
   'doInvigLogin','invigSelectRoom','toggleBlackSign','toggleLivePlay','saveScaleKey','renderInvigPage',
   'saveJRemark','saveJRemarkText',
-  'switchTeaSubTab','renderJurySignupPage','jsupPickOpt','jsupAutoSave','saveJurySignupDraft','submitJurySignup',
-  'renderJsupAdminPanel','renderJsupOptsList','addJsupOption','jsupUpdateOptLabel','jsupUpdateOptSub','jsupUpdateOptHasText','jsupDelOption','saveJurySignupConfig','renderJsupAdminTable','exportJsupCSV',
+  'switchTeaSubTab','renderJurySignupPage','jsupPickOpt','jsupDraftSave','saveJurySignupDraft','submitJurySignup',
+  'renderJsupAdminPanel','renderJsupOptsList','addJsupOption','jsupUpdateOptLabel','jsupUpdateOptFlag','jsupDelOption','saveJurySignupConfig','renderJsupAdminTable','exportJsupCSV',
 ];
 // ★ 安全暴露到 window（不用 eval，改用函數名對照表）
-const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schInitSortBar,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,importCSV,downloadSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,renderJurySignupPage,jsupPickOpt,jsupAutoSave,saveJurySignupDraft,submitJurySignup,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptSub,jsupUpdateOptHasText,jsupDelOption,saveJurySignupConfig,renderJsupAdminTable,exportJsupCSV};
+const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schInitSortBar,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,importCSV,downloadSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,renderJsupAdminTable,exportJsupCSV};
 Object.keys(_fnMap).forEach(function(name){ window[name] = _fnMap[name]; });
 
 // ★ 頁面載入後立即從 Firebase 同步 users，讓登入時帳密是最新狀態
