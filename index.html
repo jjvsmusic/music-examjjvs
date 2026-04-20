@@ -995,6 +995,12 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
           <div class="card-t" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
             <span>我的學生評量總覽</span>
             <div class="bg">
+              <!-- ★ 管理員教師模式切換（僅 admin 可見） -->
+              <div id="tea-view-toggle" style="display:none;align-items:center;gap:5px;background:var(--cream);border:1px solid var(--border);border-radius:var(--r);padding:3px 6px">
+                <span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px">學生範圍：</span>
+                <button id="tea-view-mine" class="btn btn-p btn-xs" onclick="setTeaView(false)">我的學生</button>
+                <button id="tea-view-all" class="btn btn-s btn-xs" onclick="setTeaView(true)">全部學生</button>
+              </div>
               <div class="fg" style="margin:0;min-width:100px">
                 <select id="tea-class" onchange="renderTeaTable()" style="padding:4px 8px;border:1px solid var(--border);background:var(--paper);border-radius:var(--r);font-size:12px;outline:none"><option value="">全部班級</option></select>
               </div>
@@ -2104,7 +2110,7 @@ function loadAllFromFirebase(done){
 function launchApp(){
   document.getElementById('login-screen').classList.add('gone');
   document.getElementById('app').classList.add('on');
-  document.getElementById('role-pill').textContent={admin:'管理員',teacher:'教師',student:'學生',jury:'評審',invigilator:'監考'}[ST.role]||'';
+  document.getElementById('role-pill').textContent={admin:'管理員・教師',teacher:'教師',student:'學生',jury:'評審',invigilator:'監考'}[ST.role]||'';
   document.getElementById('tb-uname').textContent=ST.user.name;
   // 顯示載入提示
   const loadEl=document.createElement('div');
@@ -2128,7 +2134,7 @@ function launchApp(){
           const u=DB.users.find(x=>x.id===sess.id&&x.role==='admin');
           if(u){
             ST.user=u;ST.role='admin';
-            document.getElementById('role-pill').textContent='管理員';
+            document.getElementById('role-pill').textContent='管理員・教師';
             document.getElementById('tb-uname').textContent=u.name;
           }
         }
@@ -2331,7 +2337,7 @@ function renderAll(){
   renderCatList();renderInstDropdown();renderRooms();renderClassList();renderTiming();
   renderTrimRules();renderRoomFields();schInitRoomTabs();schInitSortUI();renderSchedule();renderDisqList();renderResults();renderScoresPage();renderStuSchedule();
   renderJuryTable();renderAccessControl();updateStats();renderInstRestrictUI();
-  if(ST.role==='teacher')renderTeaSchedulePage();
+  if(ST.role==='teacher'||ST.role==='admin')renderTeaSchedulePage();
   if(ST.role==='admin')adminCommentInit();
   if(ST.role==='invigilator'||ST.role==='admin')renderInvigPage();
 }
@@ -2640,15 +2646,36 @@ function clearLookup(){['lookup-name'].forEach(id=>document.getElementById(id).v
 // TEACHER MODULE
 // ════════════════════════════════════════════════
 // ── 取得「該教師負責的學生」 ──
+// ST._teaViewAll=true 時，admin 顯示全部學生；false 時依 teacherStudents 篩選
 function getMyStudents(){
   const tid=ST.user?.id;
-  if(ST.role==='admin')return students(); // admin 看全部
+  if(ST.role==='admin'){
+    if(ST._teaViewAll)return students(); // 全部模式
+    const ids=DB.teacherStudents[tid]||[];
+    if(!ids.length)return students(); // 若尚未設定指導學生，顯示全部
+    return students().filter(s=>ids.includes(s.id));
+  }
   const ids=DB.teacherStudents[tid]||[];
   return students().filter(s=>ids.includes(s.id));
 }
 
+// ── 管理員教師模式切換 ──
+function setTeaView(viewAll){
+  ST._teaViewAll=!!viewAll;
+  const mine=document.getElementById('tea-view-mine');
+  const all=document.getElementById('tea-view-all');
+  if(mine)mine.className='btn btn-xs '+(viewAll?'btn-s':'btn-p');
+  if(all)all.className='btn btn-xs '+(viewAll?'btn-p':'btn-s');
+  renderTeaTable();
+}
+window.setTeaView=setTeaView;
+
 // ── 總覽表格 ──
 function renderTeaTable(){
+  // ★ 管理員顯示切換按鈕
+  const toggleEl=document.getElementById('tea-view-toggle');
+  if(toggleEl)toggleEl.style.display=ST.role==='admin'?'flex':'none';
+  if(ST.role==='admin'&&ST._teaViewAll===undefined)ST._teaViewAll=false;
   const cf=document.getElementById('tea-class')?.value||'';
   let stus=getMyStudents().filter(s=>!cf||s.class===cf)
     .sort((a,b)=>DB.classes.indexOf(a.class)-DB.classes.indexOf(b.class)||a.seat-b.seat);
@@ -2659,9 +2686,10 @@ function renderTeaTable(){
 
   const ob=document.getElementById('tea-overview-body');if(!ob)return;
   if(!stus.length){
+    const isAdminMine=ST.role==='admin'&&!ST._teaViewAll;
     ob.innerHTML=`<div style="padding:16px;background:var(--cream);border-radius:var(--r);text-align:center">
       <div style="font-family:\'DM Mono\',monospace;font-size:11px;color:var(--muted);margin-bottom:12px">
-        目前尚無指派給您的學生。您可以自行搜尋並開始填寫評量，或等候管理員指派。
+        ${isAdminMine?'您目前在「我的學生」模式，尚未設定指導學生。可切換至「全部學生」，或至後台教師名單設定指導學生。':'目前尚無指派給您的學生。您可以自行搜尋並開始填寫評量，或等候管理員指派。'}
       </div>
       <button class="btn btn-p btn-sm" onclick="openTeaSelfAddPanel()">🔍 搜尋學生填寫評量</button>
     </div>`;
@@ -3334,7 +3362,7 @@ function renderInvigTable(){
         </button>
       </td>
       <td style="text-align:center">
-        <input class="scale-key-inp" id="iv-scale-${i}" type="text" value="${scaleKey}" placeholder="如：Bb 調" ${!isLive?'disabled title="請先點擊演奏中"':''} onchange="saveScaleKey('${roomId}','${entryKey}',this.value)" onkeydown="if(event.key==='Enter'){saveScaleKey('${roomId}','${entryKey}',this.value);this.blur();}">
+        <input class="scale-key-inp" id="iv-scale-${i}" type="text" value="${scaleKey}" placeholder="如：Bb 調" ${!isLive?'disabled title="請先點擊演奏中"':''} autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="saveScaleKey('${roomId}','${entryKey}',this.value)" onkeydown="if(event.key==='Enter'){this.blur();}">
       </td>
     </tr>`;
   }).join('');
@@ -3377,9 +3405,9 @@ function saveScaleKey(roomId,entryKey,val){
     const {db,serverTimestamp}=window._FB;
     db.collection('liveExam').doc(roomId).set({...DB.liveExam[roomId],_updatedAt:serverTimestamp()},{merge:true}).catch(()=>{});
   }
+  // ★ 不重建整個表格（避免 oninput 時 focus 被中斷），只更新評審頁的 badge 顯示
   if(document.getElementById('pg-jury')?.classList.contains('on'))renderJuryTable();
-  if(document.getElementById('pg-invigilator')?.classList.contains('on'))renderInvigTable();
-  showToast('調性已更新 ✓','ok');
+  // 監考頁面不重建，只靜默儲存
 }
 window.saveScaleKey=saveScaleKey;
 
@@ -5402,7 +5430,7 @@ Object.keys(_fnMap).forEach(function(name){ window[name] = _fnMap[name]; });
     // 建立虛擬 user 讓 launchApp 可以正常執行
     const sess=window._pendingAdminRestore;
     ST.user={id:sess.id,name:'...',role:'admin'};ST.role='admin';
-    document.getElementById('role-pill').textContent='管理員';
+    document.getElementById('role-pill').textContent='管理員・教師';
     document.getElementById('tb-uname').textContent='載入中...';
     launchApp();
   }
