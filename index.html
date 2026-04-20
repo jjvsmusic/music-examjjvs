@@ -683,13 +683,13 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
 <!-- TEACHER STUDENTS MODAL -->
 <div class="overlay" id="tea-stu-modal">
   <div class="modal" style="width:480px">
-    <h2 class="modal-t">指派負責學生 — <span id="tsm-teacher-name"></span></h2>
-    <p style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-bottom:12px;letter-spacing:1px">勾選該教師負責評量的學生</p>
+    <h2 class="modal-t">指導的學生 — <span id="tsm-teacher-name"></span></h2>
+    <p style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-bottom:12px;letter-spacing:1px">勾選該教師指導的學生</p>
     <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap" id="tsm-class-tabs"></div>
     <div id="tsm-stu-list" style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r)"></div>
     <div class="modal-ft">
       <button class="btn btn-s" onclick="closeOverlay('tea-stu-modal')">取消</button>
-      <button class="btn btn-p" onclick="saveTeaStu()">儲存指派</button>
+      <button class="btn btn-p" onclick="saveTeaStu()">儲存指導學生</button>
     </div>
   </div>
 </div>
@@ -1242,7 +1242,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
             <button class="btn btn-s btn-sm" id="tea-sort-desc" onclick="sortTeaList(-1)">筆畫↓</button>
           </div>
           <div class="tw"><table>
-            <thead><tr><th>姓名</th><th>帳號</th><th>負責學生</th><th>操作</th></tr></thead>
+            <thead><tr><th>姓名</th><th>帳號</th><th>指導的學生</th><th>操作</th></tr></thead>
             <tbody id="admin-tea-tbody"></tbody>
           </table></div>
         </div>
@@ -3555,28 +3555,22 @@ function schInitRoomTabs(){
 }
 
 function schInitSortUI(){
-  const roomId=SCH_STATE.roomId;
-  // 決定此考場允許的樂器
-  let allowedInsts=DB.instruments.items;
-  if(roomId){
-    const room=DB.rooms.find(r=>r.id===roomId);
-    const allowedCats=room?(room.allowedCats||room.cats||[]):null;
-    if(allowedCats)allowedInsts=DB.instruments.items.filter(i=>allowedCats.includes(i.cat));
-  }
-  // 初始化 catOrder（樂器大項）
-  const catIds=[...new Set(allowedInsts.map(i=>i.cat))];
-  if(!SCH_STATE.catOrder.length||JSON.stringify(SCH_STATE.catOrder.map(c=>c.id))!==JSON.stringify(catIds)){
-    SCH_STATE.catOrder=catIds.map(cid=>{
-      const cat=DB.instruments.categories.find(c=>c.id===cid);
-      return {id:cid,name:cat?.name||cid,active:true};
-    });
-  }
-  // 若 instOrder 未初始化或樂器有變，重建
-  const existIds=SCH_STATE.instOrder.map(x=>x.id);
-  const newIds=allowedInsts.map(i=>i.id);
-  if(JSON.stringify(existIds)!==JSON.stringify(newIds)){
-    SCH_STATE.instOrder=allowedInsts.map(i=>({id:i.id,name:i.name,active:true}));
-  }
+  // ★ 所有大項與樂器都列出，不依考場過濾
+  // catOrder
+  const allCatIds=DB.instruments.categories.sort((a,b)=>a.order-b.order).map(c=>c.id);
+  const prevCatMap=Object.fromEntries(SCH_STATE.catOrder.map(c=>[c.id,c]));
+  SCH_STATE.catOrder=allCatIds.map(cid=>{
+    const cat=DB.instruments.categories.find(c=>c.id===cid);
+    const prev=prevCatMap[cid];
+    return {id:cid,name:cat?.name||cid,active:prev?prev.active:true};
+  });
+  // instOrder — 全部樂器，依大項順序排列
+  const allInsts=DB.instruments.items.slice().sort((a,b)=>{
+    const ci=allCatIds.indexOf(a.cat)-allCatIds.indexOf(b.cat);
+    return ci!==0?ci:(a.order-b.order);
+  });
+  const prevInstMap=Object.fromEntries(SCH_STATE.instOrder.map(i=>[i.id,i]));
+  SCH_STATE.instOrder=allInsts.map(i=>({id:i.id,name:i.name,active:prevInstMap[i.id]?prevInstMap[i.id].active:true}));
   // 班級
   if(!SCH_STATE.classOrder.length||SCH_STATE.classOrder.map(c=>c.cls).join()!==DB.classes.join()){
     SCH_STATE.classOrder=DB.classes.map(c=>({cls:c,active:true}));
@@ -3597,7 +3591,7 @@ function renderSchCatUI(){
     tag.style.cssText=`display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border:1px solid var(--border);border-radius:20px;cursor:grab;font-family:'DM Mono',monospace;font-size:9px;transition:all .15s;background:${c.active?'var(--gold);color:var(--ink)':'var(--white)'}`;
     tag.draggable=true;tag.dataset.idx=idx;
     tag.innerHTML=c.name;
-    tag.addEventListener('click',()=>{c.active=!c.active;tag.style.background=c.active?'var(--gold)':'var(--white)';tag.style.color=c.active?'var(--ink)':'';});
+    tag.addEventListener('click',()=>{c.active=!c.active;tag.style.background=c.active?'var(--gold)':'var(--white)';tag.style.color=c.active?'var(--ink)':'';renderSchInstUI();});
     tag.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain','cat:'+idx);tag.style.opacity='.4';});
     tag.addEventListener('dragend',()=>{tag.style.opacity='1';});
     tag.addEventListener('dragover',e=>{e.preventDefault();});
@@ -3618,8 +3612,9 @@ function renderSchInstUI(){
   // 細項樂器 chips
   const el=document.getElementById('sch-inst-order');if(!el)return;
   el.innerHTML='';
-  // 依照 catOrder 分組顯示
+  // 依照 catOrder 分組顯示（只顯示已勾選的大項）
   SCH_STATE.catOrder.forEach(cat=>{
+    if(!cat.active)return; // ★ 未勾選的大項，不顯示其樂器
     const insts=SCH_STATE.instOrder.filter(i=>DB.instruments.items.find(x=>x.id===i.id)?.cat===cat.id);
     if(!insts.length)return;
     // 大項分隔標題
@@ -4158,13 +4153,13 @@ function renderAdminTeachers(){
   const tbody=document.getElementById('admin-tea-tbody');if(!tbody)return;
   const sorted=teachers().slice().sort((a,b)=>_teaSortDir*(a.name.localeCompare(b.name,'zh-TW-u-co-stroke')));
   tbody.innerHTML=sorted.map(t=>{
-    const myStus=(DB.teacherStudents[t.id]||[]).map(sid=>DB.users.find(u=>u.id===sid)?.name||sid).join('、')||'尚未指派';
+    const myStus=(DB.teacherStudents[t.id]||[]).map(sid=>DB.users.find(u=>u.id===sid)?.name||sid).join('、')||'尚未設定';
     return `<tr>
     <td><strong>${t.name}</strong></td>
     <td style="font-family:\'DM Mono\',monospace;font-size:11px">${t.account}</td>
     <td style="font-size:12px;color:var(--muted);max-width:220px">${myStus}</td>
     <td><div class="bg">
-      <button class="btn btn-b btn-xs" onclick="openTeaStuModal('${t.id}')">指派學生</button>
+      <button class="btn btn-b btn-xs" onclick="openTeaStuModal('${t.id}')">指導的學生</button>
       <button class="btn btn-s btn-xs" onclick="editUser('${t.id}')">編輯</button>
       <button class="btn btn-s btn-xs" onclick="resetUserPwd('${t.id}')">重置密碼</button>
       <button class="btn btn-d btn-xs" onclick="deleteUser('${t.id}')">刪</button>
@@ -4190,6 +4185,13 @@ function showAddUser(role){
       <div class="fg"><label>班級</label><select id="em-class">${DB.classes.map(c=>`<option>${c}</option>`).join('')}</select></div>
       <div class="fg"><label>座號</label><input type="number" id="em-seat" min="1" value="1"></div>
     </div>`;
+  if(role==='teacher'){
+    const stuOptions=students().sort((a,b)=>{const ci=DB.classes.indexOf(a.class)-DB.classes.indexOf(b.class);return ci!==0?ci:(a.seat-b.seat);}).map(s=>`<option value="${s.id}">${s.class}·${s.seat} ${s.name}</option>`).join('');
+    extra=`<div class="fg" style="margin-top:8px"><label>指導的學生（可多選，按 Ctrl/Cmd 複選）</label>
+      <select id="em-stu-multi" multiple style="height:140px;padding:4px 6px;font-size:13px;border:1px solid var(--border);border-radius:var(--r);outline:none;background:var(--paper)">${stuOptions}</select>
+      <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-top:4px;letter-spacing:.5px">選擇後也可至教師名單列表隨時修改</div>
+    </div>`;
+  }
   document.getElementById('edit-modal-body').innerHTML=`
     <div class="fr"><div class="fg"><label>姓名</label><input type="text" id="em-name" placeholder="姓名"></div><div class="fg"><label>帳號（登入用）</label><input type="text" id="em-account" placeholder="帳號（英數字）" autocomplete="off"></div></div>
     ${extra}
@@ -4203,6 +4205,10 @@ function showAddUser(role){
     if(DB.users.find(u=>u.account===account)){showToast('此帳號已存在，請換一個','err');return;}
     const nu={id:role[0]+Date.now(),name,account,pass,role};
     if(role==='student'){nu.class=document.getElementById('em-class').value;nu.seat=+document.getElementById('em-seat').value;nu.repDone=false;nu.teaDone=false;}
+    if(role==='teacher'){
+      const sel=document.getElementById('em-stu-multi');
+      if(sel){const ids=[...sel.selectedOptions].map(o=>o.value);if(ids.length){DB.teacherStudents[nu.id]=ids;fbSet('teacherStudents',nu.id,{students:ids});}}
+    }
     fbSet('users',nu.id,nu);
     DB.users.push(nu);closeOverlay('edit-modal');showToast('已新增 '+name+'（帳號：'+account+'）✓','ok');renderAll();updateStats();
   };
@@ -4261,11 +4267,16 @@ function importCSV(role){
           const nu2={id:'s'+Date.now()+Math.random(),name,account,pass:'000',role:'student',class:cls||'甲班',seat:+seat||1,repDone:false,teaDone:false};
           DB.users.push(nu2);fbSet('users',nu2.id,nu2);
         }else if(role==='teacher'){
-          const [name,account]=cols;
+          const [name,account,stuAccounts]=cols;
           if(!name||!account)return;
           if(DB.users.find(u=>u.account===account))return;
           const nt={id:'t'+Date.now()+Math.random(),name,account,pass:'000',role:'teacher'};
           DB.users.push(nt);fbSet('users',nt.id,nt);
+          // ★ 第三欄：指導學生帳號（以「;」或「|」分隔，允許空白）
+          if(stuAccounts&&stuAccounts.trim()){
+            const ids=stuAccounts.split(/[;|]/).map(s=>s.trim()).filter(Boolean).map(acc=>{const u=DB.users.find(x=>x.account===acc&&x.role==='student');return u?.id;}).filter(Boolean);
+            if(ids.length){DB.teacherStudents[nt.id]=ids;fbSet('teacherStudents',nt.id,{students:ids});}
+          }
         }
         count++;
       });
@@ -4280,7 +4291,7 @@ function downloadSample(e,role){
   e.preventDefault();
   const samples={
     student:'班級,座號,姓名,帳號\n甲班,1,王小明,s999\n甲班,2,李小華,s998\n乙班,1,陳美玲,s997',
-    teacher:'姓名,帳號\n王老師,teacher99\n陳老師,teacher98',
+    teacher:'姓名,帳號,指導學生帳號（分號分隔，可空白）\n王老師,teacher99,s001;s002;s003\n陳老師,teacher98,s004;s005',
   };
   const blob=new Blob(['\uFEFF'+(samples[role]||'')],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob);
@@ -5376,41 +5387,9 @@ const _expose = [
   'doInvigLogin','invigSelectRoom','toggleBlackSign','toggleLivePlay','saveScaleKey','renderInvigPage',
   'saveJRemark','saveJRemarkText',
 ];
-// ★ 直接賦值到 window（取代 eval，在 strict mode 下才能正常運作）
-[doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,
- fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,
- filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,
- doLookup,clearLookup,
- openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,
- teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,
- saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,
- checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,
- generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schInitSortBar,schToggleSortKey,
- openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,
- onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,
- schRestoreEntry,schRemoveEntry,schAddCurrentFilter,
- openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,
- renderTeaSchedulePage,teaSchSelectRoom,
- swAdminTab,swUserTab,
- showAddUser,editUser,resetUserPwd,deleteUser,importCSV,downloadSample,sortTeaList,adminStuFilterClass,
- addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,
- addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,
- addClass,renameClass,delClass,
- saveTiming,saveAnnounce,saveWeights,addTrim,saveTrimRules,fbSaveConfig,
- setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,
- renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,
- npKey,npDel,npConfirm,npBg,npStar,openNP,
- schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,
- saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,
- renderInstRestrictUI,renderSchCatUI,
- exportTeaOverviewCSV,openTeaSelfAddPanel,tsaSearch,
- adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,
- adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,
- doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,
- saveJRemark,saveJRemarkText
-].forEach(function(fn){
-  if(typeof fn==='function') window[fn.name]=fn;
-});
+// ★ 安全暴露到 window（不用 eval，改用函數名對照表）
+const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schInitSortBar,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,importCSV,downloadSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText};
+Object.keys(_fnMap).forEach(function(name){ window[name] = _fnMap[name]; });
 
 // ★ 頁面載入後立即從 Firebase 同步 users，讓登入時帳密是最新狀態
 (window._fbAuthReady||Promise.resolve()).then(function(){
