@@ -563,15 +563,53 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
       try{
         db.collection('liveExam').onSnapshot(snapshot=>{
           snapshot.forEach(doc=>{
-            const{id,_updatedAt,...rest}=doc.data();
+            const{_updatedAt,...rest}=doc.data();
             DB.liveExam[doc.id]=rest;
           });
-          // 若評審/監考頁面開著，重新渲染
+          // 評審頁面：完整重建（無輸入框問題）
           if(document.getElementById('pg-jury')?.classList.contains('on'))renderJuryTable();
-          if(document.getElementById('pg-invigilator')?.classList.contains('on'))renderInvigTable();
+          // 監考頁面：局部更新（避免破壞正在輸入的 scaleKey input）
+          if(document.getElementById('pg-invigilator')?.classList.contains('on'))_patchInvigLive();
         });
       }catch(e){console.warn('[Firebase] liveExam 監聽失敗:',e);}
     };
+
+    // ★ 局部更新監考表格的 live 狀態（不重建 DOM，只更新樣式/按鈕/調性badge）
+    window._patchInvigLive = function(){
+      const roomId=ST.invigRoom?.id;if(!roomId)return;
+      const liveState=DB.liveExam[roomId]||{};
+      const liveKey=liveState.playing||'';
+      const liveScaleKey=liveState.scaleKey||'';
+      // 取得目前渲染的 entries（依 renderInvigTable 相同邏輯）
+      let entries=getScheduleEntries().filter(e=>e.roomId===roomId);
+      if(!entries.length)return;
+      entries.forEach((e,i)=>{
+        const entryKey=e.studentId+'_'+e.type;
+        const isLive=liveKey===entryKey;
+        const row=document.getElementById('iv-row-'+i);
+        const playBtn=document.getElementById('iv-play-'+i);
+        const scaleInp=document.getElementById('iv-scale-'+i);
+        if(!row)return;
+        // 更新 row 背景色
+        const isBlack=!!(DB.blackSign[roomId]?.[entryKey]);
+        row.style.background=isBlack?'rgba(139,105,20,0.13)':isLive?'rgba(36,113,163,0.10)':'';
+        // 更新演奏按鈕
+        if(playBtn){
+          playBtn.className='playing-btn '+(isLive?'playing':'idle');
+          playBtn.textContent=isLive?'🎵 演奏中（點擊結束）':'▶ 點此開始演奏';
+        }
+        // 更新調性輸入框（只有在非 active focus 時才更新 value）
+        if(scaleInp){
+          scaleInp.disabled=!isLive;
+          scaleInp.title=isLive?'':'請先點擊演奏中';
+          // 若此 input 不是目前焦點，才更新顯示的值
+          if(document.activeElement!==scaleInp){
+            scaleInp.value=isLive?liveScaleKey:'';
+          }
+        }
+      });
+    };
+    window._patchInvigLive=window._patchInvigLive;
   } catch(e) {
     console.warn('[Firebase] 初始化失敗:', e);
   }
@@ -3392,9 +3430,14 @@ function toggleLivePlay(roomId,entryKey,rowIdx){
   if(ST.isOnline&&window._FB){
     const {db,serverTimestamp}=window._FB;
     db.collection('liveExam').doc(roomId).set({...DB.liveExam[roomId],_updatedAt:serverTimestamp()},{merge:true}).catch(()=>{});
+    // 有網路：Firebase onSnapshot 會自動觸發評審端更新
+    // 監考端用局部更新保護 scaleKey input
+    if(document.getElementById('pg-invigilator')?.classList.contains('on')&&typeof window._patchInvigLive==='function')window._patchInvigLive();
+  } else {
+    // 離線：本地直接重建
+    renderInvigTable();
+    if(document.getElementById('pg-jury')?.classList.contains('on'))renderJuryTable();
   }
-  renderInvigTable();
-  if(document.getElementById('pg-jury')?.classList.contains('on'))renderJuryTable();
 }
 window.toggleLivePlay=toggleLivePlay;
 
@@ -3404,10 +3447,13 @@ function saveScaleKey(roomId,entryKey,val){
   if(ST.isOnline&&window._FB){
     const {db,serverTimestamp}=window._FB;
     db.collection('liveExam').doc(roomId).set({...DB.liveExam[roomId],_updatedAt:serverTimestamp()},{merge:true}).catch(()=>{});
+    // Firebase onSnapshot 會自動更新評審端，不需本地額外呼叫
+  } else {
+    // 離線時本地更新評審頁面
+    if(document.getElementById('pg-jury')?.classList.contains('on'))renderJuryTable();
   }
-  // ★ 不重建整個表格（避免 oninput 時 focus 被中斷），只更新評審頁的 badge 顯示
-  if(document.getElementById('pg-jury')?.classList.contains('on'))renderJuryTable();
-  // 監考頁面不重建，只靜默儲存
+  // 監考頁面用局部更新，不重建（保護正在輸入的 input focus）
+  if(document.getElementById('pg-invigilator')?.classList.contains('on')&&typeof window._patchInvigLive==='function')window._patchInvigLive();
 }
 window.saveScaleKey=saveScaleKey;
 
@@ -3459,7 +3505,20 @@ window.addEventListener('online',()=>{
 });
 
 // Check before submit
+// ★ 強制儲存所有尚未 blur 的評語（防止直接按送出/確認時評語遺漏）
+function flushAllComments(){
+  document.querySelectorAll('.comment-inp[id^="jco-"]').forEach(ta=>{
+    const onblurAttr=ta.getAttribute('onblur')||'';
+    const match=onblurAttr.match(/saveJCell\((\d+),'([^']+)','([^']+)','comment'/);
+    if(match){
+      const [,idx,roomId,entryKey]=match;
+      saveJCell(parseInt(idx),roomId,entryKey,'comment',ta.value);
+    }
+  });
+}
+
 function checkJuryBeforeSubmit(){
+  flushAllComments(); // ★ 先強制存評語
   const entries=getJuryEntries();
   const roomId=ST.juryRoom?.id||'r1';
   const myId=ST.juryId||ST.user?.id||'admin';
@@ -3491,6 +3550,7 @@ function checkJuryBeforeSubmit(){
 function confirmSubmitJury(){closeOverlay('check-modal');submitJuryAll();}
 
 function submitJuryAll(){
+  flushAllComments(); // ★ 強制儲存所有尚未 blur 的評語
   document.getElementById('ty-title-el').textContent=DB.config.tyTitle||'感謝您的評分';
   document.getElementById('ty-text-el').textContent=DB.config.tyText||'';
   showSyncStatus('sync','正在送出...');
