@@ -1296,6 +1296,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
         <div class="bg">
           <button class="btn btn-p btn-sm" onclick="schApplySort()">✓ 套用排序</button>
           <button class="btn btn-s btn-sm" onclick="schResetFilters()">↺ 重設</button>
+            <button class="btn btn-b btn-sm" onclick="schResetToRoomDefaults()" title="依目前考場的分類自動勾選對應樂器">↺ 依考場重設</button>
           <button class="btn btn-g btn-sm" onclick="openSchAddModal()">＋ 加入名單</button>
           <button class="btn btn-b btn-sm" onclick="exportScheduleCSV()">↓ 匯出 CSV</button>
           <button class="btn btn-g btn-sm" onclick="publishSchedule()">📢 公告學生</button>
@@ -4072,9 +4073,11 @@ function schSelectRoom(roomId,btn){
   // 載入目標考場的篩選狀態（若有），否則重新初始化
   const hasState=_loadRoomState(roomId);
   if(!hasState){
-    // 新考場，重設 catOrder/instOrder/classOrder 讓 schInitSortUI 重建
+    // 新考場，清空所有 order 讓 schInitSortUI 根據考場預設值重建
     SCH_STATE.catOrder=[];SCH_STATE.instOrder=[];SCH_STATE.classOrder=[];
     SCH_STATE.seatDir=1;
+  } else {
+    // 已有儲存狀態，但若考場 allowedCats 和已存的 catOrder 有衝突，不覆蓋（尊重使用者設定）
   }
   schInitSortUI();
   renderSchedule();
@@ -4100,22 +4103,36 @@ function schInitRoomTabs(){
 }
 
 function schInitSortUI(){
-  // ★ 所有大項與樂器都列出，不依考場過濾
-  // catOrder
+  // ─── 決定此考場「預設應顯示」的 cats ───
+  // 若選了特定考場，根據其 allowedCats/cats 判斷
+  // 若為全部考場，全部 active
+  const roomId=SCH_STATE.roomId;
+  const curRoom=roomId?DB.rooms.find(r=>r.id===roomId):null;
+  const roomAllowedCats=curRoom?(curRoom.allowedCats||curRoom.cats||[]):null; // null = 全部
+
   const allCatIds=DB.instruments.categories.sort((a,b)=>a.order-b.order).map(c=>c.id);
   const prevCatMap=Object.fromEntries(SCH_STATE.catOrder.map(c=>[c.id,c]));
   SCH_STATE.catOrder=allCatIds.map(cid=>{
     const cat=DB.instruments.categories.find(c=>c.id===cid);
     const prev=prevCatMap[cid];
-    return {id:cid,name:cat?.name||cid,active:prev?prev.active:true};
+    // 若有 prev（使用者手動調過），維持用戶設定；否則按考場預設
+    const defaultActive=roomAllowedCats?roomAllowedCats.includes(cid):true;
+    return {id:cid,name:cat?.name||cid,active:prev?prev.active:defaultActive};
   });
+
   // instOrder — 全部樂器，依大項順序排列
   const allInsts=DB.instruments.items.slice().sort((a,b)=>{
     const ci=allCatIds.indexOf(a.cat)-allCatIds.indexOf(b.cat);
     return ci!==0?ci:(a.order-b.order);
   });
   const prevInstMap=Object.fromEntries(SCH_STATE.instOrder.map(i=>[i.id,i]));
-  SCH_STATE.instOrder=allInsts.map(i=>({id:i.id,name:i.name,active:prevInstMap[i.id]?prevInstMap[i.id].active:true}));
+  SCH_STATE.instOrder=allInsts.map(i=>{
+    const prev=prevInstMap[i.id];
+    // inst 的 active 跟隨所屬 cat 的預設值
+    const catActive=roomAllowedCats?roomAllowedCats.includes(i.cat):true;
+    return {id:i.id,name:i.name,active:prev?prev.active:catActive};
+  });
+
   // 班級
   if(!SCH_STATE.classOrder.length||SCH_STATE.classOrder.map(c=>c.cls).join()!==DB.classes.join()){
     SCH_STATE.classOrder=DB.classes.map(c=>({cls:c,active:true}));
@@ -4372,6 +4389,17 @@ function schResetFilters(){
   showToast('篩選已重設','ok');
 }
 window.schResetFilters=schResetFilters;
+
+// ★ 依目前考場的 allowedCats 強制重設篩選（清空已儲存狀態再重建）
+function schResetToRoomDefaults(){
+  const roomId=SCH_STATE.roomId;
+  delete _SCH_ROOM_STATES[roomId];  // 清掉儲存的狀態
+  SCH_STATE.catOrder=[];SCH_STATE.instOrder=[];SCH_STATE.classOrder=[];
+  SCH_STATE.seatDir=1;
+  schInitSortUI();renderSchedule();
+  showToast('已依考場設定重設篩選','ok');
+}
+window.schResetToRoomDefaults=schResetToRoomDefaults;
 
 // ★ #7 手動移除出場名單中的某項目
 function schRemoveEntry(entryKey){
@@ -5639,6 +5667,55 @@ function setResultView(mode){
 }
 window.setResultView=setResultView;
 
+// ★ 取得某考場的排程 entries，排序邏輯與排程頁面一致（依考場 allowedCats 過濾 + 排序）
+function _getEntriesForRoom(roomId, allSched){
+  if(!roomId) return allSched.slice().sort((a,b)=>a.order-b.order);
+
+  // Step 1: 只取屬於此考場的 entries
+  let entries=allSched.filter(e=>e.roomId===roomId);
+
+  // Step 2: 過濾手動移除的項目
+  entries=entries.filter(e=>!SCH_STATE.removedEntries.has(e.studentId+'_'+e.type));
+
+  // Step 3: 取得該考場的 SCH_STATE（若有儲存就用，否則用預設）
+  const savedState=_SCH_ROOM_STATES[roomId];
+  const room=DB.rooms.find(r=>r.id===roomId);
+  const allowedCats=room?(room.allowedCats||room.cats||[]):[];
+
+  // Step 4: 若有儲存的篩選狀態，依它過濾；否則只用 allowedCats
+  if(savedState){
+    const activeCats=new Set(savedState.catOrder.filter(c=>c.active).map(c=>c.id));
+    if(activeCats.size) entries=entries.filter(e=>activeCats.has(e.catId));
+    const activeInsts=new Set(savedState.instOrder.filter(i=>i.active).map(i=>i.id));
+    if(activeInsts.size) entries=entries.filter(e=>activeInsts.has(e.instId));
+    const activeTypes=new Set(savedState.typeOrder.filter(t=>t.active).map(t=>t.key));
+    if(activeTypes.size) entries=entries.filter(e=>activeTypes.has(e.type));
+    const activeClasses=new Set(savedState.classOrder.filter(c=>c.active).map(c=>c.cls));
+    if(activeClasses.size) entries=entries.filter(e=>activeClasses.has(e.class));
+
+    // 依儲存的排序順序
+    const catIdx=id=>savedState.catOrder.findIndex(c=>c.id===id);
+    const instIdx=id=>savedState.instOrder.findIndex(i=>i.id===id);
+    const typeIdx=k=>savedState.typeOrder.findIndex(t=>t.key===k);
+    const clsIdx=c=>{const i=savedState.classOrder.findIndex(x=>x.cls===c);return i>=0?i:999;};
+    entries.sort((a,b)=>{
+      const dc=catIdx(a.catId)-catIdx(b.catId);if(dc!==0)return dc;
+      const di=instIdx(a.instId)-instIdx(b.instId);if(di!==0)return di;
+      const dt=typeIdx(a.type)-typeIdx(b.type);if(dt!==0)return dt;
+      const dcl=clsIdx(a.class)-clsIdx(b.class);if(dcl!==0)return dcl;
+      return (a.seat-b.seat)*(savedState.seatDir||1);
+    });
+  } else {
+    // 無儲存狀態：用 getScheduleEntries 的自然排序（catOrder → typeOrder → class → seat）
+    entries.sort((a,b)=>a.order-b.order);
+  }
+
+  // 重新指定本考場的連續序號
+  entries.forEach((e,i)=>e._resultOrder=i+1);
+  return entries;
+}
+window._getEntriesForRoom=_getEntriesForRoom;
+
 function renderResults(){
   const el=document.getElementById('results-body');if(!el)return;
   const toggleBar=document.getElementById('jury-name-toggle-bar');
@@ -5684,11 +5761,9 @@ function renderResults(){
     // 班級彙整模式渲染
     _renderResultsByClass(el,entries,getEntryRemarks);return;
   } else {
-    // 考場順序模式：依排程 order 排序
-    entries=allSched.filter(e=>e.roomId===roomId);
+    // 考場順序模式：用與排程一致的排序邏輯，確保和排程頁面名單相同
+    entries=_getEntriesForRoom(roomId,allSched);
     if(classF)entries=entries.filter(e=>e.class===classF);
-    // ★ 依排程序號排列
-    entries=entries.slice().sort((a,b)=>a.order-b.order);
     if(!entries.length){el.innerHTML='<p style="color:var(--muted);font-family:\'DM Mono\',monospace;font-size:12px;padding:14px">此考場尚無符合資料</p>';return;}
   }
 
@@ -5778,7 +5853,7 @@ function _buildResultCard(e,ei,getEntryRemarks,showRoom){
   return `<div class="card ${hasRemarks?'has-remark-card':''}" style="margin-bottom:10px;${hasRemarks?'border-left:3px solid var(--rust);':''}">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
       <div style="font-family:\'DM Mono\',monospace;font-size:11px;color:var(--muted);min-width:28px">
-        ${_resultViewMode==='exam'?String(e.order).padStart(2,'0'):(String(ei+1).padStart(2,'0'))}
+        ${_resultViewMode==='exam'?String(e._resultOrder||e.order||ei+1).padStart(2,'0'):(String(ei+1).padStart(2,'0'))}
       </div>
       <div>
         <strong style="font-size:15px">${e.name}</strong>
@@ -6619,7 +6694,7 @@ const _expose = [
   'doLookup','clearLookup',
   'openTeaModal','swTeaTab','saveTeaComment','teaWizStart','teaWizPickClass','teaWizPickStu','teaWizPickType','teaWizBack','teaWizSaveAndNext','teaWizSubmitAll','teaWizOpenDirect','openTeaStuModal','tsmFilterClass','saveTeaStu','teaWizNameSearch','teaWizS1NameSearch',
   'checkJuryBeforeSubmit','submitJuryAll','confirmSubmitJury','toggleAbsent','saveJCell',
-  'generateSchedule','exportScheduleCSV','publishSchedule','schResetFilters','schInitSortBar','schToggleSortKey','openDisqModal','saveDisq','removeDisq','importDisqCSV','exportDisqCSV','downloadDisqSample','renderDisqList','onSchRoomChange','schRoomCatToggle','schRoomInstToggle','openSchAddModal','schAddSearch','schAddEntry','schRestoreEntry','schRemoveEntry','schAddCurrentFilter',
+  'generateSchedule','exportScheduleCSV','publishSchedule','schResetFilters','schResetToRoomDefaults','schInitSortBar','schToggleSortKey','openDisqModal','saveDisq','removeDisq','importDisqCSV','exportDisqCSV','downloadDisqSample','renderDisqList','onSchRoomChange','schRoomCatToggle','schRoomInstToggle','openSchAddModal','schAddSearch','schAddEntry','schRestoreEntry','schRemoveEntry','schAddCurrentFilter',
   'openAddDisqIndividual','adimSearch','adimSelect','saveDisqIndividual',
   'renderTeaSchedulePage','teaSchSelectRoom',
   'swAdminTab','swUserTab',
@@ -6643,7 +6718,7 @@ const _expose = [
   'renderJsupAdminPanel','renderJsupOptsList','addJsupOption','jsupUpdateOptLabel','jsupUpdateOptFlag','jsupDelOption','saveJurySignupConfig','renderJsupAdminTable','exportJsupCSV',
 ];
 // ★ 安全暴露到 window（不用 eval，改用函數名對照表）
-const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schInitSortBar,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,renderJsupAdminTable,exportJsupCSV};
+const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schResetToRoomDefaults,schInitSortBar,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,renderJsupAdminTable,exportJsupCSV};
 Object.keys(_fnMap).forEach(function(name){ window[name] = _fnMap[name]; });
 
 // ★ 頁面載入後立即從 Firebase 同步 users，讓登入時帳密是最新狀態
