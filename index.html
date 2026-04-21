@@ -761,7 +761,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
 <div class="overlay" id="tea-stu-modal">
   <div class="modal" style="width:480px">
     <h2 class="modal-t">指導的學生 — <span id="tsm-teacher-name"></span></h2>
-    <p style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-bottom:12px;letter-spacing:1px">勾選該教師指導的學生（切換班級時勾選狀態會自動保留）</p>
+    <p style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-bottom:12px;letter-spacing:1px">勾選該教師指導的學生</p>
     <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap" id="tsm-class-tabs"></div>
     <div id="tsm-stu-list" style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r)"></div>
     <div class="modal-ft">
@@ -1096,7 +1096,6 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
           </div>
           <div class="prog" style="margin-bottom:12px"><div class="prog-f" id="tea-prog" style="width:0%"></div></div>
           <button class="btn btn-p btn-sm" style="margin-bottom:12px" onclick="teaWizStart()">＋ 填寫評量</button>
-          <button class="btn btn-b btn-sm" style="margin-bottom:12px;margin-left:6px" onclick="openTeaAddStuPanel()" title="從全部學生清單勾選加入我的指導名單">＋ 新增指導學生</button>
           <div id="tea-overview-body"></div>
         </div>
       </div>
@@ -1119,7 +1118,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
           <!-- ② 勾選填報區（每考場一列，含選項） -->
           <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:8px">② 請選擇您對各考場的出席狀態</div>
           <div class="jsup-select-section">
-            <div class="jsup-select-h">📌 <span style="color:#c0392b;font-size:1.15em;font-weight:700;letter-spacing:0.5px">請選填與您有關的考場做勾選，其他考場無需理會，感謝</span></div>
+            <div class="jsup-select-h">📌 請依考場逐一勾選（可複選確認參加的考場）</div>
             <div id="jsup-rows-body"></div>
           </div>
 
@@ -1171,9 +1170,12 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
 
     <!-- ══ JURY MODULE ══ -->
     <div class="pg" id="pg-jury">
-      <!-- ★ 管理員考場切換按鈕 -->
-      <div id="jury-admin-room-tabs" style="display:none;flex-wrap:wrap;gap:8px;margin-bottom:14px;padding:12px;background:var(--cream);border-radius:var(--r);border:1px solid var(--border)">
-        <span style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;color:var(--muted);align-self:center">考場：</span>
+      <!-- ★ 管理員考場切換按鈕（評審登入後自動隱藏） -->
+      <div id="jury-admin-room-bar" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;padding:10px 14px;background:var(--cream);border-radius:var(--r);border:1px solid var(--border)">
+        <span style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;color:var(--muted);flex-shrink:0">篩選考場：</span>
+        <select id="jury-admin-room-select" onchange="adminJurySelectRoom(this.value,null)" style="padding:6px 10px;border:1px solid var(--border);background:var(--paper);font-family:'Noto Serif TC',serif;font-size:13px;color:var(--ink);outline:none;border-radius:var(--r);min-width:140px;cursor:pointer">
+        </select>
+        <div id="jury-admin-room-btns" style="display:flex;gap:6px;flex-wrap:wrap"></div>
       </div>
       <!-- 考場大標題 -->
       <div style="background:var(--ink);border-radius:var(--r);padding:18px 24px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
@@ -1786,7 +1788,7 @@ const DB = {
     },
     // access control per role: {pageId: true/false}
     studentAccess:{rep:true,scores:true,'stu-schedule':true},
-    teacherAccess:{teacher:true,'stu-schedule':false},
+    teacherAccess:{teacher:true,'stu-schedule':false,'jury-signup':true},
     teacherScheduleClosedMsg:'考試排程尚未開放查看，請等候管理員公告。',
     instRestrict:{major:[],minor:[],elective:[]},
     repConfirmMsg:'',
@@ -2135,6 +2137,8 @@ function loadAllFromFirebase(done){
       if(rest.pages)Object.assign(DB.config.pages,rest.pages);
       if(rest.studentAccess)Object.assign(DB.config.studentAccess,rest.studentAccess);
       if(rest.teacherAccess)Object.assign(DB.config.teacherAccess,rest.teacherAccess);
+      // 確保新增的 jury-signup key 存在（舊資料可能沒有此欄位）
+      if(DB.config.teacherAccess['jury-signup']===undefined)DB.config.teacherAccess['jury-signup']=true;
       if(rest.repHint)DB.config.repHint=rest.repHint;
       if(rest.tyTitle)DB.config.tyTitle=rest.tyTitle;
       if(rest.tyText)DB.config.tyText=rest.tyText;
@@ -2428,7 +2432,7 @@ function showPage(id){
   }
   document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));
   document.getElementById('pg-'+id)?.classList.add('on');
-  if(id==='jury')renderJuryTable(); // ★ 切換到評分頁時立即重新讀取 liveExam 狀態
+  if(id==='jury'){if(ST.role==='admin')initJuryAdminRoomBar();renderJuryTable();} // ★ 切換到評分頁時立即重新讀取 liveExam 狀態
   if(id==='tea-schedule')renderTeaSchedulePage();
   if(id==='invigilator')renderInvigPage();
 }
@@ -2533,14 +2537,15 @@ function toggleElective(){
 // RENDER ALL
 // ════════════════════════════════════════════════
 function renderAll(){
-  // Reset teacher sub-tabs on re-render
+  // ★ 初次載入時設定教師 sub-tabs 預設狀態（只在尚未選擇時）
   const tsub=document.getElementById('tea-sub-tabs');
-  if(tsub){
+  if(tsub&&!tsub.dataset.initialized){
     const signupDiv=document.getElementById('tea-jury-signup');
     const overviewDiv=document.getElementById('tea-overview');
     if(signupDiv)signupDiv.style.display='none';
     if(overviewDiv)overviewDiv.style.display='block';
     tsub.querySelectorAll('.tab').forEach((t,i)=>{t.classList.toggle('on',i===0);});
+    tsub.dataset.initialized='1';
   }
   renderRepPage();renderRepHint();renderTeaTable();renderAdminStudents();renderAdminTeachers();renderAdminAdmins();
   renderCatList();renderInstDropdown();renderRooms();renderClassList();renderTiming();
@@ -2549,6 +2554,7 @@ function renderAll(){
   if(ST.role==='teacher'||ST.role==='admin')renderTeaSchedulePage();
   if(ST.role==='admin')adminCommentInit();
   if(ST.role==='invigilator'||ST.role==='admin')renderInvigPage();
+  updateJurySignupTabVisibility();
 }
 
 // ════════════════════════════════════════════════
@@ -2933,6 +2939,8 @@ function renderTeaTable(){
   }).join('');
 }
 
+window.renderTeaTable=renderTeaTable;
+
 // ── 匯出評量總覽 CSV ──
 function exportTeaOverviewCSV(allClasses){
   const cf=allClasses?'':(document.getElementById('tea-class')?.value||'');
@@ -2953,73 +2961,6 @@ window.exportTeaOverviewCSV=exportTeaOverviewCSV;
 const TWZ={cls:'',sid:'',type:'',remaining:[]};
 
 // ★ #2 教師自行搜尋學生（無指派時）
-// ★ 教師從全部學生名單選擇並加入自己的指導名單
-function openTeaAddStuPanel(){
-  let panel=document.getElementById('tea-add-stu-overlay');
-  if(!panel){
-    panel=document.createElement('div');panel.id='tea-add-stu-overlay';panel.className='overlay';
-    panel.innerHTML=`<div class="modal" style="width:540px">
-      <h2 class="modal-t">＋ 新增學生至我的指導名單</h2>
-      <p style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:12px;line-height:1.7">
-        勾選學生後按「儲存」，所選學生將加入您的指導名單。已在名單中的學生已預先勾選。
-      </p>
-      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-        <input type="text" id="tea-add-stu-search" placeholder="輸入姓名搜尋…" style="flex:1;padding:7px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;outline:none" oninput="teaAddStuSearch()">
-        <select id="tea-add-stu-class" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;outline:none" onchange="teaAddStuSearch()">
-          <option value="">全部班級</option>
-        </select>
-      </div>
-      <div id="tea-add-stu-list" style="max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r)"></div>
-      <div class="modal-ft">
-        <button class="btn btn-s" onclick="closeOverlay('tea-add-stu-overlay')">取消</button>
-        <button class="btn btn-p" onclick="saveTeaAddStu()">✓ 儲存指導名單</button>
-      </div>
-    </div>`;
-    document.body.appendChild(panel);
-    panel.addEventListener('click',e=>{if(e.target===panel)panel.classList.remove('on');});
-  }
-  const clsSel=document.getElementById('tea-add-stu-class');
-  if(clsSel){while(clsSel.options.length>1)clsSel.remove(1);DB.classes.forEach(c=>clsSel.appendChild(new Option(c,c)));}
-  document.getElementById('tea-add-stu-search').value='';
-  teaAddStuSearch();
-  panel.classList.add('on');
-}
-window.openTeaAddStuPanel=openTeaAddStuPanel;
-
-function teaAddStuSearch(){
-  const q=(document.getElementById('tea-add-stu-search')?.value||'').trim();
-  const cls=document.getElementById('tea-add-stu-class')?.value||'';
-  const tid=ST.user?.id;
-  const myList=DB.teacherStudents[tid]||[];
-  const res=document.getElementById('tea-add-stu-list');if(!res)return;
-  const stus=students().filter(s=>(!q||s.name.includes(q)||s.account?.includes(q))&&(!cls||s.class===cls))
-    .sort((a,b)=>DB.classes.indexOf(a.class)-DB.classes.indexOf(b.class)||a.seat-b.seat);
-  res.innerHTML=stus.length?stus.map(s=>{
-    const inList=myList.includes(s.id);
-    return `<label style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--cream);cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--gold-bg)'" onmouseout="this.style.background=''">
-      <input type="checkbox" value="${s.id}" ${inList?'checked':''} style="width:15px;height:15px;accent-color:var(--gold)">
-      <div>
-        <strong>${s.name}</strong>
-        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:6px">${s.class}·座${s.seat}</span>
-        ${inList?'<span style="font-size:9px;color:var(--sage);margin-left:4px">（已在名單）</span>':''}
-        <div style="font-size:11px;color:var(--muted)">${[s.major&&iname(s.major),s.minor&&iname(s.minor),s.elective&&iname(s.elective)].filter(Boolean).join(' / ')}</div>
-      </div>
-    </label>`;
-  }).join(''):'<div style="padding:12px;color:var(--muted);font-family:\'DM Mono\',monospace;font-size:11px">查無學生</div>';
-}
-window.teaAddStuSearch=teaAddStuSearch;
-
-function saveTeaAddStu(){
-  const tid=ST.user?.id;if(!tid)return;
-  const checked=[...document.querySelectorAll('#tea-add-stu-list input[type=checkbox]:checked')].map(cb=>cb.value);
-  DB.teacherStudents[tid]=checked;
-  fbSet('teacherStudents',tid,{list:checked});
-  closeOverlay('tea-add-stu-overlay');
-  renderTeaTable();
-  showToast('指導名單已更新 ✓（共 '+checked.length+' 位學生）','ok');
-}
-window.saveTeaAddStu=saveTeaAddStu;
-
 function openTeaSelfAddPanel(){
   let panel=document.getElementById('tea-self-add-overlay');
   if(!panel){
@@ -3291,8 +3232,8 @@ function openTeaStuModal(tid){
   const sel=DB.teacherStudents[tid]||[];
   // class tabs
   const clsEl=document.getElementById('tsm-class-tabs');
-  clsEl.innerHTML=`<button class="btn btn-p btn-sm" onclick="tsmFilterClass('',this)">全部班級</button>`+
-    DB.classes.map(c=>`<button class="btn btn-s btn-sm" onclick="tsmFilterClass('${c}',this)">${c}</button>`).join('');
+  clsEl.innerHTML=DB.classes.map((c,i)=>`<button class="btn btn-s btn-sm ${i===0?'btn-p':''}" onclick="tsmFilterClass('${c}',this)">${c}</button>`).join('')+
+    `<button class="btn btn-s btn-sm" onclick="tsmFilterClass('',this)">全部</button>`;
   tsmRenderList(tid,'');
   openOverlay('tea-stu-modal');
 }
@@ -3307,21 +3248,11 @@ function tsmFilterClass(cls,btn){
 window.tsmFilterClass=tsmFilterClass;
 
 function tsmRenderList(tid,cls){
-  // ★ 切換班級前先讀取目前 DOM 中的勾選狀態，確保跨班連續勾選不遺失
-  const currentChecked=[...document.querySelectorAll('#tsm-stu-list input[type=checkbox]:checked')].map(cb=>cb.value);
-  const currentUnchecked=[...document.querySelectorAll('#tsm-stu-list input[type=checkbox]:not(:checked)')].map(cb=>cb.value);
-  // 合併：原始 DB 列表 + 本次新勾選 - 本次取消勾選
-  let sel=new Set(DB.teacherStudents[tid]||[]);
-  currentChecked.forEach(id=>sel.add(id));
-  currentUnchecked.forEach(id=>sel.delete(id));
-  const selArr=[...sel];
-  // 同步回 DB（暫存，未寫 Firebase，等 saveTeaStu 才寫入）
-  DB.teacherStudents[tid]=selArr;
-
+  const sel=DB.teacherStudents[tid]||[];
   const stus=students().filter(s=>!cls||s.class===cls).sort((a,b)=>DB.classes.indexOf(a.class)-DB.classes.indexOf(b.class)||a.seat-b.seat);
   document.getElementById('tsm-stu-list').innerHTML=stus.map(s=>`
     <label style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--cream);cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--gold-bg)'" onmouseout="this.style.background=''">
-      <input type="checkbox" value="${s.id}" ${selArr.includes(s.id)?'checked':''} style="width:15px;height:15px;accent-color:var(--gold)">
+      <input type="checkbox" value="${s.id}" ${sel.includes(s.id)?'checked':''} style="width:15px;height:15px;accent-color:var(--gold)">
       <div>
         <strong>${s.name}</strong>
         <span style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--muted);margin-left:6px">${s.class}·座${s.seat}</span>
@@ -3360,8 +3291,8 @@ function getJuryEntries(){
 
 function renderJuryTable(){
   const tbody=document.getElementById('jury-tbody');if(!tbody)return;
-  // ★ 管理員模式：顯示考場切換按鈕
-  if(ST.role==='admin')renderJuryAdminRoomTabs();
+  // ★ 管理員：初始化考場切換按鈕 & 設定 juryRoom
+  if(ST.role==='admin')initJuryAdminRoomBar();
   const entries=getJuryEntries();
   const roomId=ST.juryRoom?.id||(ST.role==='admin'?(ST._adminJuryRoomId||DB.rooms[0]?.id||'r1'):'r1');
   if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
@@ -3754,6 +3685,73 @@ window.addEventListener('online',()=>{
   setTimeout(syncPendingToFirebase,800);
 });
 
+// ★ 管理員後台現場評分 - 考場切換按鈕 + 下拉選單
+function initJuryAdminRoomBar(){
+  const bar=document.getElementById('jury-admin-room-bar');
+  if(!bar)return;
+  if(ST.role!=='admin'){bar.style.display='none';return;}
+  bar.style.display='flex';
+  const curId=ST._adminJuryRoomId||(DB.rooms[0]?.id||'');
+  if(!ST._adminJuryRoomId&&DB.rooms.length){
+    ST._adminJuryRoomId=DB.rooms[0].id;
+    ST.juryRoom=DB.rooms[0];
+  }
+  // ── 填入 select ──
+  const sel=document.getElementById('jury-admin-room-select');
+  if(sel){
+    sel.innerHTML=DB.rooms.map(r=>`<option value="${r.id}"${r.id===curId?' selected':''}>${r.name}</option>`).join('');
+  }
+  // ── 填入按鈕列（輔助，小螢幕可自動換行） ──
+  const btnsWrap=document.getElementById('jury-admin-room-btns');
+  if(btnsWrap){
+    btnsWrap.innerHTML='';
+    DB.rooms.forEach(r=>{
+      const btn=document.createElement('button');
+      btn.className='btn btn-sm '+(r.id===curId?'btn-p':'btn-s');
+      btn.textContent=r.name;
+      btn.onclick=()=>adminJurySelectRoom(r.id,btn);
+      btnsWrap.appendChild(btn);
+    });
+  }
+  // 更新考場顯示標題
+  const activeRoom=DB.rooms.find(r=>r.id===curId)||DB.rooms[0];
+  if(activeRoom)_updateJuryRoomDisplay(activeRoom);
+}
+window.initJuryAdminRoomBar=initJuryAdminRoomBar;
+
+function adminJurySelectRoom(roomId,btn){
+  ST._adminJuryRoomId=roomId;
+  const r=DB.rooms.find(x=>x.id===roomId);
+  if(r){ST.juryRoom=r;_updateJuryRoomDisplay(r);}
+  // 同步 select 選單
+  const sel=document.getElementById('jury-admin-room-select');
+  if(sel)sel.value=roomId;
+  // 同步按鈕狀態
+  const btnsWrap=document.getElementById('jury-admin-room-btns');
+  if(btnsWrap)btnsWrap.querySelectorAll('button').forEach(b=>{
+    b.className='btn btn-sm '+(b.textContent===(r?.name||'')&&b===btn?'btn-p':b===btn?'btn-p':'btn-s');
+  });
+  // 更精準：用 roomId 比較
+  if(btnsWrap)btnsWrap.querySelectorAll('button').forEach(b=>{
+    const isActive=DB.rooms.find(x=>x.id===roomId)?.name===b.textContent;
+    b.className='btn btn-sm '+(isActive?'btn-p':'btn-s');
+  });
+  renderJuryTable();
+}
+window.adminJurySelectRoom=adminJurySelectRoom;
+
+function _updateJuryRoomDisplay(r){
+  const rd=document.getElementById('jury-room-disp');if(rd)rd.textContent=r.name||'—';
+  const ld=document.getElementById('jury-location-disp');if(ld)ld.textContent=r.location||'';
+  const dd=document.getElementById('jury-datetime-disp');
+  if(dd){
+    const fmt=dt=>{if(!dt)return'';const d=new Date(dt);return isNaN(d)?dt:d.toLocaleString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit',weekday:'short',hour:'2-digit',minute:'2-digit'});};
+    if(r.dateStart)dd.textContent=fmt(r.dateStart)+(r.dateEnd?' ～ '+fmt(r.dateEnd):'');
+    else dd.textContent='';
+  }
+  const nd=document.getElementById('jury-name-disp');if(nd)nd.textContent=ST.juryName||ST.user?.name||'—';
+}
+
 // Check before submit
 // ★ 強制儲存所有尚未 blur 的評語（防止直接按送出/確認時評語遺漏）
 function flushAllComments(){
@@ -3766,42 +3764,6 @@ function flushAllComments(){
     }
   });
 }
-
-// ★ 後台管理員現場評分 - 考場切換按鈕
-function renderJuryAdminRoomTabs(){
-  const tabsEl=document.getElementById('jury-admin-room-tabs');if(!tabsEl)return;
-  if(ST.role!=='admin'){tabsEl.style.display='none';return;}
-  tabsEl.style.display='flex';
-  const cur=ST._adminJuryRoomId||(DB.rooms[0]?.id||'');
-  if(!ST._adminJuryRoomId&&DB.rooms.length){ST._adminJuryRoomId=DB.rooms[0].id;ST.juryRoom=DB.rooms[0];}
-  // 清除舊按鈕（保留 label span）
-  [...tabsEl.children].forEach(c=>{if(c.tagName==='BUTTON')c.remove();});
-  DB.rooms.forEach(r=>{
-    const btn=document.createElement('button');
-    btn.className='btn btn-sm '+(r.id===cur?'btn-p':'btn-s');
-    btn.textContent=r.name;
-    btn.onclick=()=>adminJurySelectRoom(r.id,btn);
-    tabsEl.appendChild(btn);
-  });
-  // 更新考場顯示
-  const activeRoom=DB.rooms.find(r=>r.id===cur)||DB.rooms[0];
-  if(activeRoom){
-    const rd=document.getElementById('jury-room-disp');if(rd)rd.textContent=activeRoom.name;
-    const ld=document.getElementById('jury-location-disp');if(ld)ld.textContent=activeRoom.location||'';
-  }
-}
-function adminJurySelectRoom(roomId,btn){
-  ST._adminJuryRoomId=roomId;
-  const r=DB.rooms.find(x=>x.id===roomId);
-  if(r){ST.juryRoom=r;}
-  const tabs=document.getElementById('jury-admin-room-tabs');
-  if(tabs)tabs.querySelectorAll('button').forEach(b=>{b.className='btn btn-sm '+(b===btn?'btn-p':'btn-s');});
-  const rd=document.getElementById('jury-room-disp');if(rd)rd.textContent=r?.name||'—';
-  const ld=document.getElementById('jury-location-disp');if(ld)ld.textContent=r?.location||'';
-  renderJuryTable();
-}
-window.adminJurySelectRoom=adminJurySelectRoom;
-window.renderJuryAdminRoomTabs=renderJuryAdminRoomTabs;
 
 function checkJuryBeforeSubmit(){
   flushAllComments(); // ★ 先強制存評語
@@ -3836,22 +3798,11 @@ function checkJuryBeforeSubmit(){
 function confirmSubmitJury(){closeOverlay('check-modal');submitJuryAll();}
 
 function submitJuryAll(){
-  flushAllComments();
+  flushAllComments(); // ★ 強制儲存所有尚未 blur 的評語
   document.getElementById('ty-title-el').textContent=DB.config.tyTitle||'感謝您的評分';
   document.getElementById('ty-text-el').textContent=DB.config.tyText||'';
   showSyncStatus('sync','正在送出...');
-  // ★ 送出按鈕視覺反饋
-  document.querySelectorAll('#pg-jury .btn-g').forEach(b=>{
-    if(b.textContent.includes('送出全部評分')){b.textContent='⏳ 送出中…';b.disabled=true;b.style.opacity='.7';}
-  });
-  setTimeout(()=>{
-    showSyncStatus('ok','✅ 全部評分已送出 ✓');
-    showToast('✅ 全部評分已成功送出！','ok');
-    document.querySelectorAll('#pg-jury .btn-g').forEach(b=>{
-      if(b.textContent.includes('送出中')){b.textContent='✅ 已送出完畢';b.disabled=false;b.style.opacity='1';b.style.background='var(--sage)';}
-    });
-    openOverlay('ty-modal');
-  },900);
+  setTimeout(()=>{showSyncStatus('ok','全部已同步 ✓');openOverlay('ty-modal');},900);
 }
 
 // ════════════════════════════════════════════════
@@ -3896,25 +3847,7 @@ function calcFinal(scoreArr,roomId){
 // ════════════════════════════════════════════════
 // SCHEDULE
 // ════════════════════════════════════════════════
-function generateSchedule(){
-  // ★ 自動依學生主副修樂器類別對應考場後排序
-  let matched=0;
-  students().forEach(s=>{
-    ['major','minor','elective'].forEach(type=>{
-      if(!s[type])return;
-      const inst=DB.instruments.items.find(i=>i.id===s[type]);
-      if(!inst)return;
-      // 找允許此類別的考場，記錄 log 用
-      const matchedRoom=DB.rooms.find(r=>{
-        const cats=r.allowedCats||r.cats||[];
-        return cats.includes(inst.cat);
-      });
-      if(matchedRoom)matched++;
-    });
-  });
-  schApplySort();
-  showToast('✓ 已自動依主副修樂器排入考場，共 '+matched+' 筆對應完成','ok');
-}
+function generateSchedule(){schApplySort();showToast('已自動生成出場順序 ✓','ok');}
 
 // ── 排序狀態 ──
 // instOrder: [{id,active}] / typeOrder: [{key,label,active}] / classOrder: [{cls,active}]
@@ -4995,8 +4928,6 @@ function fbSaveConfig(){
     instRestrictMsg:DB.config.instRestrictMsg||{major:{},minor:{},elective:{}},
     repConfirmMsg:DB.config.repConfirmMsg||'',
     pendingMsg:DB.config.pendingMsg||{},
-    jurySignupNote:DB.config.jurySignupNote||'',
-    jurySignupOptions:DB.config.jurySignupOptions||[],
   });
 }
 function saveTiming(){fbSaveConfig();showToast('時間設定已儲存 ✓','ok');}
@@ -5098,7 +5029,7 @@ window.saveRoomFields=saveRoomFields;
 // access value: true=公開, 'pending'=尚未開放(可見但鎖定), false=關閉(不可見)
 function renderAccessControl(){
   const studentPages=[{id:'rep',label:'曲目填寫'},{id:'scores',label:'成績查閱'},{id:'stu-schedule',label:'考試順序查詢'}];
-  const teacherPages=[{id:'teacher',label:'平時評量'},{id:'stu-schedule',label:'考試順序查看'}];
+  const teacherPages=[{id:'teacher',label:'平時評量'},{id:'stu-schedule',label:'考試順序查看'},{id:'jury-signup',label:'📋 期末考評分報名'}];
   const stateLabel=(v)=>{
     if(v===true||v===undefined||v===null)return {txt:'公開',cls:'background:#d4edda;color:#155724'};
     if(v==='pending')return {txt:'尚未開放',cls:'background:#fff3cd;color:#856404'};
@@ -5149,6 +5080,7 @@ function renderAccessControl(){
 function setAccess(configKey,pageId,val){
   DB.config[configKey][pageId]=val;
   fbSaveConfig();renderAccessControl();
+  updateJurySignupTabVisibility();
   const label={true:'公開',pending:'尚未開放',false:'關閉'}[val]||'關閉';
   showToast(`已設為「${label}」`,'ok');
 }
@@ -5855,12 +5787,34 @@ window.npStar=npStar;
 function switchTeaSubTab(key,el){
   document.querySelectorAll('#tea-sub-tabs .tab').forEach(t=>t.classList.remove('on'));
   if(el)el.classList.add('on');
-  document.getElementById('tea-overview').style.display=(key==='assess'?'block':'none');
-  document.getElementById('tea-wizard').style.display='none'; // always hide wizard on tab switch
-  document.getElementById('tea-jury-signup').style.display=(key==='signup'?'block':'none');
+  const overviewDiv=document.getElementById('tea-overview');
+  const wizardDiv=document.getElementById('tea-wizard');
+  const signupDiv=document.getElementById('tea-jury-signup');
+  if(overviewDiv)overviewDiv.style.display=(key==='assess'?'block':'none');
+  if(wizardDiv)wizardDiv.style.display='none';
+  if(signupDiv)signupDiv.style.display=(key==='signup'?'block':'none');
   if(key==='signup')renderJurySignupPage();
 }
 window.switchTeaSubTab=switchTeaSubTab;
+
+function updateJurySignupTabVisibility(){
+  const tab=document.getElementById('tsub-signup');
+  if(!tab)return;
+  const accVal=DB.config.teacherAccess?.['jury-signup'];
+  // admin 永遠看得到；teacher 依設定；false = 隱藏
+  if(ST.role==='admin'){tab.style.display='';return;}
+  if(accVal===false){
+    tab.style.display='none';
+    // 若目前正顯示報名區，切回平時評量
+    if(document.getElementById('tea-jury-signup')?.style.display==='block'){
+      const assessTab=document.getElementById('tsub-assess');
+      switchTeaSubTab('assess',assessTab);
+    }
+  } else {
+    tab.style.display='';
+  }
+}
+window.updateJurySignupTabVisibility=updateJurySignupTabVisibility;
 
 // ════════════════════════════════════════════════
 // JURY SIGNUP — TEACHER SIDE
@@ -6226,9 +6180,7 @@ window.jsupDelOption=jsupDelOption;
 function saveJurySignupConfig(){
   const note=document.getElementById('jsup-note-inp')?.value||'';
   DB.config.jurySignupNote=note;
-  // ★ 同步儲存到 jurySignupConfig 和 config/main（確保教師端看到最新選項）
   fbSet('jurySignupConfig','main',{note,options:DB.config.jurySignupOptions});
-  fbSaveConfig();
   showToast('設定已儲存 ✓','ok');
   const noteEl=document.getElementById('jsup-note-text');
   if(noteEl)noteEl.textContent=note;
@@ -6401,20 +6353,20 @@ const _expose = [
   'addClass','renameClass','delClass',
   'saveTiming','saveAnnounce','saveWeights','addTrim','saveTrimRules','fbSaveConfig',
   'setAccess','saveRepHint','saveTyText','clearData','saveTeaScheduleMsg',
-  'renderResults','editJuryScores','exportResultsCSV','toggleJurorNames','toggleRemarkFilter','setResultView','openTeaAddStuPanel','teaAddStuSearch','saveTeaAddStu','adminJurySelectRoom','renderJuryAdminRoomTabs',
+  'renderResults','editJuryScores','exportResultsCSV','toggleJurorNames','toggleRemarkFilter','setResultView',
   'npKey','npDel','npConfirm','npBg','npStar',
   'openNP',
   'schSelectRoom','schSeatDir','schApplySort','schInitRoomTabs','schInitSortUI',
   'saveInstRestrict','saveRepConfirmMsg','savePendingMsgs','showPendingPage',
   'renderInstRestrictUI','renderSchCatUI',
-  'exportTeaOverviewCSV','openTeaSelfAddPanel','tsaSearch','adminCommentInit','adminCommentSave','adminCommentLoadStudent','adminCommentLoadType','adminCommentFromImage','adminCommentImportCSV','adminCommentDownloadSample',
+  'exportTeaOverviewCSV','renderTeaTable','openTeaSelfAddPanel','tsaSearch','adminCommentInit','adminCommentSave','adminCommentLoadStudent','adminCommentLoadType','adminCommentFromImage','adminCommentImportCSV','adminCommentDownloadSample',
   'doInvigLogin','invigSelectRoom','toggleBlackSign','toggleLivePlay','saveScaleKey','renderInvigPage',
   'saveJRemark','saveJRemarkText',
-  'switchTeaSubTab','renderJurySignupPage','jsupPickOpt','jsupDraftSave','saveJurySignupDraft','submitJurySignup',
+  'switchTeaSubTab','updateJurySignupTabVisibility','renderJurySignupPage','adminJurySelectRoom','initJuryAdminRoomBar','jsupPickOpt','jsupDraftSave','saveJurySignupDraft','submitJurySignup',
   'renderJsupAdminPanel','renderJsupOptsList','addJsupOption','jsupUpdateOptLabel','jsupUpdateOptFlag','jsupDelOption','saveJurySignupConfig','renderJsupAdminTable','exportJsupCSV',
 ];
 // ★ 安全暴露到 window（不用 eval，改用函數名對照表）
-const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,openTeaAddStuPanel,teaAddStuSearch,saveTeaAddStu,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schInitSortBar,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,adminJurySelectRoom,renderJuryAdminRoomTabs,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,importCSV,downloadSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,renderJsupAdminTable,exportJsupCSV};
+const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schInitSortBar,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,importCSV,downloadSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,renderJsupAdminTable,exportJsupCSV};
 Object.keys(_fnMap).forEach(function(name){ window[name] = _fnMap[name]; });
 
 // ★ 頁面載入後立即從 Firebase 同步 users，讓登入時帳密是最新狀態
