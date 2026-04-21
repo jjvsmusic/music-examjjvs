@@ -1346,6 +1346,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
             <button class="btn btn-p btn-sm" onclick="showAddUser('student')">＋ 新增學生</button>
             <button class="btn btn-s btn-sm" onclick="importCSV('student')">↑ 匯入 CSV</button>
             <a class="btn btn-s btn-sm" href="#" onclick="downloadSample(event,'student')">↓ 範例檔</a>
+            <button class="btn btn-d btn-sm" id="stu-bulk-del-btn" style="display:none" onclick="bulkDeleteUsers('student')">🗑 刪除已選（<span id="stu-sel-count">0</span>）</button>
             <select id="admin-class-filter" onchange="renderAdminStudents()" style="padding:4px 9px;border:1px solid var(--border);background:var(--paper);border-radius:var(--r);font-size:12px;outline:none">
               <option value="">全部班級</option>
             </select>
@@ -1358,7 +1359,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
             <button class="btn btn-p btn-sm" onclick="adminStuFilterClass('',this)">全部班級</button>
           </div>
           <div class="tw"><table>
-            <thead><tr><th>班級</th><th>座號</th><th>姓名</th><th>主修</th><th>副修</th><th>選修</th><th>填報</th><th>評量</th><th>操作</th></tr></thead>
+            <thead><tr><th style="width:32px;text-align:center"><input type="checkbox" id="stu-chk-all" onclick="toggleAllCheck('student',this)" title="全選／取消全選" style="cursor:pointer;width:14px;height:14px"></th><th>班級</th><th>座號</th><th>姓名</th><th>主修</th><th>副修</th><th>選修</th><th>填報</th><th>評量</th><th>操作</th></tr></thead>
             <tbody id="admin-stu-tbody"></tbody>
           </table></div>
         </div>
@@ -1367,12 +1368,15 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
             <button class="btn btn-p btn-sm" onclick="showAddUser('teacher')">＋ 新增教師</button>
             <button class="btn btn-s btn-sm" onclick="importCSV('teacher')">↑ 匯入 CSV</button>
             <a class="btn btn-s btn-sm" href="#" onclick="downloadSample(event,'teacher')">↓ 範例檔</a>
+            <button class="btn btn-d btn-sm" id="tea-bulk-del-btn" style="display:none" onclick="bulkDeleteUsers('teacher')">🗑 刪除已選（<span id="tea-sel-count">0</span>）</button>
+            <button class="btn btn-o btn-sm" onclick="importTeaStudentsCSV()">↑ 更新指導學生</button>
+            <a class="btn btn-s btn-sm" href="#" onclick="downloadTeaStudentsSample(event)">↓ 範例檔</a>
             <span style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--muted);margin-left:4px">排序：</span>
             <button class="btn btn-s btn-sm" id="tea-sort-asc" onclick="sortTeaList(1)">筆畫↑</button>
             <button class="btn btn-s btn-sm" id="tea-sort-desc" onclick="sortTeaList(-1)">筆畫↓</button>
           </div>
           <div class="tw"><table>
-            <thead><tr><th>姓名</th><th>帳號</th><th>指導的學生</th><th>操作</th></tr></thead>
+            <thead><tr><th style="width:32px;text-align:center"><input type="checkbox" id="tea-chk-all" onclick="toggleAllCheck('teacher',this)" title="全選／取消全選" style="cursor:pointer;width:14px;height:14px"></th><th>姓名</th><th>帳號</th><th>指導的學生</th><th>操作</th></tr></thead>
             <tbody id="admin-tea-tbody"></tbody>
           </table></div>
         </div>
@@ -4516,6 +4520,7 @@ function renderAdminStudents(){
     return;
   }
   tbody.innerHTML=stus.map(s=>`<tr>
+    <td style="text-align:center"><input type="checkbox" class="stu-chk" data-id="${s.id}" onchange="updateBulkBar('student')" style="cursor:pointer;width:14px;height:14px"></td>
     <td><strong style="color:var(--ink)">${s.class}</strong></td>
     <td style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--ink)">${s.seat}</td>
     <td><strong style="color:var(--ink)">${s.name}</strong></td>
@@ -4526,6 +4531,10 @@ function renderAdminStudents(){
     <td style="text-align:center"><span class="dot ${s.teaDone?'dg':'dr'}" title="${s.teaDone?'已評量':'未評量'}"></span></td>
     <td><div class="bg"><button class="btn btn-s btn-xs" onclick="editUser('${s.id}')">編輯</button><button class="btn btn-s btn-xs" onclick="resetUserPwd('${s.id}')">重置</button><button class="btn btn-d btn-xs" onclick="deleteUser('${s.id}')">刪</button></div></td>
   </tr>`).join('');
+  // 每次重繪後重設全選狀態
+  const allChk=document.getElementById('stu-chk-all');
+  if(allChk)allChk.checked=false;
+  updateBulkBar('student');
 }
 
 let _teaSortDir=1; // 1=筆畫正序 -1=倒序
@@ -4542,6 +4551,7 @@ function renderAdminTeachers(){
   tbody.innerHTML=sorted.map(t=>{
     const myStus=(DB.teacherStudents[t.id]||[]).map(sid=>DB.users.find(u=>u.id===sid)?.name||sid).join('、')||'尚未設定';
     return `<tr>
+    <td style="text-align:center"><input type="checkbox" class="tea-chk" data-id="${t.id}" onchange="updateBulkBar('teacher')" style="cursor:pointer;width:14px;height:14px"></td>
     <td><strong>${t.name}</strong></td>
     <td style="font-family:\'DM Mono\',monospace;font-size:11px">${t.account}</td>
     <td style="font-size:12px;color:var(--muted);max-width:220px">${myStus}</td>
@@ -4552,6 +4562,10 @@ function renderAdminTeachers(){
       <button class="btn btn-d btn-xs" onclick="deleteUser('${t.id}')">刪</button>
     </div></td>
   </tr>`;}).join('');
+  // 每次重繪後重設全選狀態
+  const allChk=document.getElementById('tea-chk-all');
+  if(allChk)allChk.checked=false;
+  updateBulkBar('teacher');
 }
 
 function renderAdminAdmins(){
@@ -4636,6 +4650,58 @@ function editUser(id){
 function resetUserPwd(id){const u=DB.users.find(x=>x.id===id);if(!u)return;u.pass='000';fbSet('users',id,{pass:'000'});showToast(u.name+' 密碼已重置為 000','ok');}
 function deleteUser(id){const idx=DB.users.findIndex(u=>u.id===id);if(idx>-1){const n=DB.users[idx].name;fbDelete('users',id);DB.users.splice(idx,1);renderAll();updateStats();showToast('已刪除 '+n,'err');}}
 
+// ════ 複選刪除 ════
+function updateBulkBar(type){
+  const cls=type==='student'?'.stu-chk':'.tea-chk';
+  const checked=document.querySelectorAll(cls+':checked');
+  const n=checked.length;
+  if(type==='student'){
+    const btn=document.getElementById('stu-bulk-del-btn');
+    const cnt=document.getElementById('stu-sel-count');
+    if(btn)btn.style.display=n>0?'':'none';
+    if(cnt)cnt.textContent=n;
+    // 更新全選狀態
+    const all=document.querySelectorAll(cls);
+    const allChk=document.getElementById('stu-chk-all');
+    if(allChk)allChk.indeterminate=(n>0&&n<all.length);
+    if(allChk&&n===all.length&&all.length>0)allChk.checked=true;
+    if(allChk&&n===0)allChk.checked=false;
+  } else {
+    const btn=document.getElementById('tea-bulk-del-btn');
+    const cnt=document.getElementById('tea-sel-count');
+    if(btn)btn.style.display=n>0?'':'none';
+    if(cnt)cnt.textContent=n;
+    const all=document.querySelectorAll(cls);
+    const allChk=document.getElementById('tea-chk-all');
+    if(allChk)allChk.indeterminate=(n>0&&n<all.length);
+    if(allChk&&n===all.length&&all.length>0)allChk.checked=true;
+    if(allChk&&n===0)allChk.checked=false;
+  }
+}
+window.updateBulkBar=updateBulkBar;
+
+function toggleAllCheck(type,masterChk){
+  const cls=type==='student'?'.stu-chk':'.tea-chk';
+  document.querySelectorAll(cls).forEach(c=>{c.checked=masterChk.checked;});
+  updateBulkBar(type);
+}
+window.toggleAllCheck=toggleAllCheck;
+
+function bulkDeleteUsers(type){
+  const cls=type==='student'?'.stu-chk':'.tea-chk';
+  const ids=[...document.querySelectorAll(cls+':checked')].map(c=>c.dataset.id);
+  if(!ids.length)return;
+  const label=type==='student'?'學生':'教師';
+  if(!confirm('確定要刪除已勾選的 '+ids.length+' 位'+label+'？此操作不可復原。'))return;
+  ids.forEach(id=>{
+    const idx=DB.users.findIndex(u=>u.id===id);
+    if(idx>-1){fbDelete('users',id);DB.users.splice(idx,1);}
+  });
+  renderAll();updateStats();
+  showToast('已刪除 '+ids.length+' 位'+label,'err');
+}
+window.bulkDeleteUsers=bulkDeleteUsers;
+
 // CSV Import/Export
 function importCSV(role){
   const input=document.createElement('input');input.type='file';input.accept='.csv,.txt';
@@ -4685,6 +4751,60 @@ function downloadSample(e,role){
   const a=document.createElement('a');a.href=url;a.download=(role==='student'?'學生':'教師')+'名單範例.csv';a.click();
   setTimeout(()=>URL.revokeObjectURL(url),1000);showToast('範例檔下載中 ✓','ok');
 }
+
+function importTeaStudentsCSV(){
+  const input=document.createElement('input');input.type='file';input.accept='.csv,.txt';
+  input.onchange=e=>{
+    const f=e.target.files[0];if(!f)return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      const lines=ev.target.result.split('\n').slice(1).filter(l=>l.trim());
+      let updated=0,notFound=[];
+      lines.forEach(line=>{
+        const cols=line.split(',').map(s=>s.trim().replace(/^"|"$/g,''));
+        const [teaAccount,stuAccountsRaw]=cols;
+        if(!teaAccount)return;
+        // 比對教師帳號
+        const tea=DB.users.find(u=>u.account===teaAccount&&u.role==='teacher');
+        if(!tea){notFound.push(teaAccount);return;}
+        // 解析學生帳號（允許 ; | 分隔，也允許全空代表清空）
+        const stuAccStr=stuAccountsRaw||'';
+        const stuIds=stuAccStr.trim()===''?[]:
+          stuAccStr.split(/[;|]/).map(s=>s.trim()).filter(Boolean).map(acc=>{
+            const u=DB.users.find(x=>x.account===acc&&x.role==='student');
+            return u?.id||null;
+          }).filter(Boolean);
+        DB.teacherStudents[tea.id]=stuIds;
+        fbSet('teacherStudents',tea.id,{list:stuIds});
+        updated++;
+      });
+      renderAdminTeachers();renderTeaTable();
+      let msg='已更新 '+updated+' 位教師的指導學生 ✓';
+      if(notFound.length)msg+='\n找不到帳號：'+notFound.join('、');
+      showToast(msg,'ok');
+      if(notFound.length)alert('以下教師帳號在系統中找不到，已跳過：\n'+notFound.join('\n'));
+    };
+    reader.readAsText(f,'UTF-8');
+  };
+  input.click();
+}
+window.importTeaStudentsCSV=importTeaStudentsCSV;
+
+function downloadTeaStudentsSample(e){
+  e.preventDefault();
+  // 自動用現有教師 + 學生帳號生成範例
+  const teaRows=teachers().slice(0,3).map(t=>{
+    const stus=(DB.teacherStudents[t.id]||[]).map(sid=>DB.users.find(u=>u.id===sid)?.account||sid);
+    return t.account+','+(stus.join(';')||'');
+  });
+  const header='教師帳號,指導學生帳號（分號分隔，清空留白即可移除）';
+  const sample=teaRows.length?teaRows.join('\n'):'teacher01,s001;s002;s003\nteacher02,s004;s005';
+  const blob=new Blob(['\uFEFF'+header+'\n'+sample],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='更新指導學生範例.csv';a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);showToast('範例檔下載中 ✓','ok');
+}
+window.downloadTeaStudentsSample=downloadTeaStudentsSample;
 
 function exportCSV(data,filename){
   if(!data.length){showToast('無資料可匯出','err');return;}
@@ -6346,7 +6466,7 @@ const _expose = [
   'openAddDisqIndividual','adimSearch','adimSelect','saveDisqIndividual',
   'renderTeaSchedulePage','teaSchSelectRoom',
   'swAdminTab','swUserTab',
-  'showAddUser','editUser','resetUserPwd','deleteUser','importCSV','downloadSample','sortTeaList','adminStuFilterClass',
+  'showAddUser','editUser','resetUserPwd','deleteUser','bulkDeleteUsers','toggleAllCheck','updateBulkBar','importCSV','downloadSample','importTeaStudentsCSV','downloadTeaStudentsSample','sortTeaList','adminStuFilterClass',
   'addCategory','renameCategory','delCategory','addInstrument','renameInst','delInst',
   'renderInstList',
   'addRoom','editRoom','delRoom','revealCode','addRoomField','removeRoomField','saveRoomFields','renderRoomFields',
@@ -6366,7 +6486,7 @@ const _expose = [
   'renderJsupAdminPanel','renderJsupOptsList','addJsupOption','jsupUpdateOptLabel','jsupUpdateOptFlag','jsupDelOption','saveJurySignupConfig','renderJsupAdminTable','exportJsupCSV',
 ];
 // ★ 安全暴露到 window（不用 eval，改用函數名對照表）
-const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schInitSortBar,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,importCSV,downloadSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,renderJsupAdminTable,exportJsupCSV};
+const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schInitSortBar,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,renderJsupAdminTable,exportJsupCSV};
 Object.keys(_fnMap).forEach(function(name){ window[name] = _fnMap[name]; });
 
 // ★ 頁面載入後立即從 Firebase 同步 users，讓登入時帳密是最新狀態
