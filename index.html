@@ -1345,7 +1345,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
         <!-- 操作列 -->
         <div class="bg">
           <button class="btn btn-p btn-sm" onclick="schApplySort()">✓ 套用排序</button>
-          <button class="btn btn-g btn-sm" onclick="schSaveSchedule()">💾 存檔排程</button>
+          <button class="btn btn-g btn-sm" onclick="schSaveSchedule()">💾 存檔排程（同步評審/監考）</button>
           <button class="btn btn-s btn-sm" onclick="schResetFilters()">↺ 重設</button>
             <button class="btn btn-b btn-sm" onclick="schResetToRoomDefaults()" title="依目前考場的分類自動勾選對應樂器">↺ 依考場重設</button>
           <button class="btn btn-g btn-sm" onclick="openSchAddModal()">＋ 加入名單</button>
@@ -1650,7 +1650,10 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
               可新增、修改、刪除選項。「是否為代評選項」若勾選，選擇後會要求填入代評老師姓名與電話，並再次選擇考場。
             </p>
             <div id="jsup-opts-list" style="margin-bottom:10px"></div>
-            <button class="btn btn-s btn-sm" onclick="addJsupOption()">＋ 新增選項</button>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <button class="btn btn-s btn-sm" onclick="addJsupOption()">＋ 新增選項</button>
+              <button class="btn btn-p btn-sm" onclick="saveJsupOptions()">💾 儲存選項</button>
+            </div>
           </div>
         </div>
 
@@ -1850,6 +1853,7 @@ const DB = {
   disqualified: {}, // {entryKey: {reason, note}} - 扣考名單
   blackSign: {}, // {roomId: {entryKey: true}} - 黑簽全曲
   liveExam: {}, // {roomId: {playing: entryKey, scaleKey: string}} - 現場演奏同步
+  savedScheduleSnapshot: {}, // {roomId: [{entryKey,studentId,name,class,seat,instId,instName,type,order,...}]}
   jurySignup: {}, // {teacherId: {roomId, status, subName, subPhone, note, submittedAt}} - 評分報名
   config: {
     repHint:'💡 示範寫法：作曲家 → Mozart, W.A. ／ 曲目 → Concerto in D major, K. 314, 1st mvt.',
@@ -3600,9 +3604,27 @@ function saveTeaComment(){teaWizSubmitAll();}
 // JURY MODULE
 // ════════════════════════════════════════════════
 function getJuryEntries(){
+  // ★ 優先使用已存檔的排程快照（反映後台的篩選/排序/移除）
+  const roomId=ST.juryRoom?.id||(ST.role==='admin'?(ST._adminJuryRoomId||DB.rooms[0]?.id||''):'');
+  if(roomId&&DB.savedScheduleSnapshot[roomId]&&DB.savedScheduleSnapshot[roomId].length){
+    // 從快照補回最新學生資料（曲目可能有更新）
+    return DB.savedScheduleSnapshot[roomId].map(snap=>{
+      const stu=DB.users.find(u=>u.id===snap.studentId)||{};
+      const acKey=snap.type==='elective'?'elec_ac':(snap.type+'_ac');
+      const atKey=snap.type==='elective'?'elec_at':(snap.type+'_at');
+      const fcKey=snap.type==='elective'?'elec_fc':(snap.type+'_fc');
+      const ftKey=snap.type==='elective'?'elec_ft':(snap.type+'_ft');
+      return {...snap,
+        ac:stu[acKey]||snap.ac||'',at:stu[atKey]||snap.at||'',
+        fc:stu[fcKey]||snap.fc||'',ft:stu[ftKey]||snap.ft||'',
+        catOrder:snap.catOrder??99,typeOrder:{major:0,minor:1,elective:2}[snap.type]??99,
+      };
+    });
+  }
+  // fallback：快照不存在時動態計算（兼容舊資料）
   const all=getScheduleEntries();
-  if(ST.role!=='jury'||!ST.juryRoom)return all;
-  return all.filter(e=>e.roomId===ST.juryRoom.id);
+  if(!roomId)return all;
+  return all.filter(e=>e.roomId===roomId);
 }
 
 function renderJuryTable(){
@@ -3924,8 +3946,21 @@ function renderInvigTable(){
   const tbody=document.getElementById('invig-tbody');if(!tbody)return;
   const roomId=ST.invigRoom?.id;
   if(!roomId){tbody.innerHTML='<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">請先選擇考場</td></tr>';return;}
-  let entries=getScheduleEntries().filter(e=>e.roomId===roomId);
-  if(!entries.length){tbody.innerHTML='<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">此考場尚無排程資料</td></tr>';return;}
+  // ★ 優先使用已存檔的排程快照
+  let entries;
+  if(DB.savedScheduleSnapshot[roomId]&&DB.savedScheduleSnapshot[roomId].length){
+    entries=DB.savedScheduleSnapshot[roomId].map(snap=>{
+      const stu=DB.users.find(u=>u.id===snap.studentId)||{};
+      const acKey=snap.type==='elective'?'elec_ac':(snap.type+'_ac');
+      const atKey=snap.type==='elective'?'elec_at':(snap.type+'_at');
+      const fcKey=snap.type==='elective'?'elec_fc':(snap.type+'_fc');
+      const ftKey=snap.type==='elective'?'elec_ft':(snap.type+'_ft');
+      return {...snap,ac:stu[acKey]||snap.ac||'',at:stu[atKey]||snap.at||'',fc:stu[fcKey]||snap.fc||'',ft:stu[ftKey]||snap.ft||''};
+    });
+  } else {
+    entries=getScheduleEntries().filter(e=>e.roomId===roomId);
+  }
+  if(!entries.length){tbody.innerHTML='<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">此考場尚無排程資料（請先在後台「存檔排程」）</td></tr>';return;}
   if(!DB.blackSign[roomId])DB.blackSign[roomId]={};
   const liveState=DB.liveExam[roomId]||{};
   const liveKey=liveState.playing||'';
@@ -4713,16 +4748,93 @@ function schSaveSchedule(){
       removedEntries:[...SCH_STATE.removedEntries],
     };
   }
+
+  // ★ 同時產生「排程快照」供評審/監考使用
+  // 快照 = 各考場依目前排序/篩選後的完整 entry 清單（含 order）
+  const snapshot={};
+  DB.rooms.forEach(room=>{
+    // 暫時切換 SCH_STATE 到此考場以套用其篩選狀態，再切回
+    const prevRoomId=SCH_STATE.roomId;
+    _loadRoomState(room.id);
+    const prevEntries=_buildFilteredEntries(room.id);
+    snapshot[room.id]=prevEntries.map((e,idx)=>({
+      entryKey:e.studentId+'_'+e.type,
+      studentId:e.studentId,name:e.name,class:e.class,seat:e.seat,
+      instId:e.instId,instName:e.instName,catId:e.catId,
+      type:e.type,order:idx+1,
+      ac:e.ac,at:e.at,fc:e.fc,ft:e.ft,
+      roomId:e.roomId,roomName:e.roomName,roomLocation:e.roomLocation,
+    }));
+    _loadRoomState(prevRoomId);
+  });
+  DB.savedScheduleSnapshot=snapshot;
+
   if(window._FB){
     const {db,serverTimestamp}=window._FB;
-    db.collection('scheduleState').doc('main').set({data:JSON.stringify(data),_updatedAt:serverTimestamp()})
-      .then(()=>showToast('排程已儲存 ✓','ok'))
+    Promise.all([
+      db.collection('scheduleState').doc('main').set({data:JSON.stringify(data),_updatedAt:serverTimestamp()}),
+      db.collection('scheduleState').doc('snapshot').set({data:JSON.stringify(snapshot),_updatedAt:serverTimestamp()}),
+    ]).then(()=>showToast('排程已儲存 ✓（評審/監考名單已同步）','ok'))
       .catch(()=>showToast('儲存失敗，請重試','err'));
   } else {
-    try{localStorage.setItem('scheduleState',JSON.stringify(data));}catch(e){}
+    try{
+      localStorage.setItem('scheduleState',JSON.stringify(data));
+      localStorage.setItem('scheduleSnapshot',JSON.stringify(snapshot));
+    }catch(e){}
     showToast('排程已儲存（本機）✓','ok');
   }
 }
+
+// ★ 依目前 SCH_STATE 篩選/排序，回傳此考場的 entry 陣列（不修改 DOM）
+function _buildFilteredEntries(roomId){
+  let entries=getScheduleEntries();
+  entries=entries.filter(e=>!SCH_STATE.removedEntries.has(e.studentId+'_'+e.type));
+  SCH_STATE.extraEntries.forEach(ex=>{
+    const alreadyIn=entries.some(e=>e.studentId===ex.studentId&&e.type===ex.type);
+    if(alreadyIn)return;
+    const stu=DB.users.find(u=>u.id===ex.studentId);if(!stu)return;
+    const inst=DB.instruments.items.find(i=>i.id===stu[ex.type]);
+    const cat=inst?DB.instruments.categories.find(c=>c.id===inst.cat):null;
+    const room=DB.rooms.find(r=>r.id===ex.roomId)||_findRoomForCat(inst?.cat);
+    if(!inst)return;
+    const acKey=ex.type==='elective'?'elec_ac':(ex.type+'_ac');
+    const atKey=ex.type==='elective'?'elec_at':(ex.type+'_at');
+    const fcKey=ex.type==='elective'?'elec_fc':(ex.type+'_fc');
+    const ftKey=ex.type==='elective'?'elec_ft':(ex.type+'_ft');
+    entries.push({
+      studentId:stu.id,name:stu.name,class:stu.class,seat:stu.seat,
+      instId:inst.id,instName:iname(inst.id),catId:inst?.cat,
+      type:ex.type,typeOrder:{major:0,minor:1,elective:2}[ex.type],
+      ac:stu[acKey]||'',at:stu[atKey]||'',fc:stu[fcKey]||'',ft:stu[ftKey]||'',
+      roomId:room?.id||'',roomName:room?.name||'—',roomLocation:room?.location||'',order:0,
+      _extra:true,
+    });
+  });
+  if(roomId)entries=entries.filter(e=>e.roomId===roomId);
+  const activeCats=new Set(SCH_STATE.catOrder.filter(c=>c.active).map(c=>c.id));
+  if(activeCats.size)entries=entries.filter(e=>activeCats.has(e.catId));
+  const activeInsts=new Set(SCH_STATE.instOrder.filter(i=>i.active).map(i=>i.id));
+  if(activeInsts.size)entries=entries.filter(e=>activeInsts.has(e.instId));
+  const activeTypes=new Set(SCH_STATE.typeOrder.filter(t=>t.active).map(t=>t.key));
+  entries=entries.filter(e=>activeTypes.has(e.type));
+  const activeClasses=new Set(SCH_STATE.classOrder.filter(c=>c.active).map(c=>c.cls));
+  if(activeClasses.size)entries=entries.filter(e=>activeClasses.has(e.class));
+  const rules=SCH_STATE.excludeRules||[];
+  if(rules.length)entries=entries.filter(e=>!rules.some(r=>(!r.catId||r.catId===e.catId)&&(!r.type||r.type===e.type)));
+  const catIndexOf=catId=>SCH_STATE.catOrder.findIndex(c=>c.id===catId);
+  const instIndexOf=id=>SCH_STATE.instOrder.findIndex(i=>i.id===id);
+  const typeIndexOf=key=>SCH_STATE.typeOrder.findIndex(t=>t.key===key);
+  const classIndexOf=cls=>{const i=SCH_STATE.classOrder.findIndex(c=>c.cls===cls);return i>=0?i:999;};
+  entries.sort((a,b)=>{
+    const dc=catIndexOf(a.catId||'')-catIndexOf(b.catId||'');if(dc!==0)return dc;
+    const di=instIndexOf(a.instId)-instIndexOf(b.instId);if(di!==0)return di;
+    const dt=typeIndexOf(a.type)-typeIndexOf(b.type);if(dt!==0)return dt;
+    const dcl=classIndexOf(a.class)-classIndexOf(b.class);if(dcl!==0)return dcl;
+    return (a.seat-b.seat)*SCH_STATE.seatDir;
+  });
+  return entries;
+}
+window._buildFilteredEntries=_buildFilteredEntries;
 window.schSaveSchedule=schSaveSchedule;
 
 // ★ 載入排程狀態（launchApp 後呼叫）
@@ -4731,14 +4843,19 @@ function schLoadSchedule(cb){
     try{
       const raw=localStorage.getItem('scheduleState');
       if(raw)_applyScheduleState(JSON.parse(raw));
+      const snap=localStorage.getItem('scheduleSnapshot');
+      if(snap)DB.savedScheduleSnapshot=JSON.parse(snap);
     }catch(e){}
     if(cb)cb();return;
   }
   const {db}=window._FB;
-  db.collection('scheduleState').doc('main').get().then(doc=>{
-    if(doc.exists){
-      try{_applyScheduleState(JSON.parse(doc.data().data));}catch(e){}
-    }
+  // 同時讀取 scheduleState 和 snapshot
+  Promise.all([
+    db.collection('scheduleState').doc('main').get(),
+    db.collection('scheduleState').doc('snapshot').get(),
+  ]).then(([stateDoc,snapDoc])=>{
+    if(stateDoc.exists){try{_applyScheduleState(JSON.parse(stateDoc.data().data));}catch(e){}}
+    if(snapDoc.exists){try{DB.savedScheduleSnapshot=JSON.parse(snapDoc.data().data);}catch(e){}}
     if(cb)cb();
   }).catch(()=>{if(cb)cb();});
 }
@@ -6913,7 +7030,7 @@ function renderJsupOptsList(){
   el.innerHTML=opts.length?opts.map((opt,i)=>`
     <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);margin-bottom:6px;background:var(--white);flex-wrap:wrap">
       <div style="flex:1;min-width:120px">
-        <input type="text" value="${opt.label}" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;outline:none;background:var(--paper)" onchange="jsupUpdateOptLabel(${i},this.value)">
+        <input id="jsup-label-${i}" type="text" value="${opt.label}" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;outline:none;background:var(--paper)" oninput="jsupUpdateOptLabel(${i},this.value)">
       </div>
       <label style="display:flex;align-items:center;gap:4px;font-family:'DM Mono',monospace;font-size:8px;color:var(--sage);cursor:pointer;white-space:nowrap">
         <input type="checkbox" ${opt.isAttend?'checked':''} onchange="jsupUpdateOptFlag(${i},'isAttend',this.checked)" style="accent-color:var(--sage)">確認參加類型
@@ -6934,13 +7051,36 @@ function addJsupOption(){
   if(!DB.config.jurySignupOptions)DB.config.jurySignupOptions=[];
   DB.config.jurySignupOptions.push({id:'opt_'+Date.now(),label:'新選項',isAttend:false,isSub:false,hasText:false});
   renderJsupOptsList();
-  fbSet('jurySignupConfig','main',{note:DB.config.jurySignupNote||'',options:DB.config.jurySignupOptions});
-  showToast('選項已新增並儲存 ✓','ok');
+  // 標記有未儲存變更
+  _jsupMarkDirty();
+  showToast('已新增選項，請按「💾 儲存選項」存檔','');
 }
 window.addJsupOption=addJsupOption;
-function jsupUpdateOptLabel(i,v){if(DB.config.jurySignupOptions[i])DB.config.jurySignupOptions[i].label=v;clearTimeout(window._jsupT);window._jsupT=setTimeout(()=>fbSet('jurySignupConfig','main',{note:DB.config.jurySignupNote||'',options:DB.config.jurySignupOptions}),800);}
+
+function _jsupMarkDirty(){
+  const btn=document.querySelector('[onclick="saveJsupOptions()"]');
+  if(btn){btn.style.background='var(--rust)';btn.textContent='💾 儲存選項（未存檔）';}
+}
+function _jsupClearDirty(){
+  const btn=document.querySelector('[onclick="saveJsupOptions()"]');
+  if(btn){btn.style.background='';btn.textContent='💾 儲存選項';}
+}
+
+function saveJsupOptions(){
+  // 從畫面上讀取最新輸入值（防止 onchange 未觸發的情況）
+  const opts=DB.config.jurySignupOptions||[];
+  opts.forEach((opt,i)=>{
+    const inp=document.getElementById('jsup-label-'+i);
+    if(inp)opt.label=inp.value;
+  });
+  fbSet('jurySignupConfig','main',{note:DB.config.jurySignupNote||'',options:opts});
+  _jsupClearDirty();
+  showToast('選項已儲存 ✓','ok');
+}
+window.saveJsupOptions=saveJsupOptions;
+function jsupUpdateOptLabel(i,v){if(DB.config.jurySignupOptions[i])DB.config.jurySignupOptions[i].label=v;_jsupMarkDirty();}
 window.jsupUpdateOptLabel=jsupUpdateOptLabel;
-function jsupUpdateOptFlag(i,flag,v){if(DB.config.jurySignupOptions[i])DB.config.jurySignupOptions[i][flag]=v;clearTimeout(window._jsupT);window._jsupT=setTimeout(()=>fbSet('jurySignupConfig','main',{note:DB.config.jurySignupNote||'',options:DB.config.jurySignupOptions}),800);}
+function jsupUpdateOptFlag(i,flag,v){if(DB.config.jurySignupOptions[i])DB.config.jurySignupOptions[i][flag]=v;_jsupMarkDirty();}
 window.jsupUpdateOptFlag=jsupUpdateOptFlag;
 function jsupDelOption(i){DB.config.jurySignupOptions.splice(i,1);renderJsupOptsList();fbSet('jurySignupConfig','main',{note:DB.config.jurySignupNote||'',options:DB.config.jurySignupOptions});showToast('選項已刪除並儲存 ✓','ok');}
 window.jsupDelOption=jsupDelOption;
@@ -7131,10 +7271,10 @@ const _expose = [
   'doInvigLogin','invigSelectRoom','toggleBlackSign','toggleLivePlay','saveScaleKey','renderInvigPage',
   'saveJRemark','saveJRemarkText',
   'switchTeaSubTab','updateJurySignupTabVisibility','teaCheckAllDone','teaInlineToggle','teaInlineEdit','teaInlineSave','renderJurySignupPage','adminJurySelectRoom','initJuryAdminRoomBar','jsupPickOpt','jsupDraftSave','saveJurySignupDraft','submitJurySignup',
-  'renderJsupAdminPanel','renderJsupOptsList','addJsupOption','jsupUpdateOptLabel','jsupUpdateOptFlag','jsupDelOption','saveJurySignupConfig','renderJsupAdminTable','exportJsupCSV',
+  'renderJsupAdminPanel','renderJsupOptsList','addJsupOption','jsupUpdateOptLabel','jsupUpdateOptFlag','jsupDelOption','saveJurySignupConfig','saveJsupOptions','renderJsupAdminTable','exportJsupCSV',
 ];
 // ★ 安全暴露到 window（不用 eval，改用函數名對照表）
-const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schResetToRoomDefaults,schSaveSchedule,schLoadSchedule,schInitSortBar,schAddExcludeRule,schRemoveExcludeRule,renderSchExcludeUI,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveBulletin,renderBulletin,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,teaInlineToggle,teaInlineEdit,teaInlineSave,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,renderJsupAdminTable,exportJsupCSV};
+const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schResetToRoomDefaults,schSaveSchedule,schLoadSchedule,schInitSortBar,schAddExcludeRule,schRemoveExcludeRule,renderSchExcludeUI,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveBulletin,renderBulletin,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,teaInlineToggle,teaInlineEdit,teaInlineSave,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,saveJsupOptions,renderJsupAdminTable,exportJsupCSV};
 Object.keys(_fnMap).forEach(function(name){ window[name] = _fnMap[name]; });
 
 // ★ 頁面載入後立即從 Firebase 同步 users，讓登入時帳密是最新狀態
