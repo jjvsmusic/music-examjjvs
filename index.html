@@ -289,8 +289,8 @@ td{padding:9px 12px;font-size:13px;vertical-align:middle}
 .jst-row-live td:first-child,.jst-row-live td:nth-child(2){background:rgba(36,113,163,0.12)!important}
 
 /* JURY REMARKS DROPDOWN */
-.remark-cell{min-width:80px;max-width:110px;width:90px;padding:3px}
-.remark-sel{width:100%;border:none;background:transparent;font-family:'Noto Serif TC',serif;font-size:11px;color:var(--ink);outline:none;padding:4px 2px;cursor:pointer}
+.remark-cell{min-width:90px;max-width:110px;width:90px;padding:3px}
+.remark-sel{width:100%;border:none;background:transparent;font-family:'Noto Serif TC',serif;font-size:10px;color:var(--ink);outline:none;padding:3px 1px;cursor:pointer}
 .remark-sel:focus{background:var(--gold-bg)}
 .remark-sel.has-remark{color:var(--rust);font-weight:600}
 .remark-text-inp{width:100%;border:none;border-top:1px solid var(--cream);background:transparent;font-family:'Noto Serif TC',serif;font-size:11px;color:var(--ink);outline:none;padding:4px 6px;resize:none;min-height:36px;line-height:1.6}
@@ -1292,6 +1292,34 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
           </div>
           <div style="padding:10px 14px;background:var(--white)">
             <div id="sch-type-order" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+          </div>
+        </div>
+        <!-- ⑥ 排除規則（樂器大項 × 修別） -->
+        <div style="border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;overflow:hidden">
+          <div style="background:var(--rust);padding:8px 14px;display:flex;align-items:center;gap:8px">
+            <span style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:1.5px;font-weight:600;color:#fff">⑥ 排除過濾（樂器大項 × 修別）</span>
+            <span style="font-family:\'DM Mono\',monospace;font-size:8px;color:rgba(255,255,255,.6)">設定後，符合條件的學生不列入出場名單</span>
+          </div>
+          <div style="padding:10px 14px;background:var(--white)">
+            <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px">
+              <div>
+                <div style="font-family:\'DM Mono\',monospace;font-size:8px;color:var(--muted);margin-bottom:4px">樂器大項</div>
+                <select id="sch-excl-cat" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;outline:none;background:var(--paper)">
+                  <option value="">全部大項</option>
+                </select>
+              </div>
+              <div>
+                <div style="font-family:\'DM Mono\',monospace;font-size:8px;color:var(--muted);margin-bottom:4px">修別</div>
+                <select id="sch-excl-type" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;outline:none;background:var(--paper)">
+                  <option value="">全部修別</option>
+                  <option value="major">主修</option>
+                  <option value="minor">副修</option>
+                  <option value="elective">選修</option>
+                </select>
+              </div>
+              <button class="btn btn-d btn-sm" onclick="schAddExcludeRule()">＋ 加入排除</button>
+            </div>
+            <div id="sch-excl-list" style="display:flex;flex-wrap:wrap;gap:6px;min-height:28px"></div>
           </div>
         </div>
         <!-- ④ 班級 -->
@@ -3586,28 +3614,27 @@ function renderJuryTable(){
   if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
   // ★ #5 動態取得考場評分欄位
   const roomFields=getRoomFields(roomId);
-  // ★ 重建 thead：兩列 header，配合雙列 body 排版
+  // ★ 重建 thead：兩列 header，配合新版排版
+  // 排版：序(r2) | 學生資訊(r2) | 扣/缺(r2) | [所有評分欄位](r2) | 曲目欄(r2) | 備註(r2)
+  // 列2（評語列）：評語欄跨越所有評分欄位＋曲目欄
   const jthWrap=document.querySelector('#jury-table thead');
   if(jthWrap){
-    // assigned/free 欄位（有曲目格的）
-    const pieceFields=roomFields.filter(f=>['assigned','free'].includes(f.id));
-    const otherFields=roomFields.filter(f=>!['assigned','free'].includes(f.id));
-    // row1：序 | 學生資訊 | 扣缺 | [指定曲 colspan=2] | [自選曲 colspan=2] | [其他欄] | 評語 | 備註
-    // row2：（空） | （空） | （空） | 曲目 | 分數 | 曲目 | 分數 | [分數] | （空） | （空）
     const stickyBase='position:sticky;z-index:25;background:var(--ink)';
+    const scoreColCount=roomFields.length;
+    // 曲目欄 header：依後台有無 assigned/free 欄動態顯示
+    const hasA=roomFields.some(f=>f.id==='assigned');
+    const hasF=roomFields.some(f=>f.id==='free');
+    const pieceColLabel=(hasA&&hasF)?'指定曲／自選曲':hasA?'指定曲':hasF?'自選曲':'曲目';
     jthWrap.innerHTML=
       '<tr>'+
         `<th rowspan="2" style="width:28px;${stickyBase};left:0">序</th>`+
         `<th rowspan="2" style="width:120px;text-align:left;padding-left:6px;${stickyBase};left:28px">學生資訊</th>`+
         `<th rowspan="2" style="width:36px">扣/<br>缺</th>`+
-        pieceFields.map(f=>`<th colspan="2" style="min-width:232px;text-align:center;border-left:1px solid rgba(255,255,255,.15)">${f.id==='assigned'?'指定曲':f.id==='free'?'自選曲':f.label}<br><span style="font-size:7px;opacity:.6">${f.pct}%</span></th>`).join('')+
-        otherFields.map(f=>`<th rowspan="2" style="width:52px;text-align:center">${f.label}<br><span style="font-size:7px;opacity:.6">${f.pct}%</span></th>`).join('')+
-        '<th rowspan="2" style="min-width:280px;text-align:left;padding-left:8px">評語</th>'+
-        '<th rowspan="2" style="width:90px;text-align:left;padding-left:6px">備註<br><span style="font-size:7px;opacity:.6">REMARK</span></th>'+
+        roomFields.map(f=>`<th rowspan="2" style="width:58px;text-align:center;border-left:1px solid rgba(255,255,255,.15)">${f.label}<br><span style="font-size:7px;opacity:.6">${f.pct}%</span></th>`).join('')+
+        `<th rowspan="2" style="min-width:220px;text-align:left;padding-left:8px;border-left:2px solid rgba(181,137,42,.4)">${pieceColLabel}<br><span style="font-size:7px;opacity:.6;font-weight:400">作曲家 · 曲目</span></th>`+
+        `<th rowspan="2" style="width:90px;max-width:110px;text-align:left;padding-left:6px">備註<br><span style="font-size:7px;opacity:.6">REMARK</span></th>`+
       '</tr>'+
-      '<tr>'+
-        pieceFields.map(f=>`<th style="font-weight:400;font-size:8px;opacity:.7;text-align:left;padding:4px 6px;border-left:1px solid rgba(255,255,255,.15)">曲目</th><th style="width:52px;text-align:center;font-size:8px;opacity:.8">分數</th>`).join('')+
-      '</tr>';
+      '<tr></tr>';
   }
   // live exam state
   const liveState=DB.liveExam[roomId]||{};
@@ -3695,37 +3722,56 @@ function renderJuryTable(){
 
     const remarkCell=`<td class="remark-cell" style="vertical-align:top;border-left:1px solid var(--border)">${remarkSel}</td>`;
 
-    // ★ 雙列排版：列1=曲目文字，列2=分數格
-    const _pieceFields=roomFields.filter(f=>['assigned','free'].includes(f.id));
-    const _otherFields=roomFields.filter(f=>!['assigned','free'].includes(f.id));
+    // ★ 新版排版：
+    // 列1（分數＋曲目行）：序(r2) | 學生(r2) | 扣缺(r2) | [評分欄×N] | 曲目欄 | 備註(r2)
+    // 列2（評語行）      ：評語（colspan = 評分欄數+1，延伸至曲目欄下方）
+    const scoreColCount=roomFields.length;
 
-    // 列1：序(r2) | 學生(r2) | 扣缺(r2) | 曲目格x2... | 評語(r2) | 備註(r2)
+    // 指定曲／自選曲曲目格：每首一行，作曲家＋曲目同行
+    const _hasAssigned=roomFields.some(f=>f.id==='assigned');
+    const _hasFree=roomFields.some(f=>f.id==='free');
+    const pieceLineStyle=`display:flex;gap:4px;align-items:baseline;line-height:1.55;word-break:break-word;flex-wrap:wrap`;
+    const composerStyle=`font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap`;
+    const titleStyle=`font-size:11px;font-style:italic;color:var(--steel)`;
+    const labelStyle=`font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.5px;white-space:nowrap;flex-shrink:0`;
+    const pieceCellContent=
+      `<div style="padding:5px 0 4px 0">`+
+        (_hasAssigned
+          ?`<div style="${pieceLineStyle}">
+              <span style="${labelStyle}">指定</span>
+              <span style="${composerStyle}">${_ac||'<span style="color:var(--border)">—</span>'}</span>
+              ${_at?`<span style="font-size:10px;color:var(--border)">/</span><span style="${titleStyle}">${_at}</span>`:''}
+            </div>`
+          :'')+
+        (_hasFree
+          ?`<div style="${pieceLineStyle};margin-top:4px;padding-top:4px;border-top:1px dashed var(--border)">
+              <span style="${labelStyle}">自選</span>
+              <span style="${composerStyle}">${_fc||'<span style="color:var(--border)">—</span>'}</span>
+              ${_ft?`<span style="font-size:10px;color:var(--border)">/</span><span style="${titleStyle}">${_ft}</span>`:''}
+            </div>`
+          :'')+
+      `</div>`;
+
+    // 列1
     let _row1=`<tr id="jr-${i}" class="${rowClass}">`;
     _row1+=`<td rowspan="2" style="text-align:center;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);vertical-align:middle;border-right:1px solid var(--border);width:28px;padding:4px 1px;position:sticky;left:0;z-index:10;background:inherit">${String(e.order).padStart(2,'0')}</td>`;
     _row1+=`<td rowspan="2" style="padding:0;border-right:1px solid var(--border);width:120px;max-width:120px;position:sticky;left:28px;z-index:10;background:inherit">${nameCell.replace(/<td[^>]*>/,'').replace('</td>','')}</td>`;
     _row1+=`<td rowspan="2" style="border-right:1px solid var(--border);text-align:center;vertical-align:middle;width:36px">${absentCell.replace(/<td[^>]*>/,'').replace('</td>','')}</td>`;
-    _pieceFields.forEach(f=>{
-      const _c=f.id==='assigned'?_ac:_fc;
-      const _t2=f.id==='assigned'?_at:_ft;
-      _row1+=`<td style="padding:7px 10px;vertical-align:top;border-left:1px solid var(--border);min-width:180px">
-        <div style="font-size:12px;font-weight:600;color:var(--ink);word-break:break-word;line-height:1.5">${_c||'<span style=\"color:var(--border);font-family:\'DM Mono\',monospace;font-size:10px\">—</span>'}</div>
-        <div style="font-size:11px;font-style:italic;color:var(--steel);word-break:break-word;line-height:1.4;margin-top:2px">${_t2||''}</div>
-      </td>`;
+    // 所有評分欄位（分數格）
+    roomFields.forEach(f=>{
+      _row1+=`<td style="border-left:1px solid var(--border);text-align:center;padding:3px 2px;width:58px;vertical-align:middle">${sc(f.id,f.label)}</td>`;
     });
-    _row1+=`<td rowspan="2" style="padding:4px 6px;vertical-align:top;border-left:1px solid var(--border);min-width:280px">
-      <textarea class="comment-inp" id="jco-${i}" ${locked?'disabled':''} placeholder="${dq?'扣考，無需評語':'請填寫詳細評語，如音色、音準、詮釋、技巧等...'}" onblur="saveJCell(${i},'${roomId}','${entryKey}','comment',this.value)">${dq?'':(my.comment||'')}</textarea>
-    </td>`;
-    _row1+=`<td rowspan="2" style="vertical-align:top;border-left:1px solid var(--border)">${remarkSel}</td>`;
+    // 曲目欄（只在列1，列2由評語colspan覆蓋）
+    _row1+=`<td style="padding:4px 10px;vertical-align:top;border-left:2px solid var(--gold);min-width:220px;background:inherit">${pieceCellContent}</td>`;
+    // 備註欄（跨兩列）
+    _row1+=`<td rowspan="2" style="vertical-align:top;border-left:1px solid var(--border);width:90px;max-width:110px;overflow:hidden">${remarkSel}</td>`;
     _row1+='</tr>';
 
-    // 列2：分數格（指定曲分數 | 自選曲分數 | 音階等其他欄位）
+    // 列2（評語行）：colspan = 評分欄數 + 1（延伸至曲目欄下方）
     let _row2=`<tr class="${rowClass}" style="border-bottom:2px solid var(--border)">`;
-    _pieceFields.forEach(f=>{
-      _row2+=`<td style="border-left:1px solid var(--border);text-align:center;padding:3px 2px;width:52px">${sc(f.id,f.label)}</td>`;
-    });
-    _otherFields.forEach(f=>{
-      _row2+=`<td style="border-left:1px solid var(--border);text-align:center;padding:3px 2px;width:52px">${sc(f.id,f.label)}</td>`;
-    });
+    _row2+=`<td colspan="${scoreColCount+1}" style="padding:2px 4px;border-top:1px dashed var(--border);border-left:1px solid var(--border)">
+      <textarea class="comment-inp" id="jco-${i}" ${locked?'disabled':''} placeholder="${dq?'扣考，無需評語':'請填寫評語，如音色、音準、詮釋、技巧等...'}" onblur="saveJCell(${i},'${roomId}','${entryKey}','comment',this.value)" style="height:72px;font-size:12px;width:100%">${dq?'':(my.comment||'')}</textarea>
+    </td>`;
     _row2+='</tr>';
 
     rows.push(_row1+_row2);
@@ -4193,6 +4239,7 @@ function _makeDefaultSchState(){
     instOrder:[],
     typeOrder:[{key:'major',label:'主修',active:true},{key:'minor',label:'副修',active:true},{key:'elective',label:'選修',active:true}],
     classOrder:[],
+    excludeRules:[],  // [{catId, type}] 排除這些「大項×修別」組合的學生
     seatDir:1,
     extraEntries:[],
     removedEntries:new Set(),
@@ -4212,6 +4259,7 @@ function _saveRoomState(roomId){
     seatDir:SCH_STATE.seatDir,
     extraEntries:[...SCH_STATE.extraEntries],
     removedEntries:new Set(SCH_STATE.removedEntries),
+    excludeRules:[...(SCH_STATE.excludeRules||[])],
   };
 }
 function _loadRoomState(roomId){
@@ -4225,6 +4273,7 @@ function _loadRoomState(roomId){
     SCH_STATE.seatDir=saved.seatDir;
     SCH_STATE.extraEntries=[...saved.extraEntries];
     SCH_STATE.removedEntries=new Set(saved.removedEntries);
+    SCH_STATE.excludeRules=[...(saved.excludeRules||[])];
     return true; // 有存檔
   }
   return false; // 新考場，需重新初始化
@@ -4314,8 +4363,62 @@ function schInitSortUI(){
   renderSchTypeUI();
   renderSchClassUI();
   schRenderSeatBtns();
+  renderSchExcludeUI();
 }
 window.schInitSortUI=schInitSortUI;
+
+// ★ 排除規則 UI
+function renderSchExcludeUI(){
+  // 填入大項下拉
+  const catSel=document.getElementById('sch-excl-cat');
+  if(catSel){
+    const prev=catSel.value;
+    catSel.innerHTML='<option value="">全部大項</option>'+
+      DB.instruments.categories.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+    catSel.value=prev;
+  }
+  // 顯示已加入的排除規則
+  const listEl=document.getElementById('sch-excl-list');
+  if(!listEl)return;
+  const rules=SCH_STATE.excludeRules||[];
+  if(!rules.length){
+    listEl.innerHTML=`<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--border)">尚無排除規則</span>`;
+    return;
+  }
+  listEl.innerHTML='';
+  rules.forEach((r,idx)=>{
+    const catName=r.catId?DB.instruments.categories.find(c=>c.id===r.catId)?.name||r.catId:'全部大項';
+    const typeName2={major:'主修',minor:'副修',elective:'選修'}[r.type]||'全部修別';
+    const tag=document.createElement('div');
+    tag.style.cssText="display:inline-flex;align-items:center;gap:5px;padding:4px 8px;background:#f8d7da;border:1px solid var(--rust);border-radius:20px;font-family:'DM Mono',monospace;font-size:9px;color:var(--rust)";
+    tag.innerHTML=`${catName} × ${typeName2} <button onclick="schRemoveExcludeRule(${idx})" style="background:none;border:none;cursor:pointer;color:var(--rust);font-size:12px;padding:0;line-height:1;margin-left:2px">✕</button>`;
+    listEl.appendChild(tag);
+  });
+}
+window.renderSchExcludeUI=renderSchExcludeUI;
+
+function schAddExcludeRule(){
+  const catId=document.getElementById('sch-excl-cat')?.value||'';
+  const type=document.getElementById('sch-excl-type')?.value||'';
+  if(!catId&&!type){showToast('請至少選擇一個條件','warn');return;}
+  if(!SCH_STATE.excludeRules)SCH_STATE.excludeRules=[];
+  // 避免重複
+  const exists=SCH_STATE.excludeRules.some(r=>r.catId===catId&&r.type===type);
+  if(exists){showToast('此規則已存在','warn');return;}
+  SCH_STATE.excludeRules.push({catId,type});
+  renderSchExcludeUI();
+  renderSchedule();
+  showToast('排除規則已加入','ok');
+}
+window.schAddExcludeRule=schAddExcludeRule;
+
+function schRemoveExcludeRule(idx){
+  if(!SCH_STATE.excludeRules)return;
+  SCH_STATE.excludeRules.splice(idx,1);
+  renderSchExcludeUI();
+  renderSchedule();
+}
+window.schRemoveExcludeRule=schRemoveExcludeRule;
 
 function renderSchCatUI(){
   const el=document.getElementById('sch-cat-order');if(!el)return;
@@ -4494,7 +4597,20 @@ function renderSchedule(){
   const activeClasses=new Set(SCH_STATE.classOrder.filter(c=>c.active).map(c=>c.cls));
   if(activeClasses.size)entries=entries.filter(e=>activeClasses.has(e.class));
 
-  // 6. 五層排序：①大項 →②樂器 →③修別 →④班級 →⑤座號
+  // 6. 排除規則過濾（「樂器大項×修別」組合）
+  const rules=SCH_STATE.excludeRules||[];
+  if(rules.length){
+    entries=entries.filter(e=>{
+      // 若此 entry 符合任一排除規則，就過濾掉
+      return !rules.some(r=>{
+        const matchCat=!r.catId||r.catId===e.catId;
+        const matchType=!r.type||r.type===e.type;
+        return matchCat&&matchType;
+      });
+    });
+  }
+
+  // 7. 五層排序：①大項 →②樂器 →③修別 →④班級 →⑤座號
   const catIndexOf=catId=>SCH_STATE.catOrder.findIndex(c=>c.id===catId);
   const instIndexOf=id=>SCH_STATE.instOrder.findIndex(i=>i.id===id);
   const typeIndexOf=key=>SCH_STATE.typeOrder.findIndex(t=>t.key===key);
@@ -4552,6 +4668,7 @@ function schResetFilters(){
   SCH_STATE.typeOrder.forEach(t=>t.active=true);
   SCH_STATE.classOrder.forEach(c=>c.active=true);
   SCH_STATE.seatDir=1;
+  SCH_STATE.excludeRules=[];
   renderSchCatUI();renderSchInstUI();renderSchTypeUI();renderSchClassUI();schRenderSeatBtns();
   renderSchedule();
   _saveRoomState(SCH_STATE.roomId); // ★ 重設後也儲存
@@ -6993,7 +7110,7 @@ const _expose = [
   'doLookup','clearLookup',
   'openTeaModal','swTeaTab','saveTeaComment','teaWizStart','teaWizPickClass','teaWizPickStu','teaWizPickType','teaWizBack','teaWizSaveAndNext','teaWizSubmitAll','teaWizOpenDirect','openTeaStuModal','tsmFilterClass','saveTeaStu','teaWizNameSearch','teaWizS1NameSearch',
   'checkJuryBeforeSubmit','submitJuryAll','confirmSubmitJury','toggleAbsent','saveJCell',
-  'generateSchedule','exportScheduleCSV','publishSchedule','schResetFilters','schResetToRoomDefaults','schSaveSchedule','schLoadSchedule','schInitSortBar','schToggleSortKey','openDisqModal','saveDisq','removeDisq','importDisqCSV','exportDisqCSV','downloadDisqSample','renderDisqList','onSchRoomChange','schRoomCatToggle','schRoomInstToggle','openSchAddModal','schAddSearch','schAddEntry','schRestoreEntry','schRemoveEntry','schAddCurrentFilter',
+  'generateSchedule','exportScheduleCSV','publishSchedule','schResetFilters','schResetToRoomDefaults','schSaveSchedule','schLoadSchedule','schInitSortBar','schAddExcludeRule','schRemoveExcludeRule','renderSchExcludeUI','schToggleSortKey','openDisqModal','saveDisq','removeDisq','importDisqCSV','exportDisqCSV','downloadDisqSample','renderDisqList','onSchRoomChange','schRoomCatToggle','schRoomInstToggle','openSchAddModal','schAddSearch','schAddEntry','schRestoreEntry','schRemoveEntry','schAddCurrentFilter',
   'openAddDisqIndividual','adimSearch','adimSelect','saveDisqIndividual',
   'renderTeaSchedulePage','teaSchSelectRoom',
   'swAdminTab','swUserTab',
@@ -7017,7 +7134,7 @@ const _expose = [
   'renderJsupAdminPanel','renderJsupOptsList','addJsupOption','jsupUpdateOptLabel','jsupUpdateOptFlag','jsupDelOption','saveJurySignupConfig','renderJsupAdminTable','exportJsupCSV',
 ];
 // ★ 安全暴露到 window（不用 eval，改用函數名對照表）
-const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schResetToRoomDefaults,schSaveSchedule,schLoadSchedule,schInitSortBar,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveBulletin,renderBulletin,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,teaInlineToggle,teaInlineEdit,teaInlineSave,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,renderJsupAdminTable,exportJsupCSV};
+const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schResetToRoomDefaults,schSaveSchedule,schLoadSchedule,schInitSortBar,schAddExcludeRule,schRemoveExcludeRule,renderSchExcludeUI,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveBulletin,renderBulletin,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,teaInlineToggle,teaInlineEdit,teaInlineSave,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,renderJsupAdminTable,exportJsupCSV};
 Object.keys(_fnMap).forEach(function(name){ window[name] = _fnMap[name]; });
 
 // ★ 頁面載入後立即從 Firebase 同步 users，讓登入時帳密是最新狀態
