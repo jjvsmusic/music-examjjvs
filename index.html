@@ -1354,7 +1354,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
           <button class="btn btn-g btn-sm" onclick="schSaveSchedule()">💾 存檔排程（同步評審/監考）</button>
           <button class="btn btn-s btn-sm" onclick="schResetFilters()">↺ 重設</button>
             <button class="btn btn-b btn-sm" onclick="schResetToRoomDefaults()" title="依目前考場的分類自動勾選對應樂器">↺ 依考場重設</button>
-          <button class="btn btn-g btn-sm" onclick="openSchAddModal()">＋ 加入名單</button>
+          <button class="btn btn-g btn-sm" onclick="openSchAddModal()">＋ 手動加入學生</button>
           <button class="btn btn-b btn-sm" onclick="exportScheduleCSV()">↓ 匯出 CSV</button>
           <button class="btn btn-g btn-sm" onclick="publishSchedule()">📢 公告學生</button>
           <span id="sch-count" style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-left:4px"></span>
@@ -1424,7 +1424,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
             <button class="btn btn-p btn-sm" onclick="adminStuFilterClass('',this)">全部班級</button>
           </div>
           <div class="tw"><table>
-            <thead><tr><th style="width:32px;text-align:center"><input type="checkbox" id="stu-chk-all" onclick="toggleAllCheck('student',this)" title="全選／取消全選" style="cursor:pointer;width:14px;height:14px"></th><th>班級</th><th>座號</th><th>姓名</th><th>主修</th><th>副修</th><th>選修</th><th>填報</th><th>評量</th><th>操作</th></tr></thead>
+            <thead><tr><th style="width:32px;text-align:center"><input type="checkbox" id="stu-chk-all" onclick="toggleAllCheck('student',this)" title="全選／取消全選" style="cursor:pointer;width:14px;height:14px"></th><th>班級</th><th>座號</th><th>姓名</th><th>主修</th><th>副修</th><th>選修</th><th style="min-width:130px">分配考場</th><th>填報</th><th>評量</th><th>操作</th></tr></thead>
             <tbody id="admin-stu-tbody"></tbody>
           </table></div>
         </div>
@@ -1529,7 +1529,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
           <div class="card-t">各考場評分欄位設定</div>
           <p style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-bottom:14px;line-height:1.8">
             每個考場可分別設定評分欄位與百分比比重。每個欄位可新增多條「排除條件」（大項 × 修別 × 班級，空白=不限，同條件內 AND，多條件 OR），符合條件的考生此欄自動標 <strong style="color:var(--orange)">*</strong> 不計分。<br>
-            <strong>分數比例說明：</strong>各欄 % 比重為相對權重，系統計分時只計算該考生有效（非 *）的欄位，並將其比重自動重新正規化為 100%。例如：音階 20% / 指定 40% / 自選 40%，若某考生音階欄為 *，則實際計算為指定 50% / 自選 50%。評語欄固定存在，無需設定。
+            <strong>分數比例說明：</strong>各欄 % 直接採用您所填的數值計算，<u>不會</u>自動正規化。例如音階 20% / 指定 40% / 自選 40%，若某考生指定欄為 *，則該生以 音階 20% / 自選 40%（合計 60%）計分，管理員可依此彈性設定每欄比重（如音階 20% / 指定 0% / 自選 80%）。評語欄固定存在，無需設定。
           </p>
           <div id="room-fields-body"></div>
         </div>
@@ -3013,7 +3013,8 @@ function _findRoomForCat(catId){
 }
 window._findRoomForCat=_findRoomForCat;
 function getScheduleEntries(){
-  // 每個學生/樂器在「所有含此 cat 的考場」各生成一筆 entry（支援同樂器多考場）
+  // ★ 每個學生每個修別都放入「全部考場清單」，roomId 固定為當前排程選擇的考場。
+  // 考場歸屬完全由排程篩選決定，不依賴 allowedCats。
   const entries=[];
   students().forEach(s=>{
     const types=[];
@@ -3023,23 +3024,23 @@ function getScheduleEntries(){
     types.forEach(t=>{
       const inst=DB.instruments.items.find(i=>i.id===t.instId);
       const cat=inst?DB.instruments.categories.find(c=>c.id===inst.cat):null;
-      // 找所有含此 cat 的考場
-      const matchRooms=DB.rooms.filter(r=>(r.allowedCats||r.cats||[]).includes(inst?.cat));
-      const rooms=matchRooms.length?matchRooms:[_findRoomForCat(inst?.cat)||{id:'',name:'—',location:''}];
-      rooms.forEach(room=>{
-        entries.push({
-          studentId:s.id,name:s.name,class:s.class,seat:s.seat,
-          instId:t.instId,instName:iname(t.instId),catId:inst?.cat,catOrder:cat?.order??99,
-          type:t.type,typeOrder:{major:0,minor:1,elective:2}[t.type],
-          ac:t.ac||'',at:t.at||'',fc:t.fc||'',ft:t.ft||'',
-          roomId:room?.id||'',roomName:room?.name||'—',roomLocation:room?.location||'',order:0,
-        });
+      // 每個修別產生一筆 entry，roomId 由排程篩選時的 SCH_STATE.roomId 決定
+      // 此處 roomId 預設空字串，renderSchedule 過濾時再比對
+      entries.push({
+        studentId:s.id,name:s.name,class:s.class,seat:s.seat,
+        instId:t.instId,instName:iname(t.instId),catId:inst?.cat,catOrder:cat?.order??99,
+        type:t.type,typeOrder:{major:0,minor:1,elective:2}[t.type],
+        ac:t.ac||'',at:t.at||'',fc:t.fc||'',ft:t.ft||'',
+        roomId:SCH_STATE?.roomId||'',
+        roomName:SCH_STATE?.roomId?(DB.rooms.find(r=>r.id===SCH_STATE.roomId)?.name||'—'):'全部考場',
+        roomLocation:SCH_STATE?.roomId?(DB.rooms.find(r=>r.id===SCH_STATE.roomId)?.location||''):'',
+        order:0,
       });
     });
   });
   entries.sort((a,b)=>a.catOrder-b.catOrder||a.typeOrder-b.typeOrder||DB.classes.indexOf(a.class)-DB.classes.indexOf(b.class)||a.seat-b.seat);
-  let roomCnt={};
-  entries.forEach(e=>{if(!roomCnt[e.roomId])roomCnt[e.roomId]=0;roomCnt[e.roomId]++;e.order=roomCnt[e.roomId];});
+  let cnt=0;
+  entries.forEach(e=>{e.order=++cnt;});
   return entries;
 }
 
@@ -4676,9 +4677,9 @@ function renderSchedule(){
     });
   });
 
-  // 1. 考場篩選
+  // 1. 考場篩選（entry 的 roomId 已由 getScheduleEntries 依 SCH_STATE.roomId 設定）
   const roomId=SCH_STATE.roomId;
-  if(roomId)entries=entries.filter(e=>e.roomId===roomId);
+  // 已在 getScheduleEntries 層設定 roomId，此處不需再過濾
 
   // 2. 樂器大項篩選（過濾：只顯示勾選大項的學生）
   const activeCats=new Set(SCH_STATE.catOrder.filter(c=>c.active).map(c=>c.id));
@@ -4828,8 +4829,9 @@ function schSaveSchedule(){
   // 快照 = 各考場依目前排序/篩選後的完整 entry 清單（含 order）
   const snapshot={};
   DB.rooms.forEach(room=>{
-    // 暫時切換 SCH_STATE 到此考場以套用其篩選狀態，再切回
+    // 暫時切換 SCH_STATE.roomId 到此考場（讓 getScheduleEntries 產生正確 roomId）
     const prevRoomId=SCH_STATE.roomId;
+    SCH_STATE.roomId=room.id;
     _loadRoomState(room.id);
     const prevEntries=_buildFilteredEntries(room.id);
     snapshot[room.id]=prevEntries.map((e,idx)=>({
@@ -4885,7 +4887,7 @@ function _buildFilteredEntries(roomId){
       _extra:true,
     });
   });
-  if(roomId)entries=entries.filter(e=>e.roomId===roomId);
+  // roomId 已由 getScheduleEntries 設定，不再過濾
   const activeCats=new Set(SCH_STATE.catOrder.filter(c=>c.active).map(c=>c.id));
   if(activeCats.size)entries=entries.filter(e=>activeCats.has(e.catId));
   const activeInsts=new Set(SCH_STATE.instOrder.filter(i=>i.active).map(i=>i.id));
@@ -5271,18 +5273,37 @@ function renderAdminStudents(){
     tbody.innerHTML='<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--muted);font-family:\'DM Mono\',monospace;font-size:11px">此班級無學生資料</td></tr>';
     return;
   }
-  tbody.innerHTML=stus.map(s=>`<tr>
+  // 建立學生→考場對照表（從快照）
+  const stuRoomMap={};
+  Object.entries(DB.savedScheduleSnapshot||{}).forEach(([roomId,snaps])=>{
+    const rName=DB.rooms.find(r=>r.id===roomId)?.name||roomId;
+    (snaps||[]).forEach(snap=>{
+      if(!stuRoomMap[snap.studentId])stuRoomMap[snap.studentId]={major:[],minor:[],elective:[]};
+      if(snap.type==='major'&&!stuRoomMap[snap.studentId].major.includes(rName))stuRoomMap[snap.studentId].major.push(rName);
+      if(snap.type==='minor'&&!stuRoomMap[snap.studentId].minor.includes(rName))stuRoomMap[snap.studentId].minor.push(rName);
+      if(snap.type==='elective'&&!stuRoomMap[snap.studentId].elective.includes(rName))stuRoomMap[snap.studentId].elective.push(rName);
+    });
+  });
+  tbody.innerHTML=stus.map(s=>{
+    const rm=stuRoomMap[s.id]||{major:[],minor:[],elective:[]};
+    const roomCell=[
+      s.major?`<div style="font-size:10px;font-family:'DM Mono',monospace"><span style="color:var(--muted)">主</span> ${rm.major.length?rm.major.join('、'):'<span style="color:var(--border)">未分配</span>'}</div>`:'',
+      s.minor?`<div style="font-size:10px;font-family:'DM Mono',monospace"><span style="color:var(--muted)">副</span> ${rm.minor.length?rm.minor.join('、'):'<span style="color:var(--border)">未分配</span>'}</div>`:'',
+      s.elective?`<div style="font-size:10px;font-family:'DM Mono',monospace"><span style="color:var(--muted)">選</span> ${rm.elective.length?rm.elective.join('、'):'<span style="color:var(--border)">未分配</span>'}</div>`:'',
+    ].filter(Boolean).join('')||'<span style="color:var(--border);font-size:10px">—</span>';
+    return `<tr>
     <td style="text-align:center"><input type="checkbox" class="stu-chk" data-id="${s.id}" onchange="updateBulkBar('student')" style="cursor:pointer;width:14px;height:14px"></td>
     <td><strong style="color:var(--ink)">${s.class}</strong></td>
-    <td style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--ink)">${s.seat}</td>
+    <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--ink)">${s.seat}</td>
     <td><strong style="color:var(--ink)">${s.name}</strong></td>
     <td style="color:var(--ink)">${iname(s.major)||'—'}</td>
     <td style="color:var(--muted)">${iname(s.minor)||'—'}</td>
     <td style="color:var(--muted)">${iname(s.elective)||'—'}</td>
+    <td style="vertical-align:top;padding-top:6px">${roomCell}</td>
     <td style="text-align:center"><span class="dot ${s.repDone?'dg':'dr'}" title="${s.repDone?'已填報':'未填報'}"></span></td>
     <td style="text-align:center"><span class="dot ${s.teaDone?'dg':'dr'}" title="${s.teaDone?'已評量':'未評量'}"></span></td>
     <td><div class="bg"><button class="btn btn-s btn-xs" onclick="editUser('${s.id}')">編輯</button><button class="btn btn-s btn-xs" onclick="resetUserPwd('${s.id}')">重置</button><button class="btn btn-d btn-xs" onclick="deleteUser('${s.id}')">刪</button></div></td>
-  </tr>`).join('');
+  </tr>`;}).join('');
   // 每次重繪後重設全選狀態
   const allChk=document.getElementById('stu-chk-all');
   if(allChk)allChk.checked=false;
