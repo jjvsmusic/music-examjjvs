@@ -1294,11 +1294,11 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
             <div id="sch-type-order" style="display:flex;flex-wrap:wrap;gap:6px"></div>
           </div>
         </div>
-        <!-- ⑥ 排除規則（樂器大項 × 修別） -->
+        <!-- ⑥ 排除規則（樂器大項 × 修別 × 班級） -->
         <div style="border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;overflow:hidden">
           <div style="background:var(--rust);padding:8px 14px;display:flex;align-items:center;gap:8px">
-            <span style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:1.5px;font-weight:600;color:#fff">⑥ 排除過濾（樂器大項 × 修別）</span>
-            <span style="font-family:\'DM Mono\',monospace;font-size:8px;color:rgba(255,255,255,.6)">設定後，符合條件的學生不列入出場名單</span>
+            <span style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:1.5px;font-weight:600;color:#fff">⑥ 排除過濾（樂器大項 × 修別 × 班級）</span>
+            <span style="font-family:\'DM Mono\',monospace;font-size:8px;color:rgba(255,255,255,.6)">三個條件為 AND；多條規則為 OR。比對學生所有修別的樂器大項。</span>
           </div>
           <div style="padding:10px 14px;background:var(--white)">
             <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px">
@@ -1315,6 +1315,12 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
                   <option value="major">主修</option>
                   <option value="minor">副修</option>
                   <option value="elective">選修</option>
+                </select>
+              </div>
+              <div>
+                <div style="font-family:\'DM Mono\',monospace;font-size:8px;color:var(--muted);margin-bottom:4px">班級</div>
+                <select id="sch-excl-cls" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;outline:none;background:var(--paper)">
+                  <option value="">全部班級</option>
                 </select>
               </div>
               <button class="btn btn-d btn-sm" onclick="schAddExcludeRule()">＋ 加入排除</button>
@@ -1522,8 +1528,8 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
         <div class="card" style="margin-top:14px">
           <div class="card-t">各考場評分欄位設定</div>
           <p style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-bottom:14px;line-height:1.8">
-            每個考場可分別設定評分欄位與百分比比重。每個欄位可新增多條「排除條件」（大項 × 修別 × 班級，空白=不限），符合任一條件的考生此欄自動標 <strong style="color:var(--orange)">*</strong> 不計分。<br>
-            不同考生因適用欄位不同，百分比系統計分時自動對剩餘有效欄位重新正規化。評語欄固定存在，無需設定。
+            每個考場可分別設定評分欄位與百分比比重。每個欄位可新增多條「排除條件」（大項 × 修別 × 班級，空白=不限，同條件內 AND，多條件 OR），符合條件的考生此欄自動標 <strong style="color:var(--orange)">*</strong> 不計分。<br>
+            <strong>分數比例說明：</strong>各欄 % 比重為相對權重，系統計分時只計算該考生有效（非 *）的欄位，並將其比重自動重新正規化為 100%。例如：音階 20% / 指定 40% / 自選 40%，若某考生音階欄為 *，則實際計算為指定 50% / 自選 50%。評語欄固定存在，無需設定。
           </p>
           <div id="room-fields-body"></div>
         </div>
@@ -1949,11 +1955,32 @@ function isFieldSkipped(field, entry){
   if(!field)return false;
   const rules=field.skipRules||[];
   if(!rules.length)return false;
+
+  // 取得此學生在 DB 中的完整資料，以便查各修別的樂器大項
+  const stu=DB.users.find(u=>u.id===entry.studentId)||{};
+
   return rules.some(r=>{
-    const matchCat=!r.catId||r.catId===entry.catId;
-    const matchType=!r.type||r.type===entry.type;
+    // ① 班級條件（空=不限）
     const matchCls=!r.cls||r.cls===entry.class;
-    return matchCat&&matchType&&matchCls;
+    if(!matchCls)return false;
+
+    // ② 若規則大項與修別皆空 → 僅靠班級判斷
+    if(!r.catId&&!r.type)return true;
+
+    // ③ 若只指定修別、不指定大項 → 學生有該修別即符合
+    if(r.type&&!r.catId){
+      return !!stu[r.type];
+    }
+
+    // ④ 若有指定大項：遍歷學生「所有修別」，找樂器大項 = r.catId 的
+    //    若同時指定修別，則只查那個修別；否則查全部三個修別
+    const typesToCheck=r.type?[r.type]:['major','minor','elective'];
+    return typesToCheck.some(t=>{
+      const instId=stu[t];
+      if(!instId)return false;
+      const inst=DB.instruments.items.find(i=>i.id===instId);
+      return inst&&inst.cat===r.catId;
+    });
   });
 }
 window.isFieldSkipped=isFieldSkipped;
@@ -4440,6 +4467,14 @@ function renderSchExcludeUI(){
       DB.instruments.categories.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
     catSel.value=prev;
   }
+  // 填入班級下拉
+  const clsSel=document.getElementById('sch-excl-cls');
+  if(clsSel){
+    const prev=clsSel.value;
+    clsSel.innerHTML='<option value="">全部班級</option>'+
+      DB.classes.map(c=>`<option value="${c}">${c}</option>`).join('');
+    clsSel.value=prev;
+  }
   // 顯示已加入的排除規則
   const listEl=document.getElementById('sch-excl-list');
   if(!listEl)return;
@@ -4452,9 +4487,10 @@ function renderSchExcludeUI(){
   rules.forEach((r,idx)=>{
     const catName=r.catId?DB.instruments.categories.find(c=>c.id===r.catId)?.name||r.catId:'全部大項';
     const typeName2={major:'主修',minor:'副修',elective:'選修'}[r.type]||'全部修別';
+    const clsName=r.cls||'全部班級';
     const tag=document.createElement('div');
     tag.style.cssText="display:inline-flex;align-items:center;gap:5px;padding:4px 8px;background:#f8d7da;border:1px solid var(--rust);border-radius:20px;font-family:'DM Mono',monospace;font-size:9px;color:var(--rust)";
-    tag.innerHTML=`${catName} × ${typeName2} <button onclick="schRemoveExcludeRule(${idx})" style="background:none;border:none;cursor:pointer;color:var(--rust);font-size:12px;padding:0;line-height:1;margin-left:2px">✕</button>`;
+    tag.innerHTML=`${catName} × ${typeName2} × ${clsName} <button onclick="schRemoveExcludeRule(${idx})" style="background:none;border:none;cursor:pointer;color:var(--rust);font-size:12px;padding:0;line-height:1;margin-left:2px">✕</button>`;
     listEl.appendChild(tag);
   });
 }
@@ -4463,12 +4499,12 @@ window.renderSchExcludeUI=renderSchExcludeUI;
 function schAddExcludeRule(){
   const catId=document.getElementById('sch-excl-cat')?.value||'';
   const type=document.getElementById('sch-excl-type')?.value||'';
-  if(!catId&&!type){showToast('請至少選擇一個條件','warn');return;}
+  const cls=document.getElementById('sch-excl-cls')?.value||'';
+  if(!catId&&!type&&!cls){showToast('請至少選擇一個條件','warn');return;}
   if(!SCH_STATE.excludeRules)SCH_STATE.excludeRules=[];
-  // 避免重複
-  const exists=SCH_STATE.excludeRules.some(r=>r.catId===catId&&r.type===type);
+  const exists=SCH_STATE.excludeRules.some(r=>r.catId===catId&&r.type===type&&r.cls===cls);
   if(exists){showToast('此規則已存在','warn');return;}
-  SCH_STATE.excludeRules.push({catId,type});
+  SCH_STATE.excludeRules.push({catId,type,cls});
   renderSchExcludeUI();
   renderSchedule();
   showToast('排除規則已加入','ok');
@@ -4660,15 +4696,26 @@ function renderSchedule(){
   const activeClasses=new Set(SCH_STATE.classOrder.filter(c=>c.active).map(c=>c.cls));
   if(activeClasses.size)entries=entries.filter(e=>activeClasses.has(e.class));
 
-  // 6. 排除規則過濾（「樂器大項×修別」組合）
+  // 6. 排除規則過濾（樂器大項 × 修別 × 班級，比對學生所有修別的樂器大項）
   const rules=SCH_STATE.excludeRules||[];
   if(rules.length){
     entries=entries.filter(e=>{
-      // 若此 entry 符合任一排除規則，就過濾掉
+      const stu=DB.users.find(u=>u.id===e.studentId)||{};
       return !rules.some(r=>{
-        const matchCat=!r.catId||r.catId===e.catId;
-        const matchType=!r.type||r.type===e.type;
-        return matchCat&&matchType;
+        // 班級
+        const matchCls=!r.cls||r.cls===e.class;
+        if(!matchCls)return false;
+        // 若只指定班級（大項與修別皆空）
+        if(!r.catId&&!r.type)return true;
+        // 若只指定修別不指定大項
+        if(r.type&&!r.catId)return !!stu[r.type];
+        // 若指定大項：遍歷學生所有修別找樂器大項是否符合
+        const typesToCheck=r.type?[r.type]:['major','minor','elective'];
+        return typesToCheck.some(t=>{
+          const instId=stu[t];if(!instId)return false;
+          const inst=DB.instruments.items.find(i=>i.id===instId);
+          return inst&&inst.cat===r.catId;
+        });
       });
     });
   }
@@ -4848,7 +4895,23 @@ function _buildFilteredEntries(roomId){
   const activeClasses=new Set(SCH_STATE.classOrder.filter(c=>c.active).map(c=>c.cls));
   if(activeClasses.size)entries=entries.filter(e=>activeClasses.has(e.class));
   const rules=SCH_STATE.excludeRules||[];
-  if(rules.length)entries=entries.filter(e=>!rules.some(r=>(!r.catId||r.catId===e.catId)&&(!r.type||r.type===e.type)));
+  if(rules.length){
+    entries=entries.filter(e=>{
+      const stu=DB.users.find(u=>u.id===e.studentId)||{};
+      return !rules.some(r=>{
+        const matchCls=!r.cls||r.cls===e.class;
+        if(!matchCls)return false;
+        if(!r.catId&&!r.type)return true;
+        if(r.type&&!r.catId)return !!stu[r.type];
+        const typesToCheck=r.type?[r.type]:['major','minor','elective'];
+        return typesToCheck.some(t=>{
+          const instId=stu[t];if(!instId)return false;
+          const inst=DB.instruments.items.find(i=>i.id===instId);
+          return inst&&inst.cat===r.catId;
+        });
+      });
+    });
+  }
   const catIndexOf=catId=>SCH_STATE.catOrder.findIndex(c=>c.id===catId);
   const instIndexOf=id=>SCH_STATE.instOrder.findIndex(i=>i.id===id);
   const typeIndexOf=key=>SCH_STATE.typeOrder.findIndex(t=>t.key===key);
@@ -5639,8 +5702,8 @@ function addRoom(){
       <div class="fg"><label>考試日期時間（開始）</label><input type="datetime-local" id="rm-date-start"></div>
       <div class="fg"><label>考試日期時間（結束）</label><input type="datetime-local" id="rm-date-end"></div>
     </div>
-    <div class="fg"><label>此考場包含的樂器大項（複選）</label>
-      <div style="background:var(--cream);padding:12px;border-radius:var(--r);margin-top:4px" id="rm-cats">${catCheckboxes}</div>
+    <div style="padding:8px 10px;background:var(--cream);border-radius:var(--r);font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);line-height:1.7">
+      💡 樂器篩選請至「考試排程」頁面設定，無需在此勾選。
     </div>`;
   document.getElementById('edit-modal-save').onclick=()=>{
     const name=document.getElementById('rm-name').value.trim();
@@ -5649,9 +5712,8 @@ function addRoom(){
     const dateStart=document.getElementById('rm-date-start').value||'';
     const dateEnd=document.getElementById('rm-date-end').value||'';
     if(!name||!code){showToast('請填寫名稱及代碼','err');return;}
-    const cats=[...document.querySelectorAll('#rm-cats input[type=checkbox]:checked')].map(cb=>cb.value);
     const invigCode=document.getElementById('rm-invig-code').value.trim()||('I-'+code);
-    const nr={id:'r'+Date.now(),name,code,invigCode,location,dateStart,dateEnd,cats,allowedCats:cats,allowedItems:[]};
+    const nr={id:'r'+Date.now(),name,code,invigCode,location,dateStart,dateEnd,allowedCats:[],cats:[],allowedItems:[]};
     DB.rooms.push(nr);fbSet('rooms',nr.id,{...nr,_order:DB.rooms.length-1});
     closeOverlay('edit-modal');showToast('已新增 '+name,'ok');renderRooms();initDropdowns();
   };
@@ -5676,8 +5738,8 @@ function editRoom(id){
       <div class="fg"><label>考試日期時間（開始）</label><input type="datetime-local" id="rm-date-start" value="${r.dateStart||''}" ></div>
       <div class="fg"><label>考試日期時間（結束）</label><input type="datetime-local" id="rm-date-end" value="${r.dateEnd||''}" ></div>
     </div>
-    <div class="fg"><label>此考場包含的樂器大項（複選）</label>
-      <div style="background:var(--cream);padding:12px;border-radius:var(--r);margin-top:4px" id="rm-cats">${catCheckboxes}</div>
+    <div style="padding:8px 10px;background:var(--cream);border-radius:var(--r);font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);line-height:1.7">
+      💡 樂器篩選請至「考試排程」頁面設定，無需在此勾選。
     </div>`;
   document.getElementById('edit-modal-save').onclick=()=>{
     r.name=document.getElementById('rm-name').value.trim()||r.name;
@@ -5686,8 +5748,6 @@ function editRoom(id){
     r.location=document.getElementById('rm-location').value.trim();
     r.dateStart=document.getElementById('rm-date-start').value||'';
     r.dateEnd=document.getElementById('rm-date-end').value||'';
-    const cats=[...document.querySelectorAll('#rm-cats input[type=checkbox]:checked')].map(cb=>cb.value);
-    if(cats.length){r.allowedCats=cats;r.cats=cats;}
     fbSet('rooms',r.id,{...r,_order:DB.rooms.indexOf(r)});
     closeOverlay('edit-modal');showToast('已更新','ok');renderRooms();initDropdowns();
   };
