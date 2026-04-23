@@ -1522,8 +1522,8 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
         <div class="card" style="margin-top:14px">
           <div class="card-t">各考場評分欄位設定</div>
           <p style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-bottom:14px;line-height:1.8">
-            每個考場可分別設定評分欄位名稱與百分比權重。評語欄固定存在，無需設定。<br>
-            <strong>提示：</strong>各欄百分比合計將自動正規化為 100%。
+            每個考場可分別設定評分欄位與百分比比重。每個欄位可新增多條「排除條件」（大項 × 修別 × 班級，空白=不限），符合任一條件的考生此欄自動標 <strong style="color:var(--orange)">*</strong> 不計分。<br>
+            不同考生因適用欄位不同，百分比系統計分時自動對剩餘有效欄位重新正規化。評語欄固定存在，無需設定。
           </p>
           <div id="room-fields-body"></div>
         </div>
@@ -1929,16 +1929,34 @@ const iname = id => DB.instruments.items.find(i=>i.id===id)?.name||'—';
 function getRoomFields(roomId){
   const room=DB.rooms.find(r=>r.id===roomId);
   if(room&&room.scoreFields&&room.scoreFields.length){
-    // Normalize percentages to sum=100
     const total=room.scoreFields.reduce((s,f)=>s+(f.pct||0),0);
-    return room.scoreFields.map(f=>({...f,pct:total?Math.round((f.pct||0)/total*100):Math.round(100/room.scoreFields.length)}));
+    return room.scoreFields.map(f=>({
+      ...f,
+      pct:total?Math.round((f.pct||0)/total*100):Math.round(100/room.scoreFields.length),
+      // skipRules: [{catId,type,cls}] — 符合任一rule（AND內部條件）即 skip
+      skipRules:f.skipRules||[],
+    }));
   }
   return [
-    {id:'scale',label:'音階/視奏',pct:Math.round((DB.config.weights?.scale||0.2)*100)},
-    {id:'assigned',label:'指定曲',pct:Math.round((DB.config.weights?.assigned||0.4)*100)},
-    {id:'free',label:'自選曲',pct:Math.round((DB.config.weights?.free||0.4)*100)},
+    {id:'scale',label:'音階/視奏',pct:Math.round((DB.config.weights?.scale||0.2)*100),skipRules:[]},
+    {id:'assigned',label:'指定曲',pct:Math.round((DB.config.weights?.assigned||0.4)*100),skipRules:[]},
+    {id:'free',label:'自選曲',pct:Math.round((DB.config.weights?.free||0.4)*100),skipRules:[]},
   ];
 }
+
+// ★ 判斷某 entry 是否被某欄的 skipRules 命中（任一 rule OR；rule 內各條件 AND，空=不限）
+function isFieldSkipped(field, entry){
+  if(!field)return false;
+  const rules=field.skipRules||[];
+  if(!rules.length)return false;
+  return rules.some(r=>{
+    const matchCat=!r.catId||r.catId===entry.catId;
+    const matchType=!r.type||r.type===entry.type;
+    const matchCls=!r.cls||r.cls===entry.class;
+    return matchCat&&matchType&&matchCls;
+  });
+}
+window.isFieldSkipped=isFieldSkipped;
 window.getRoomFields=getRoomFields;
 const cname = id => DB.instruments.categories.find(c=>c.id===id)?.name||'';
 const students = () => DB.users.filter(u=>u.role==='student');
@@ -3690,13 +3708,22 @@ function renderJuryTable(){
     else if(isBlack)rowClass='jst-row-black';
     else if(isLive)rowClass='jst-row-live';
 
-    // ★ #5 分數格（支援 * 跳過 + 動態欄位名稱）
-    const sc=(f,lbl)=>{
-      const v=locked?'0':(my[f]??'');
+    // ★ 分數格（支援 * 跳過 + 動態欄位名稱 + 自動 skip 判斷）
+    const sc=(f,lbl,fieldDef)=>{
+      const autoSkip=fieldDef?isFieldSkipped(fieldDef,e):false;
+      const rawVal=my[f]??'';
+      const effectiveLocked=locked||autoSkip;
+      const v=autoSkip?'*':(locked?'0':rawVal);
       const isSkipVal=v==='*';
-      const isEmpty=!isSkipVal&&(v===''||v===null||v===undefined);
-      const red=!isSkipVal&&!isEmpty&&parseFloat(v)<60;
-      return `<input class="score-inp${isEmpty&&!locked?' empty-warn':''}${red?' red-score':''}" id="js-${f}-${i}" type="text" inputmode="decimal" value="${locked?'0':(isSkipVal?'*':v)}" placeholder="${locked?'0':'—'}" ${locked?'disabled':''} style="${isSkipVal?'color:var(--orange);font-weight:700':''}" onclick="if(!this.disabled)openNP('js-${f}-${i}','${lbl||f}',v=>{saveJCell(${i},'${roomId}','${entryKey}','${f}',v);})" readonly>`;
+      const isEmpty=!isSkipVal&&!effectiveLocked&&(rawVal===''||rawVal===null||rawVal===undefined);
+      const red=!isSkipVal&&!effectiveLocked&&!isEmpty&&parseFloat(v)<60;
+      const skipStyle=autoSkip?'background:rgba(202,111,30,0.08);color:var(--orange);font-weight:700;cursor:not-allowed':isSkipVal?'color:var(--orange);font-weight:700':'';
+      if(autoSkip&&rawVal!=='*'&&!locked){
+        if(!DB.juryScores[roomId][entryKey])DB.juryScores[roomId][entryKey]={};
+        if(!DB.juryScores[roomId][entryKey][myId])DB.juryScores[roomId][entryKey][myId]={};
+        DB.juryScores[roomId][entryKey][myId][f]='*';
+      }
+      return `<input class="score-inp${isEmpty?' empty-warn':''}${red?' red-score':''}" id="js-${f}-${i}" type="text" inputmode="decimal" value="${isSkipVal?'*':(effectiveLocked?'0':rawVal)}" placeholder="—" ${effectiveLocked?'disabled':''} style="${skipStyle}" title="${autoSkip?'管理員設定：此欄不適用此學生（不計分）':''}" onclick="if(!this.disabled)openNP('js-${f}-${i}','${lbl||f}',v=>{saveJCell(${i},'${roomId}','${entryKey}','${f}',v);})" readonly>`;
     };
 
     // 曲目格（直接從 DB.users 取最新填報值，確保永遠顯示最新資料）
@@ -3723,14 +3750,14 @@ function renderJuryTable(){
           <input type="checkbox" ${absent?'checked':''} onchange="toggleAbsent(${i},'${roomId}','${entryKey}')" style="width:16px;height:16px;cursor:pointer;accent-color:var(--rust)">
         </td>`;
 
-    // 學生資訊欄
-    const nameCell=`<td class="s-name-col" style="vertical-align:middle;padding:5px 7px;position:sticky;left:28px;z-index:10;background:inherit">
-      <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:112px" title="${e.name}">${e.name}${isLive?`<span class="live-badge" style="margin-left:4px">🎵</span>`:''}${isLive&&liveScaleKey?`<span class="scale-key-badge">${liveScaleKey}</span>`:''}
+    // 學生資訊欄（字體放大、顏色清楚、寬度保持120px讓文字自然換行）
+    const nameCell=`<td class="s-name-col" style="vertical-align:middle;padding:5px 7px;position:sticky;left:28px;z-index:10;background:inherit;width:120px;max-width:120px">
+      <div style="font-size:14px;font-weight:800;color:var(--ink);word-break:break-word;white-space:normal;line-height:1.3;letter-spacing:.2px" title="${e.name}">${e.name}${isLive?`<span class="live-badge" style="margin-left:4px;font-size:11px">🎵</span>`:''}${isLive&&liveScaleKey?`<span class="scale-key-badge">${liveScaleKey}</span>`:''}
       </div>
-      <div style="font-family:\'DM Mono\',monospace;font-size:7.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:112px">${e.class}·座${e.seat}</div>
-      <div style="font-family:\'DM Mono\',monospace;font-size:7.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:112px">${e.instName}·${typeName(e.type)}</div>
-      ${isBlack?`<div class="black-sign-badge">黑簽全曲</div>`:''}
-      ${dq?`<div style="font-size:7px;color:var(--red);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:112px" title="⛔ ${dq.reason}">⛔ ${dq.reason}</div>`:''}
+      <div style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--steel);font-weight:600;margin-top:3px;line-height:1.4">${e.class} · 座${e.seat}</div>
+      <div style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--ink);margin-top:1px;word-break:break-word;white-space:normal;line-height:1.4">${e.instName} <span style="color:var(--muted)">·</span> ${typeName(e.type)}</div>
+      ${isBlack?`<div class="black-sign-badge" style="margin-top:3px">黑簽全曲</div>`:''}
+      ${dq?`<div style="font-size:9px;font-weight:700;color:var(--red);word-break:break-word;white-space:normal;margin-top:2px" title="⛔ ${dq.reason}">⛔ ${dq.reason}</div>`:''}
     </td>`;
 
     // 備註欄
@@ -3781,7 +3808,8 @@ function renderJuryTable(){
     _row1+=`<td rowspan="2" style="border-right:1px solid var(--border);text-align:center;vertical-align:middle;width:36px">${absentCell.replace(/<td[^>]*>/,'').replace('</td>','')}</td>`;
     // 所有評分欄位（分數格）
     roomFields.forEach(f=>{
-      _row1+=`<td style="border-left:1px solid var(--border);text-align:center;padding:3px 2px;width:58px;vertical-align:middle">${sc(f.id,f.label)}</td>`;
+      const isAutoSkip=isFieldSkipped(f,e);
+      _row1+=`<td style="border-left:1px solid var(--border);text-align:center;padding:3px 2px;width:58px;vertical-align:middle;${isAutoSkip?'background:rgba(202,111,30,0.05);':''}">${sc(f.id,f.label,f)}</td>`;
     });
     // 曲目欄（只在列1，列2由評語colspan覆蓋）
     _row1+=`<td style="padding:4px 10px;vertical-align:top;border-left:2px solid var(--gold);min-width:220px;background:inherit">${pieceCellContent}</td>`;
@@ -5796,34 +5824,105 @@ function saveWeights(){
 function renderRoomFields(){
   const el=document.getElementById('room-fields-body');if(!el)return;
   if(!DB.rooms.length){el.innerHTML='<p style="color:var(--muted);font-size:12px">尚無考場</p>';return;}
+  const allCats=DB.instruments.categories||[];
+  const allClasses=DB.classes||[];
   el.innerHTML=DB.rooms.map(r=>{
     const fields=getRoomFields(r.id);
-    const fieldRows=fields.map((f,fi)=>`
-      <div style="display:flex;gap:7px;align-items:center;margin-bottom:6px;flex-wrap:wrap" id="rf-row-${r.id}-${fi}">
-        <div class="fg" style="min-width:100px;margin-bottom:0"><label>欄位名稱</label>
-          <input type="text" value="${f.label}" id="rf-lbl-${r.id}-${fi}" style="font-size:12px;padding:5px 8px">
+    const fieldRows=fields.map((f,fi)=>{
+      const rules=f.skipRules||[];
+      // 每條排除規則的 UI
+      const rulesHtml=rules.length?rules.map((rule,ri)=>`
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:5px 8px;background:var(--cream);border-radius:var(--r);margin-bottom:4px" id="rf-rule-${r.id}-${fi}-${ri}">
+          <span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);white-space:nowrap">規則${ri+1}</span>
+          <select data-rule-cat style="padding:3px 6px;border:1px solid var(--border);border-radius:var(--r);font-size:11px;outline:none;background:var(--white);max-width:100px">
+            <option value="">全部大項</option>
+            ${allCats.map(c=>`<option value="${c.id}" ${rule.catId===c.id?'selected':''}>${c.name}</option>`).join('')}
+          </select>
+          <select data-rule-type style="padding:3px 6px;border:1px solid var(--border);border-radius:var(--r);font-size:11px;outline:none;background:var(--white)">
+            <option value="">全部修別</option>
+            <option value="major" ${rule.type==='major'?'selected':''}>主修</option>
+            <option value="minor" ${rule.type==='minor'?'selected':''}>副修</option>
+            <option value="elective" ${rule.type==='elective'?'selected':''}>選修</option>
+          </select>
+          <select data-rule-cls style="padding:3px 6px;border:1px solid var(--border);border-radius:var(--r);font-size:11px;outline:none;background:var(--white);max-width:90px">
+            <option value="">全部班級</option>
+            ${allClasses.map(c=>`<option value="${c}" ${rule.cls===c?'selected':''}>${c}</option>`).join('')}
+          </select>
+          <button onclick="rfRemoveRule('${r.id}',${fi},${ri})" style="background:none;border:none;cursor:pointer;color:var(--rust);font-size:13px;padding:0 2px;line-height:1" title="刪除此規則">✕</button>
+        </div>`).join('')
+        :'<div style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--border);padding:4px 2px">尚無排除條件，此欄對所有人計分</div>';
+      return `<div style="border:1px solid var(--cream);border-radius:var(--r);margin-bottom:10px;overflow:hidden" id="rf-row-${r.id}-${fi}">
+        <div style="background:var(--cream);padding:7px 10px;display:flex;gap:7px;align-items:flex-end;flex-wrap:wrap">
+          <div class="fg" style="min-width:110px;margin-bottom:0"><label>欄位名稱</label>
+            <input type="text" value="${f.label}" id="rf-lbl-${r.id}-${fi}" style="font-size:12px;padding:5px 8px">
+          </div>
+          <div class="fg" style="min-width:58px;max-width:68px;margin-bottom:0"><label>% 比重</label>
+            <input type="number" value="${f.pct}" id="rf-pct-${r.id}-${fi}" min="0" max="100" style="font-size:12px;padding:5px 8px">
+          </div>
+          <button class="btn btn-d btn-xs" onclick="removeRoomField('${r.id}',${fi})">✕ 刪除欄位</button>
         </div>
-        <div class="fg" style="min-width:60px;max-width:70px;margin-bottom:0"><label>% 比重</label>
-          <input type="number" value="${f.pct}" id="rf-pct-${r.id}-${fi}" min="0" max="100" style="font-size:12px;padding:5px 8px">
+        <div style="padding:8px 10px;background:var(--white)">
+          <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1px;color:var(--rust);margin-bottom:6px;text-transform:uppercase">
+            ⊘ 此欄自動標 * 不計分的條件（多條件為 OR 關係；同一條件內大項、修別、班級為 AND）
+          </div>
+          <div id="rf-rules-${r.id}-${fi}">${rulesHtml}</div>
+          <button class="btn btn-s btn-xs" style="margin-top:4px" onclick="rfAddRule('${r.id}',${fi})">＋ 新增排除條件</button>
         </div>
-        <button class="btn btn-d btn-xs" style="margin-top:16px" onclick="removeRoomField('${r.id}',${fi})">✕</button>
-      </div>`).join('');
-    return `<div style="border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;overflow:hidden">
-      <div style="background:var(--ink);color:var(--gold);padding:8px 14px;font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:2px;display:flex;align-items:center;justify-content:space-between">
+      </div>`;
+    }).join('');
+    return `<div style="border:1px solid var(--border);border-radius:var(--r);margin-bottom:14px;overflow:hidden">
+      <div style="background:var(--ink);color:var(--gold);padding:8px 14px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;display:flex;align-items:center;justify-content:space-between">
         <span>${r.name}</span>
         <span style="font-size:8px;opacity:.6">評語欄固定存在</span>
       </div>
       <div style="padding:12px 14px;background:var(--white)">
         <div id="rf-fields-${r.id}">${fieldRows}</div>
-        <div class="bg" style="margin-top:8px">
-          <button class="btn btn-s btn-xs" onclick="addRoomField('${r.id}')">＋ 新增欄位</button>
-          <button class="btn btn-p btn-xs" onclick="saveRoomFields('${r.id}')">儲存此考場</button>
+        <div class="bg" style="margin-top:10px">
+          <button class="btn btn-s btn-xs" onclick="addRoomField('${r.id}')">＋ 新增評分欄位</button>
+          <button class="btn btn-p btn-xs" onclick="saveRoomFields('${r.id}')">💾 儲存此考場設定</button>
         </div>
       </div>
     </div>`;
   }).join('');
 }
 window.renderRoomFields=renderRoomFields;
+
+// ★ 新增一條排除規則（即時 re-render）
+function rfAddRule(roomId,fi){
+  const r=DB.rooms.find(x=>x.id===roomId);if(!r)return;
+  if(!r.scoreFields)r.scoreFields=getRoomFields(roomId);
+  if(!r.scoreFields[fi].skipRules)r.scoreFields[fi].skipRules=[];
+  // 先從畫面讀取目前所有規則，避免覆蓋
+  rfReadRulesFromDOM(roomId,fi);
+  r.scoreFields[fi].skipRules.push({catId:'',type:'',cls:''});
+  renderRoomFields();
+}
+window.rfAddRule=rfAddRule;
+
+// ★ 刪除一條排除規則
+function rfRemoveRule(roomId,fi,ri){
+  const r=DB.rooms.find(x=>x.id===roomId);if(!r)return;
+  if(!r.scoreFields)r.scoreFields=getRoomFields(roomId);
+  rfReadRulesFromDOM(roomId,fi);
+  r.scoreFields[fi].skipRules.splice(ri,1);
+  renderRoomFields();
+}
+window.rfRemoveRule=rfRemoveRule;
+
+// ★ 從 DOM 讀取目前某欄的 skipRules（儲存前同步用）
+function rfReadRulesFromDOM(roomId,fi){
+  const r=DB.rooms.find(x=>x.id===roomId);if(!r||!r.scoreFields)return;
+  const rulesEl=document.getElementById('rf-rules-'+roomId+'-'+fi);if(!rulesEl)return;
+  const ruleDivs=rulesEl.querySelectorAll('[id^="rf-rule-"]');
+  r.scoreFields[fi].skipRules=[];
+  ruleDivs.forEach(div=>{
+    const catId=div.querySelector('[data-rule-cat]')?.value||'';
+    const type=div.querySelector('[data-rule-type]')?.value||'';
+    const cls=div.querySelector('[data-rule-cls]')?.value||'';
+    r.scoreFields[fi].skipRules.push({catId,type,cls});
+  });
+}
+window.rfReadRulesFromDOM=rfReadRulesFromDOM;
 
 function addRoomField(roomId){
   const r=DB.rooms.find(x=>x.id===roomId);if(!r)return;
@@ -5845,13 +5944,25 @@ window.removeRoomField=removeRoomField;
 function saveRoomFields(roomId){
   const r=DB.rooms.find(x=>x.id===roomId);if(!r)return;
   const container=document.getElementById('rf-fields-'+roomId);if(!container)return;
-  const rows=container.querySelectorAll('[id^="rf-row-"]');
+  const rows=[...container.querySelectorAll('[id^="rf-row-"]')];
+  const prevFields=getRoomFields(roomId);
   r.scoreFields=[];
   rows.forEach((row,fi)=>{
     const lbl=document.getElementById('rf-lbl-'+roomId+'-'+fi)?.value.trim()||'欄位'+(fi+1);
     const pct=parseInt(document.getElementById('rf-pct-'+roomId+'-'+fi)?.value)||0;
-    const existingId=(getRoomFields(roomId)[fi]?.id)||'field_'+(fi+Date.now());
-    r.scoreFields.push({id:existingId,label:lbl,pct});
+    const existingId=(prevFields[fi]?.id)||'field_'+(fi+Date.now());
+    // 從 DOM 讀取所有 skipRules
+    const rulesEl=document.getElementById('rf-rules-'+roomId+'-'+fi);
+    const skipRules=[];
+    if(rulesEl){
+      rulesEl.querySelectorAll('[id^="rf-rule-"]').forEach(div=>{
+        const catId=div.querySelector('[data-rule-cat]')?.value||'';
+        const type=div.querySelector('[data-rule-type]')?.value||'';
+        const cls=div.querySelector('[data-rule-cls]')?.value||'';
+        skipRules.push({catId,type,cls});
+      });
+    }
+    r.scoreFields.push({id:existingId,label:lbl,pct,skipRules});
   });
   fbSet('rooms',r.id,{...r,_order:DB.rooms.indexOf(r)});
   renderRoomFields();
@@ -7257,7 +7368,7 @@ const _expose = [
   'showAddUser','editUser','resetUserPwd','deleteUser','bulkDeleteUsers','toggleAllCheck','updateBulkBar','importCSV','downloadSample','importTeaStudentsCSV','downloadTeaStudentsSample','sortTeaList','adminStuFilterClass',
   'addCategory','renameCategory','delCategory','addInstrument','renameInst','delInst',
   'renderInstList',
-  'addRoom','editRoom','delRoom','revealCode','addRoomField','removeRoomField','saveRoomFields','renderRoomFields',
+  'addRoom','editRoom','delRoom','revealCode','addRoomField','removeRoomField','saveRoomFields','renderRoomFields','rfAddRule','rfRemoveRule','rfReadRulesFromDOM',
   'addClass','renameClass','delClass',
   'saveTiming','saveAnnounce','saveBulletin','renderBulletin','saveWeights','addTrim','saveTrimRules','fbSaveConfig',
   'setAccess','saveRepHint','saveTyText','clearData','saveTeaScheduleMsg',
@@ -7274,7 +7385,7 @@ const _expose = [
   'renderJsupAdminPanel','renderJsupOptsList','addJsupOption','jsupUpdateOptLabel','jsupUpdateOptFlag','jsupDelOption','saveJurySignupConfig','saveJsupOptions','renderJsupAdminTable','exportJsupCSV',
 ];
 // ★ 安全暴露到 window（不用 eval，改用函數名對照表）
-const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schResetToRoomDefaults,schSaveSchedule,schLoadSchedule,schInitSortBar,schAddExcludeRule,schRemoveExcludeRule,renderSchExcludeUI,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveBulletin,renderBulletin,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,teaInlineToggle,teaInlineEdit,teaInlineSave,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,saveJsupOptions,renderJsupAdminTable,exportJsupCSV};
+const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schResetToRoomDefaults,schSaveSchedule,schLoadSchedule,schInitSortBar,schAddExcludeRule,schRemoveExcludeRule,renderSchExcludeUI,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,rfAddRule,rfRemoveRule,rfReadRulesFromDOM,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveBulletin,renderBulletin,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,teaInlineToggle,teaInlineEdit,teaInlineSave,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,saveJsupOptions,renderJsupAdminTable,exportJsupCSV};
 Object.keys(_fnMap).forEach(function(name){ window[name] = _fnMap[name]; });
 
 // ★ 頁面載入後立即從 Firebase 同步 users，讓登入時帳密是最新狀態
