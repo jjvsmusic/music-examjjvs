@@ -4697,20 +4697,17 @@ function renderSchedule(){
   const activeClasses=new Set(SCH_STATE.classOrder.filter(c=>c.active).map(c=>c.cls));
   if(activeClasses.size)entries=entries.filter(e=>activeClasses.has(e.class));
 
-  // 6. 排除規則過濾（樂器大項 × 修別 × 班級，比對學生所有修別的樂器大項）
+  // 6. 排除規則過濾（_forceInclude 的 entry 不受排除規則影響）
   const rules=SCH_STATE.excludeRules||[];
   if(rules.length){
     entries=entries.filter(e=>{
+      if(e._forceInclude)return true; // 手動強制加入，免排除
       const stu=DB.users.find(u=>u.id===e.studentId)||{};
       return !rules.some(r=>{
-        // 班級
         const matchCls=!r.cls||r.cls===e.class;
         if(!matchCls)return false;
-        // 若只指定班級（大項與修別皆空）
         if(!r.catId&&!r.type)return true;
-        // 若只指定修別不指定大項
         if(r.type&&!r.catId)return !!stu[r.type];
-        // 若指定大項：遍歷學生所有修別找樂器大項是否符合
         const typesToCheck=r.type?[r.type]:['major','minor','elective'];
         return typesToCheck.some(t=>{
           const instId=stu[t];if(!instId)return false;
@@ -4978,85 +4975,136 @@ function schRemoveEntry(entryKey){
 }
 window.schRemoveEntry=schRemoveEntry;
 
-// ★ #7 開啟「加入名單」視窗
-let _schAddModal=null;
+// ★ 開啟「手動加入出場名單」視窗
 function openSchAddModal(){
   let modal=document.getElementById('sch-add-modal');
+  const roomOpts='<option value="">（不指定考場）</option>'+DB.rooms.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
   if(!modal){
     modal=document.createElement('div');modal.id='sch-add-modal';modal.className='overlay';
-    modal.innerHTML=`<div class="modal" style="width:580px">
-      <h2 class="modal-t">＋ 加入出場名單</h2>
-      <p style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-bottom:12px;line-height:1.7">
-        依照目前篩選條件加入學生，或直接搜尋加入。加入後套用目前排序。
+    modal.innerHTML=`<div class="modal" style="width:620px;max-width:98vw">
+      <h2 class="modal-t">＋ 手動加入出場名單</h2>
+      <p style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.8">
+        搜尋學生，可強制加入（即使已被排除規則過濾）。點「移出」可從目前考場名單移除。<br>
+        選擇考場後加入，會把該學生/修別排入指定考場。
       </p>
-      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-        <input type="text" id="sch-add-search" placeholder="搜尋學生姓名…" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:14px;outline:none" oninput="schAddSearch()">
-        <select id="sch-add-type-sel" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;outline:none">
-          <option value="major">主修</option>
-          <option value="minor">副修</option>
-          <option value="elective">選修</option>
-        </select>
-        <select id="sch-add-room-sel" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;outline:none">
-          <option value="">自動選考場</option>
-          ${DB.rooms.map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+        <input type="text" id="sch-add-search" placeholder="搜尋姓名或帳號…" style="flex:1;min-width:120px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:14px;outline:none" oninput="schAddSearch()">
+        <select id="sch-add-room-sel" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;outline:none;max-width:140px">
+          ${roomOpts}
         </select>
       </div>
-      <div id="sch-add-results" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r)"></div>
+      <div id="sch-add-results" style="max-height:380px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r)"></div>
       <div class="modal-ft">
         <button class="btn btn-s" onclick="closeOverlay('sch-add-modal')">關閉</button>
-        <button class="btn btn-g btn-sm" onclick="schAddCurrentFilter()">套用目前篩選條件全部加入</button>
       </div>
     </div>`;
     document.body.appendChild(modal);
     modal.addEventListener('click',e=>{if(e.target===modal)modal.classList.remove('on');});
   } else {
-    // refresh room options
     const roomSel=document.getElementById('sch-add-room-sel');
-    if(roomSel){roomSel.innerHTML='<option value="">自動選考場</option>'+DB.rooms.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');}
+    if(roomSel)roomSel.innerHTML=roomOpts;
+    // 預設選目前考場
+    if(SCH_STATE.roomId&&roomSel)roomSel.value=SCH_STATE.roomId;
   }
   document.getElementById('sch-add-search').value='';
+  // 預設選目前考場
+  const rs=document.getElementById('sch-add-room-sel');
+  if(rs&&SCH_STATE.roomId)rs.value=SCH_STATE.roomId;
   schAddSearch();
   modal.classList.add('on');
 }
 window.openSchAddModal=openSchAddModal;
 
 function schAddSearch(){
-  const q=(document.getElementById('sch-add-search')?.value||''). trim();
+  const q=(document.getElementById('sch-add-search')?.value||'').trim();
   const res=document.getElementById('sch-add-results');if(!res)return;
-  const typeSel=document.getElementById('sch-add-type-sel')?.value||'major';
-  const stus=students().filter(s=>!q||s.name.includes(q)||s.account.includes(q)).slice(0,30);
+  const stus=students().filter(s=>!q||s.name.includes(q)||(s.account||'').includes(q)).slice(0,40);
+  if(!stus.length){res.innerHTML='<div style="padding:14px;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;text-align:center">查無學生</div>';return;}
+
+  // 取得目前排程中實際在名單的 entryKeys（已通過篩選且未被移除的）
+  const currentKeys=new Set();
+  {
+    let tmp=getScheduleEntries();
+    // 套用目前篩選
+    const activeCats=new Set(SCH_STATE.catOrder.filter(c=>c.active).map(c=>c.id));
+    if(activeCats.size)tmp=tmp.filter(e=>activeCats.has(e.catId));
+    const activeInsts=new Set(SCH_STATE.instOrder.filter(i=>i.active).map(i=>i.id));
+    if(activeInsts.size)tmp=tmp.filter(e=>activeInsts.has(e.instId));
+    const activeTypes=new Set(SCH_STATE.typeOrder.filter(t=>t.active).map(t=>t.key));
+    tmp=tmp.filter(e=>activeTypes.has(e.type));
+    const activeClasses=new Set(SCH_STATE.classOrder.filter(c=>c.active).map(c=>c.cls));
+    if(activeClasses.size)tmp=tmp.filter(e=>activeClasses.has(e.class));
+    // 套用排除規則
+    const rules=SCH_STATE.excludeRules||[];
+    if(rules.length)tmp=tmp.filter(e=>{
+      const stu=DB.users.find(u=>u.id===e.studentId)||{};
+      return !rules.some(r=>{
+        if(r.cls&&r.cls!==e.class)return false;
+        if(!r.catId&&!r.type)return true;
+        if(r.type&&!r.catId)return !!stu[r.type];
+        const ch=r.type?[r.type]:['major','minor','elective'];
+        return ch.some(t=>{const i=DB.instruments.items.find(x=>x.id===stu[t]);return i&&i.cat===r.catId;});
+      });
+    });
+    tmp.filter(e=>!SCH_STATE.removedEntries.has(e.studentId+'_'+e.type)).forEach(e=>currentKeys.add(e.studentId+'_'+e.type));
+    SCH_STATE.extraEntries.forEach(ex=>currentKeys.add(ex.studentId+'_'+ex.type));
+  }
+
   res.innerHTML=stus.map(s=>{
     const types=['major','minor','elective'].filter(t=>s[t]);
-    return types.map(t=>{
+    if(!types.length)return '';
+    const rows=types.map(t=>{
       const key=s.id+'_'+t;
-      const alreadyIn=!SCH_STATE.removedEntries.has(key)&&
-        (getScheduleEntries().some(e=>e.studentId===s.id&&e.type===t)||SCH_STATE.extraEntries.some(e=>e.studentId===s.id&&e.type===t));
-      const wasRemoved=SCH_STATE.removedEntries.has(key);
-      return `<div style="padding:9px 14px;border-bottom:1px solid var(--cream);display:flex;align-items:center;justify-content:space-between">
-        <div>
-          <strong>${s.name}</strong>
-          <span style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--muted);margin-left:6px">${s.class}·座${s.seat}</span>
-          <span style="margin-left:8px">${typeBadge(t)}</span>
-          <span style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-left:4px">${iname(s[t])}</span>
+      const inList=currentKeys.has(key);
+      const isRemoved=SCH_STATE.removedEntries.has(key);
+      const isExtra=SCH_STATE.extraEntries.some(ex=>ex.studentId===s.id&&ex.type===t);
+      // 判斷被排除規則過濾
+      const stu=s;
+      const rules=SCH_STATE.excludeRules||[];
+      const isExcluded=rules.length&&rules.some(r=>{
+        if(r.cls&&r.cls!==stu.class)return false;
+        if(!r.catId&&!r.type)return true;
+        if(r.type&&!r.catId)return !!stu[r.type];
+        const ch=r.type?[r.type]:['major','minor','elective'];
+        return ch.some(tt=>{const inst=DB.instruments.items.find(x=>x.id===stu[tt]);return inst&&inst.cat===r.catId;});
+      });
+      let statusBadge='';
+      if(inList&&!isRemoved)statusBadge=`<span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--sage);background:#d4edda;border:1px solid #c3e6cb;border-radius:10px;padding:1px 7px">✓ 已在名單</span>`;
+      else if(isRemoved)statusBadge=`<span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--rust);background:#f8d7da;border:1px solid #f5c6cb;border-radius:10px;padding:1px 7px">已移出</span>`;
+      else if(isExcluded)statusBadge=`<span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--orange);background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:1px 7px">排除規則</span>`;
+
+      const addBtn=`<button class="btn btn-g btn-xs" onclick="schAddEntry('${s.id}','${t}')" title="強制加入（忽略排除規則）">＋ 加入</button>`;
+      const removeBtn=inList&&!isRemoved?`<button class="btn btn-d btn-xs" onclick="schRemoveEntry('${key}')">移出</button>`:'';
+      const restoreBtn=isRemoved?`<button class="btn btn-b btn-xs" onclick="schRestoreEntry('${key}')">恢復</button>`:'';
+
+      return `<div style="display:flex;align-items:center;gap:8px;padding:7px 14px;border-bottom:1px solid var(--cream);flex-wrap:wrap">
+        <div style="flex:1;min-width:0">
+          <span style="font-size:12px;font-weight:600">${s.name}</span>
+          <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:5px">${s.class}·座${s.seat}</span>
+          <span style="margin-left:6px">${typeBadge(t)}</span>
+          <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--steel);margin-left:3px">${iname(s[t])}</span>
         </div>
-        <div>
-          ${alreadyIn&&!wasRemoved?'<span style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--sage)">已在名單</span>':''}
-          ${wasRemoved?`<button class="btn btn-b btn-xs" onclick="schRestoreEntry('${key}')">重新加入</button>`:''}
-          ${(!alreadyIn||wasRemoved)?`<button class="btn btn-g btn-xs" onclick="schAddEntry('${s.id}','${t}')">＋ 加入</button>`:''}
+        <div style="display:flex;gap:5px;align-items:center;flex-shrink:0">
+          ${statusBadge}
+          ${restoreBtn}
+          ${removeBtn}
+          ${addBtn}
         </div>
       </div>`;
     }).join('');
-  }).join('') || '<div style="padding:12px;color:var(--muted);font-family:\'DM Mono\',monospace;font-size:11px">查無學生</div>';
+    return rows;
+  }).join('')||'<div style="padding:14px;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;text-align:center">查無學生</div>';
 }
 window.schAddSearch=schAddSearch;
 
 function schAddEntry(studentId,type){
-  const roomSel=document.getElementById('sch-add-room-sel')?.value||'';  SCH_STATE.removedEntries.delete(studentId+'_'+type);
+  const roomSel=document.getElementById('sch-add-room-sel')?.value||SCH_STATE.roomId||'';
+  SCH_STATE.removedEntries.delete(studentId+'_'+type);
   const existing=SCH_STATE.extraEntries.findIndex(e=>e.studentId===studentId&&e.type===type);
   if(existing>-1)SCH_STATE.extraEntries.splice(existing,1);
-  SCH_STATE.extraEntries.push({studentId,type,roomId:roomSel});
+  SCH_STATE.extraEntries.push({studentId,type,roomId:roomSel,_forceInclude:true});
   schAddSearch();renderSchedule();
-  showToast('已加入名單 ✓','ok');
+  showToast('已強制加入名單 ✓','ok');
 }
 window.schAddEntry=schAddEntry;
 
@@ -5237,6 +5285,120 @@ function adminStuFilterClass(cls,btn){
   renderAdminStudents();
 }
 window.adminStuFilterClass=adminStuFilterClass;
+// ★ 後台學生考場調整 Modal
+function openStuRoomModal(stuId){
+  const s=DB.users.find(u=>u.id===stuId);if(!s)return;
+  // 找該生目前在各考場快照中的狀態
+  const snap=DB.savedScheduleSnapshot||{};
+  // {type: Set<roomId>}
+  const inRooms={major:new Set(),minor:new Set(),elective:new Set()};
+  Object.entries(snap).forEach(([roomId,entries])=>{
+    (entries||[]).forEach(e=>{if(e.studentId===stuId)inRooms[e.type]?.add(roomId);});
+  });
+
+  // 同步查 SCH_STATE 各考場的 extraEntries / removedEntries
+  const getRoomState=roomId=>{
+    return _SCH_ROOM_STATES[roomId]||{extraEntries:[],removedEntries:new Set()};
+  };
+
+  const types=[{t:'major',l:'主修',inst:s.major},{t:'minor',l:'副修',inst:s.minor},{t:'elective',l:'選修',inst:s.elective}].filter(x=>x.inst);
+  if(!types.length){showToast('此學生無任何修別樂器','warn');return;}
+
+  let modal=document.getElementById('stu-room-modal');
+  if(!modal){
+    modal=document.createElement('div');modal.id='stu-room-modal';modal.className='overlay';
+    modal.innerHTML=`<div class="modal" style="width:520px;max-width:98vw"><h2 class="modal-t" id="srm-title"></h2><div id="srm-body"></div><div class="modal-ft"><button class="btn btn-s" onclick="closeOverlay('stu-room-modal')">關閉</button><button class="btn btn-p" onclick="saveStuRoomModal('${stuId}')">💾 儲存並同步排程</button></div></div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click',e=>{if(e.target===modal)modal.classList.remove('on');});
+  }
+  // 動態更新儲存按鈕的 stuId
+  modal.querySelector('[onclick^="saveStuRoomModal"]').setAttribute('onclick',`saveStuRoomModal('${stuId}')`);
+  document.getElementById('srm-title').textContent=`調整考場 — ${s.name}（${s.class}·座${s.seat}）`;
+
+  const roomOpts=DB.rooms.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
+  document.getElementById('srm-body').innerHTML=`
+    <p style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:14px;line-height:1.8">
+      為每個修別選擇考場（可複選多個考場）。儲存後會直接寫入排程快照，並在排程出場名單中生效。
+    </p>
+    ${types.map(({t,l,inst})=>{
+      const assigned=[...inRooms[t]];
+      const checkboxes=DB.rooms.map(r=>`
+        <label style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid var(--border);border-radius:var(--r);cursor:pointer;font-size:12px;background:var(--white);margin:3px">
+          <input type="checkbox" data-srm-type="${t}" data-srm-room="${r.id}" ${assigned.includes(r.id)?'checked':''} style="accent-color:var(--gold);width:14px;height:14px">
+          ${r.name}
+        </label>`).join('');
+      return `<div style="border:1px solid var(--border);border-radius:var(--r);margin-bottom:10px;overflow:hidden">
+        <div style="background:var(--cream);padding:7px 12px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;font-weight:600">
+          ${l}・${iname(inst)}
+        </div>
+        <div style="padding:10px 12px;display:flex;flex-wrap:wrap;gap:4px">${checkboxes}</div>
+      </div>`;
+    }).join('')}`;
+  openOverlay('stu-room-modal');
+}
+window.openStuRoomModal=openStuRoomModal;
+
+// ★ 儲存學生考場調整，寫入快照並更新排程
+function saveStuRoomModal(stuId){
+  const modal=document.getElementById('stu-room-modal');if(!modal)return;
+  const s=DB.users.find(u=>u.id===stuId);if(!s)return;
+
+  // 讀取所有勾選的 type → roomId 配對
+  const checks=[...modal.querySelectorAll('[data-srm-type]')];
+  // {type: [roomId,...]}
+  const assignments={major:[],minor:[],elective:[]};
+  checks.filter(cb=>cb.checked).forEach(cb=>{
+    const t=cb.dataset.srmType, r=cb.dataset.srmRoom;
+    if(assignments[t]&&!assignments[t].includes(r))assignments[t].push(r);
+  });
+
+  // 更新 DB.savedScheduleSnapshot：先移除此學生所有舊紀錄，再依 assignments 加回
+  const snap=DB.savedScheduleSnapshot||{};
+  // 移除舊紀錄
+  Object.keys(snap).forEach(roomId=>{
+    snap[roomId]=(snap[roomId]||[]).filter(e=>e.studentId!==stuId);
+  });
+  // 加入新紀錄
+  const inst=(t)=>DB.instruments.items.find(i=>i.id===s[t]);
+  const cat=(t)=>{const i=inst(t);return i?DB.instruments.categories.find(c=>c.id===i.cat):null;};
+  ['major','minor','elective'].forEach(t=>{
+    if(!s[t])return;
+    (assignments[t]||[]).forEach(roomId=>{
+      if(!snap[roomId])snap[roomId]=[];
+      const room=DB.rooms.find(r=>r.id===roomId)||{name:'—',location:''};
+      const acKey=t==='elective'?'elec_ac':t+'_ac';
+      const atKey=t==='elective'?'elec_at':t+'_at';
+      const fcKey=t==='elective'?'elec_fc':t+'_fc';
+      const ftKey=t==='elective'?'elec_ft':t+'_ft';
+      const existingOrders=snap[roomId].map(e=>e.order||0);
+      const nextOrder=existingOrders.length?Math.max(...existingOrders)+1:1;
+      snap[roomId].push({
+        entryKey:stuId+'_'+t,studentId:stuId,name:s.name,class:s.class,seat:s.seat,
+        instId:s[t],instName:iname(s[t]),catId:inst(t)?.cat||'',
+        type:t,order:nextOrder,
+        ac:s[acKey]||'',at:s[atKey]||'',fc:s[fcKey]||'',ft:s[ftKey]||'',
+        roomId,roomName:room.name,roomLocation:room.location||'',
+      });
+    });
+  });
+  DB.savedScheduleSnapshot=snap;
+
+  // 同步存入 Firebase
+  if(window._FB){
+    const {db,serverTimestamp}=window._FB;
+    db.collection('scheduleState').doc('snapshot').set({data:JSON.stringify(snap),_updatedAt:serverTimestamp()})
+      .then(()=>showToast(`${s.name} 考場已更新並同步 ✓`,'ok'))
+      .catch(()=>showToast('Firebase 同步失敗，本機已更新','warn'));
+  } else {
+    try{localStorage.setItem('scheduleSnapshot',JSON.stringify(snap));}catch(e){}
+    showToast(`${s.name} 考場已更新（本機）✓`,'ok');
+  }
+  closeOverlay('stu-room-modal');
+  // 重新渲染學生名單以更新考場欄
+  if(typeof renderAdminStudents==='function')renderAdminStudents();
+}
+window.saveStuRoomModal=saveStuRoomModal;
+
 function renderAdminStudents(){
   const tbody=document.getElementById('admin-stu-tbody');if(!tbody)return;
   // ★ 同步更新班級下拉選單（確保切換有效）
@@ -5286,11 +5448,12 @@ function renderAdminStudents(){
   });
   tbody.innerHTML=stus.map(s=>{
     const rm=stuRoomMap[s.id]||{major:[],minor:[],elective:[]};
-    const roomCell=[
-      s.major?`<div style="font-size:10px;font-family:'DM Mono',monospace"><span style="color:var(--muted)">主</span> ${rm.major.length?rm.major.join('、'):'<span style="color:var(--border)">未分配</span>'}</div>`:'',
-      s.minor?`<div style="font-size:10px;font-family:'DM Mono',monospace"><span style="color:var(--muted)">副</span> ${rm.minor.length?rm.minor.join('、'):'<span style="color:var(--border)">未分配</span>'}</div>`:'',
-      s.elective?`<div style="font-size:10px;font-family:'DM Mono',monospace"><span style="color:var(--muted)">選</span> ${rm.elective.length?rm.elective.join('、'):'<span style="color:var(--border)">未分配</span>'}</div>`:'',
-    ].filter(Boolean).join('')||'<span style="color:var(--border);font-size:10px">—</span>';
+    const roomLines=[
+      s.major?`<div style="font-size:10px;font-family:'DM Mono',monospace;line-height:1.7"><span style="color:var(--muted);letter-spacing:.5px">主</span> ${rm.major.length?rm.major.join('、'):'<span style="color:var(--border)">未分配</span>'}</div>`:'',
+      s.minor?`<div style="font-size:10px;font-family:'DM Mono',monospace;line-height:1.7"><span style="color:var(--muted);letter-spacing:.5px">副</span> ${rm.minor.length?rm.minor.join('、'):'<span style="color:var(--border)">未分配</span>'}</div>`:'',
+      s.elective?`<div style="font-size:10px;font-family:'DM Mono',monospace;line-height:1.7"><span style="color:var(--muted);letter-spacing:.5px">選</span> ${rm.elective.length?rm.elective.join('、'):'<span style="color:var(--border)">未分配</span>'}</div>`:'',
+    ].filter(Boolean);
+    const roomCell=`<div style="display:flex;flex-direction:column;gap:1px">${roomLines.join('')}</div><button class="btn btn-s btn-xs" style="margin-top:4px;font-size:8px" onclick="openStuRoomModal('${s.id}')">✎ 調整考場</button>`;
     return `<tr>
     <td style="text-align:center"><input type="checkbox" class="stu-chk" data-id="${s.id}" onchange="updateBulkBar('student')" style="cursor:pointer;width:14px;height:14px"></td>
     <td><strong style="color:var(--ink)">${s.class}</strong></td>
@@ -5299,7 +5462,7 @@ function renderAdminStudents(){
     <td style="color:var(--ink)">${iname(s.major)||'—'}</td>
     <td style="color:var(--muted)">${iname(s.minor)||'—'}</td>
     <td style="color:var(--muted)">${iname(s.elective)||'—'}</td>
-    <td style="vertical-align:top;padding-top:6px">${roomCell}</td>
+    <td style="vertical-align:top;padding-top:5px">${roomCell}</td>
     <td style="text-align:center"><span class="dot ${s.repDone?'dg':'dr'}" title="${s.repDone?'已填報':'未填報'}"></span></td>
     <td style="text-align:center"><span class="dot ${s.teaDone?'dg':'dr'}" title="${s.teaDone?'已評量':'未評量'}"></span></td>
     <td><div class="bg"><button class="btn btn-s btn-xs" onclick="editUser('${s.id}')">編輯</button><button class="btn btn-s btn-xs" onclick="resetUserPwd('${s.id}')">重置</button><button class="btn btn-d btn-xs" onclick="deleteUser('${s.id}')">刪</button></div></td>
@@ -7449,7 +7612,7 @@ const _expose = [
   'showAddUser','editUser','resetUserPwd','deleteUser','bulkDeleteUsers','toggleAllCheck','updateBulkBar','importCSV','downloadSample','importTeaStudentsCSV','downloadTeaStudentsSample','sortTeaList','adminStuFilterClass',
   'addCategory','renameCategory','delCategory','addInstrument','renameInst','delInst',
   'renderInstList',
-  'addRoom','editRoom','delRoom','revealCode','addRoomField','removeRoomField','saveRoomFields','renderRoomFields','rfAddRule','rfRemoveRule','rfReadRulesFromDOM',
+  'openStuRoomModal','saveStuRoomModal','addRoom','editRoom','delRoom','revealCode','addRoomField','removeRoomField','saveRoomFields','renderRoomFields','rfAddRule','rfRemoveRule','rfReadRulesFromDOM',
   'addClass','renameClass','delClass',
   'saveTiming','saveAnnounce','saveBulletin','renderBulletin','saveWeights','addTrim','saveTrimRules','fbSaveConfig',
   'setAccess','saveRepHint','saveTyText','clearData','saveTeaScheduleMsg',
@@ -7466,7 +7629,7 @@ const _expose = [
   'renderJsupAdminPanel','renderJsupOptsList','addJsupOption','jsupUpdateOptLabel','jsupUpdateOptFlag','jsupDelOption','saveJurySignupConfig','saveJsupOptions','renderJsupAdminTable','exportJsupCSV',
 ];
 // ★ 安全暴露到 window（不用 eval，改用函數名對照表）
-const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schResetToRoomDefaults,schSaveSchedule,schLoadSchedule,schInitSortBar,schAddExcludeRule,schRemoveExcludeRule,renderSchExcludeUI,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,rfAddRule,rfRemoveRule,rfReadRulesFromDOM,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveBulletin,renderBulletin,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,teaInlineToggle,teaInlineEdit,teaInlineSave,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,saveJsupOptions,renderJsupAdminTable,exportJsupCSV};
+const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schResetToRoomDefaults,schSaveSchedule,schLoadSchedule,schInitSortBar,schAddExcludeRule,schRemoveExcludeRule,renderSchExcludeUI,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,openStuRoomModal,saveStuRoomModal,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,rfAddRule,rfRemoveRule,rfReadRulesFromDOM,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveBulletin,renderBulletin,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,teaInlineToggle,teaInlineEdit,teaInlineSave,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,saveJsupOptions,renderJsupAdminTable,exportJsupCSV};
 Object.keys(_fnMap).forEach(function(name){ window[name] = _fnMap[name]; });
 
 // ★ 頁面載入後立即從 Firebase 同步 users，讓登入時帳密是最新狀態
