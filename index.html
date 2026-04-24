@@ -2100,8 +2100,8 @@ function doLogin(){
     }
   }
 
-  // 若 Firebase 已連線，先確保 users 已從 Firestore 同步後再比對
-  if(window._FB){
+  // ★ 若 preloadUsersForLogin 已同步 users（DB.users 有資料）就直接比對，省掉一次 fetch
+  if(window._FB && DB.users.length===0){
     errEl.textContent='驗證中...';
     const authWait=window._fbAuthReady||Promise.resolve(null);
     authWait.then(()=>{
@@ -2109,12 +2109,16 @@ function doLogin(){
         if(docs.length){
           DB.users.length=0;
           docs.forEach(fd=>{const{_updatedAt,...rest}=fd;DB.users.push(rest);});
+          // ★ 標記 users 已是最新，loadAllFromFirebase 可跳過 users 重讀
+          DB._usersFreshAt=Date.now();
         }
         errEl.textContent='';
         _tryLogin();
       });
     });
   } else {
+    // DB.users 已由 preloadUsersForLogin 填充，直接比對
+    errEl.textContent='';
     _tryLogin();
   }
 }
@@ -2347,44 +2351,68 @@ function preloadUsersForLogin(){
   });
 }
 
-// ════ 啟動時從 Firebase 讀回所有資料 ════
+// ════ 啟動時從 Firebase 讀回所有資料（全並行版本） ════
 function loadAllFromFirebase(done, lightMode){
   if(!window._FB){done();return;}
-  let pending=0;
-  function tick(){pending--;if(pending<=0)done();}
 
-  // ★ 效能修正③：lightMode = 非管理員角色，只讀最必要的集合（users/config/rooms/instruments/scheduleState）
-  // 跳過 juryScores（巢狀讀取最慢）、teacherStudents、teacherComments 等
+  // ★ 整體最長等待：12 秒後強制完成，避免任何情況卡死
+  let _allDone=false;
+  const forceDone=()=>{if(!_allDone){_allDone=true;done();}};
+  const _forceTimer=setTimeout(()=>{console.warn('[loadAll] 整體超時，強制完成');forceDone();},12000);
 
-  // — users —
-  pending++;
-  fbLoad('users',docs=>{
-    if(docs.length){
-      // ★ Firebase 有資料時，完整取代 DB.users（避免已刪除的預設帳號殘留）
-      DB.users.length=0;
-      docs.forEach(fd=>{const{_updatedAt,...rest}=fd;DB.users.push(rest);});
-      // ★ 修正 ST.user 引用：讓它指向新陣列裡對應的物件
-      if(ST.user){const fresh=DB.users.find(u=>u.id===ST.user.id);if(fresh)ST.user=fresh;}
-    } else {
-      // 第一次：把預設 users 全部寫進 Firebase
-      DB.users.forEach(u=>fbSet('users',u.id,u));
-    }
-    tick();
+  // ★ 登入時 doLogin 已讀過 users，跳過重讀（由呼叫端傳入 skipUsers=true）
+  // lightMode：學生/評審/監考只需核心資料，跳過 juryScores/teacherComments/deductions/blackSign
+
+  // 用 fbLoad 包成 Promise
+  const load=col=>new Promise(res=>{
+    try{fbLoad(col,docs=>res(docs));}catch(e){res([]);}
   });
 
-  // — config —
-  pending++;
-  fbLoad('config',docs=>{
-    const cfg=docs.find(d=>d.id==='main');
+  // ── 並行讀取所有需要的集合 ──
+  const tasks={
+    config:   load('config'),
+    rooms:    load('rooms'),
+    classes:  load('classes'),
+    instruments: load('instruments'),
+    teacherStudents: load('teacherStudents'),
+    disqualified: load('disqualified'),
+    liveExam: load('liveExam'),
+    jurySignup: load('jurySignup'),
+    jurySignupConfig: load('jurySignupConfig'),
+    scheduleState: load('scheduleState'),
+    // lightMode 跳過的慢速集合
+    teacherComments: lightMode ? Promise.resolve([]) : load('teacherComments'),
+    deductions: lightMode ? Promise.resolve([]) : load('deductions'),
+    blackSign: lightMode ? Promise.resolve([]) : load('blackSign'),
+    users: load('users'),  // 每次都讀確保最新（含 repDone/teaDone）
+  };
+
+  Promise.all(Object.values(tasks)).then(results=>{
+    const r={};
+    Object.keys(tasks).forEach((k,i)=>r[k]=results[i]);
+
+    // — users —
+    if(r.users.length){
+      // ★ 若登入時已讀過且 60 秒內，DB.users 已是最新，不需要覆寫（只確保 ST.user 引用正確）
+      const alreadyFresh=DB._usersFreshAt&&(Date.now()-DB._usersFreshAt<60000)&&DB.users.length>0;
+      if(!alreadyFresh){
+        DB.users.length=0;
+        r.users.forEach(fd=>{const{_updatedAt,...rest}=fd;DB.users.push(rest);});
+      }
+      if(ST.user){const fresh=DB.users.find(u=>u.id===ST.user.id);if(fresh)ST.user=fresh;}
+    } else {
+      DB.users.forEach(u=>fbSet('users',u.id,u));
+    }
+
+    // — config —
+    const cfg=r.config.find(d=>d.id==='main');
     if(cfg){
-      const {id,_updatedAt,...rest}=cfg;
-      // 深度合併
+      const{id,_updatedAt,...rest}=cfg;
       if(rest.weights)DB.config.weights=rest.weights;
       if(rest.trimRules)DB.config.trimRules=rest.trimRules;
       if(rest.pages)Object.assign(DB.config.pages,rest.pages);
       if(rest.studentAccess)Object.assign(DB.config.studentAccess,rest.studentAccess);
       if(rest.teacherAccess)Object.assign(DB.config.teacherAccess,rest.teacherAccess);
-      // 確保新增的 jury-signup key 存在（舊資料可能沒有此欄位）
       if(DB.config.teacherAccess['jury-signup']===undefined)DB.config.teacherAccess['jury-signup']=true;
       if(rest.repHint)DB.config.repHint=rest.repHint;
       if(rest.tyTitle)DB.config.tyTitle=rest.tyTitle;
@@ -2396,166 +2424,105 @@ function loadAllFromFirebase(done, lightMode){
       if(rest.pendingMsg)DB.config.pendingMsg=rest.pendingMsg;
       if(rest.bulletin)Object.assign(DB.config.bulletin,rest.bulletin);
     } else {
-      fbSet('config','main',{
-        weights:DB.config.weights,trimRules:DB.config.trimRules,
+      fbSet('config','main',{weights:DB.config.weights,trimRules:DB.config.trimRules,
         pages:DB.config.pages,studentAccess:DB.config.studentAccess,
         teacherAccess:DB.config.teacherAccess,
-        repHint:DB.config.repHint,tyTitle:DB.config.tyTitle,tyText:DB.config.tyText,
-      });
+        repHint:DB.config.repHint,tyTitle:DB.config.tyTitle,tyText:DB.config.tyText});
     }
-    tick();
-  });
 
-  // — rooms —
-  pending++;
-  fbLoad('rooms',docs=>{
-    if(docs.length){
+    // — rooms —
+    if(r.rooms.length){
       DB.rooms.length=0;
-      docs.sort((a,b)=>(a._order||0)-(b._order||0));
-      docs.forEach(d=>{const{id,_updatedAt,_order,...r}=d;DB.rooms.push({id,...r});});
-    } else {
-      DB.rooms.forEach((r,i)=>fbSet('rooms',r.id,{...r,_order:i}));
-    }
-    tick();
-  });
+      r.rooms.sort((a,b)=>(a._order||0)-(b._order||0));
+      r.rooms.forEach(d=>{const{id,_updatedAt,_order,...rm}=d;DB.rooms.push({id,...rm});});
+    } else { DB.rooms.forEach((rm,i)=>fbSet('rooms',rm.id,{...rm,_order:i})); }
 
-  // — classes —
-  pending++;
-  fbLoad('classes',docs=>{
-    if(docs.length){
-      const cfg=docs.find(d=>d.id==='main');
-      if(cfg&&cfg.list)DB.classes.splice(0,DB.classes.length,...cfg.list);
-    } else {
-      fbSet('classes','main',{list:DB.classes});
-    }
-    tick();
-  });
+    // — classes —
+    if(r.classes.length){
+      const cl=r.classes.find(d=>d.id==='main');
+      if(cl&&cl.list)DB.classes.splice(0,DB.classes.length,...cl.list);
+    } else { fbSet('classes','main',{list:DB.classes}); }
 
-  // — instruments —
-  pending++;
-  fbLoad('instruments',docs=>{
-    if(docs.length){
-      const cats=docs.find(d=>d.id==='categories');
-      const items=docs.find(d=>d.id==='items');
+    // — instruments —
+    if(r.instruments.length){
+      const cats=r.instruments.find(d=>d.id==='categories');
+      const items=r.instruments.find(d=>d.id==='items');
       if(cats&&cats.list)DB.instruments.categories=cats.list;
       if(items&&items.list)DB.instruments.items=items.list;
     } else {
       fbSet('instruments','categories',{list:DB.instruments.categories});
       fbSet('instruments','items',{list:DB.instruments.items});
     }
-    tick();
-  });
 
-  // — teacherStudents —
-  pending++;
-  fbLoad('teacherStudents',docs=>{
-    if(docs.length){
-      docs.forEach(d=>{if(d.id)DB.teacherStudents[d.id]=(d.list||d.students||[]);});
-    } else {
-      Object.entries(DB.teacherStudents).forEach(([tid,list])=>fbSet('teacherStudents',tid,{list}));
+    // — teacherStudents —
+    if(r.teacherStudents.length){
+      r.teacherStudents.forEach(d=>{if(d.id)DB.teacherStudents[d.id]=(d.list||d.students||[]);});
+    } else { Object.entries(DB.teacherStudents).forEach(([tid,list])=>fbSet('teacherStudents',tid,{list})); }
+
+    // — disqualified —
+    r.disqualified.forEach(d=>{const{id,_updatedAt,...rest}=d;DB.disqualified[id]=rest;});
+
+    // — teacherComments —
+    r.teacherComments.forEach(d=>{const{id,_updatedAt,...rest}=d;DB.teacherComments[id]=rest;});
+
+    // — deductions —
+    r.deductions.forEach(d=>{const{id,_updatedAt,...rest}=d;DB.deductions[id]=rest;});
+
+    // — blackSign —
+    r.blackSign.forEach(d=>{const{id,_updatedAt,...rest}=d;DB.blackSign[id]=rest;});
+
+    // — liveExam —
+    r.liveExam.forEach(d=>{const{id,...rest}=d;DB.liveExam[id]=rest;});
+
+    // — jurySignup —
+    r.jurySignup.forEach(d=>{const{id,_updatedAt,...rest}=d;DB.jurySignup[id]=rest;});
+
+    // — jurySignupConfig —
+    const jscfg=r.jurySignupConfig.find(d=>d.id==='main');
+    if(jscfg){
+      if(jscfg.note!==undefined)DB.config.jurySignupNote=jscfg.note;
+      if(jscfg.options)DB.config.jurySignupOptions=jscfg.options;
     }
-    tick();
-  });
 
-  // — disqualified —
-  pending++;
-  fbLoad('disqualified',docs=>{
-    if(docs.length){
-      docs.forEach(d=>{const{id,_updatedAt,...rest}=d;DB.disqualified[id]=rest;});
-    }
-    tick();
-  });
+    // — scheduleState（同步快照，不阻塞主流程） —
+    const stateDoc=r.scheduleState.find(d=>d.id==='main');
+    const snapDoc=r.scheduleState.find(d=>d.id==='snapshot');
+    if(stateDoc&&stateDoc.data){try{_applyScheduleState(JSON.parse(stateDoc.data));}catch(e){}}
+    if(snapDoc&&snapDoc.data){try{DB.savedScheduleSnapshot=JSON.parse(snapDoc.data);}catch(e){}}
 
-  // — teacherComments —
-  pending++;
-  fbLoad('teacherComments',docs=>{
-    if(docs.length){
-      docs.forEach(d=>{const{id,_updatedAt,...rest}=d;DB.teacherComments[id]=rest;});
-    }
-    tick();
-  });
-
-  // — students repDone/teaDone/曲目 (stored in users collection above) —
-  // 已由 users 讀回，不重複讀
-
-  // — deductions —
-  pending++;
-  fbLoad('deductions',docs=>{
-    if(docs.length){
-      docs.forEach(d=>{const{id,_updatedAt,...rest}=d;DB.deductions[id]=rest;});
-    }
-    tick();
-  });
-
-  // — blackSign —
-  pending++;
-  fbLoad('blackSign',docs=>{
-    if(docs.length){
-      docs.forEach(d=>{const{id,_updatedAt,...rest}=d;DB.blackSign[id]=rest;});
-    }
-    tick();
-  });
-
-  // — liveExam —
-  pending++;
-  fbLoad('liveExam',docs=>{
-    if(docs.length){
-      docs.forEach(d=>{const{id,_updatedAt,...rest}=d;DB.liveExam[id]=rest;});
-    }
-    tick();
-  });
-
-  // — jurySignup —
-  pending++;
-  fbLoad('jurySignup',docs=>{
-    if(docs.length){
-      docs.forEach(d=>{const{id,_updatedAt,...rest}=d;DB.jurySignup[id]=rest;});
-    }
-    tick();
-  });
-
-  // — jurySignupConfig —
-  pending++;
-  fbLoad('jurySignupConfig',docs=>{
-    const cfg=docs.find(d=>d.id==='main');
-    if(cfg){
-      if(cfg.note!==undefined)DB.config.jurySignupNote=cfg.note;
-      if(cfg.options)DB.config.jurySignupOptions=cfg.options;
-    }
-    tick();
-  });
-
-  // — juryScores (即時監聽，非一次性讀取) —
-  // ★ 效能修正③：lightMode 時（學生/監考）不讀 juryScores（最慢的巢狀讀取），改由輪詢處理
-  if(!lightMode){
-    pending++;
-    (function(){
-      if(!window._FB){tick();return;}
+    // — juryScores（非 lightMode 才讀，且用 REST 模式直接並行） —
+    if(!lightMode && window._FB){
       const db=window._FB.db;
       let _jsDone=false;
-      const safeTick=()=>{if(!_jsDone){_jsDone=true;tick();}};
-      setTimeout(()=>{console.warn('[juryScores] 讀取超時，略過');safeTick();},12000);
-      (window._fbAuthReady||Promise.resolve()).then(()=>{
-        db.collection('juryScores').get().then(roomSnap=>{
-          let roomCount=roomSnap.size;
-          if(roomCount===0){safeTick();return;}
-          roomSnap.forEach(roomDoc=>{
-            db.collection('juryScores').doc(roomDoc.id)
-              .collection('entries').get().then(entrySnap=>{
-                entrySnap.forEach(entryDoc=>{
-                  const roomId=roomDoc.id;const entryKey=entryDoc.id;
-                  if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
-                  const raw=entryDoc.data();const jurors={};
-                  Object.keys(raw).forEach(k=>{if(!k.startsWith('_'))jurors[k]=raw[k];});
-                  DB.juryScores[roomId][entryKey]=jurors;
-                });
-                roomCount--;if(roomCount<=0)safeTick();
-              }).catch(()=>{roomCount--;if(roomCount<=0)safeTick();});
-          });
-        }).catch(()=>safeTick());
-      });
-    })();
-  }
+      const afterJury=()=>{if(!_jsDone){_jsDone=true;clearTimeout(_forceTimer);forceDone();}};
+      setTimeout(afterJury,8000); // juryScores 單獨 8 秒超時
+      db.collection('juryScores').get().then(roomSnap=>{
+        let roomCount=roomSnap.size;
+        if(roomCount===0){afterJury();return;}
+        roomSnap.forEach(roomDoc=>{
+          db.collection('juryScores').doc(roomDoc.id).collection('entries').get()
+            .then(entrySnap=>{
+              const roomId=roomDoc.id;
+              if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
+              entrySnap.forEach(ed=>{
+                const raw=ed.data();const jurors={};
+                Object.keys(raw).forEach(k=>{if(!k.startsWith('_'))jurors[k]=raw[k];});
+                DB.juryScores[roomId][ed.id]=jurors;
+              });
+              roomCount--;if(roomCount<=0)afterJury();
+            }).catch(()=>{roomCount--;if(roomCount<=0)afterJury();});
+        });
+      }).catch(afterJury);
+    } else {
+      clearTimeout(_forceTimer);
+      forceDone();
+    }
+
+  }).catch(e=>{
+    console.warn('[loadAll] Promise.all 失敗',e);
+    clearTimeout(_forceTimer);
+    forceDone();
+  });
 }
 
 function launchApp(){
@@ -2599,12 +2566,13 @@ function launchApp(){
           }
         }
         buildNav();initDropdowns();renderAll();setTimeout(navFirst,80);
+        // ★ 管理員：排程狀態已在記憶體，立即套用（不需要延遲）
+        if(ST.role==='admin')schLoadSchedule();
         // ★ 延遲啟動輪詢監聽（不阻塞首屏渲染）
         setTimeout(()=>{
           if(window._startJuryListener)window._startJuryListener();
           if(window._startLiveExamListener)window._startLiveExamListener();
         },500);
-        if(ST.role==='admin')setTimeout(schLoadSchedule,200);
       },200);
     },isLightRole);
   });
@@ -5096,6 +5064,7 @@ window.schSaveSchedule=schSaveSchedule;
 
 // ★ 載入排程狀態（launchApp 後呼叫）
 function schLoadSchedule(cb){
+  // ★ loadAllFromFirebase 已將 scheduleState 並行讀入並呼叫 _applyScheduleState
   if(!window._FB){
     try{
       const raw=localStorage.getItem('scheduleState');
@@ -5103,21 +5072,13 @@ function schLoadSchedule(cb){
       const snap=localStorage.getItem('scheduleSnapshot');
       if(snap)DB.savedScheduleSnapshot=JSON.parse(snap);
     }catch(e){}
-    if(cb)cb();return;
   }
-  // REST 和 SDK 模式統一用 fbLoad
-  let done=0;
-  function chk(){done++;if(done>=2&&cb)cb();}
-  fbLoad('scheduleState',docs=>{
-    const stateDoc=docs.find(d=>d.id==='main');
-    const snapDoc=docs.find(d=>d.id==='snapshot');
-    if(stateDoc&&stateDoc.data){try{_applyScheduleState(JSON.parse(stateDoc.data));}catch(e){}}
-    else if(stateDoc){try{_applyScheduleState(JSON.parse(stateDoc.data||'null'));}catch(e){}}
-    if(snapDoc&&snapDoc.data){try{DB.savedScheduleSnapshot=JSON.parse(snapDoc.data);}catch(e){}}
-    chk();
-  });
-  // 觸發一次 tick 確保 cb 不永遠等待
-  setTimeout(()=>{if(done<2&&cb)cb();},8000);
+  // 資料已在記憶體中，直接重新渲染
+  schInitSortUI();
+  renderSchedule();
+  // ★ 修正：快照載入後同步更新後台學生名單的考場欄位
+  if(ST.role==='admin'&&typeof renderAdminStudents==='function')renderAdminStudents();
+  if(cb)cb();
 }
 window.schLoadSchedule=schLoadSchedule;
 
@@ -5132,9 +5093,8 @@ function _applyScheduleState(data){
       removedEntries:new Set(st.removedEntries||[]),
     };
   });
-  // 重新載入目前考場
+  // 重新載入目前考場狀態（不在此 render，由 launchApp 的 renderAll 統一處理）
   _loadRoomState(SCH_STATE.roomId);
-  renderSchedule();
 }
 
 // ★ 手動移除出場名單中的某項目（同時清除 extraEntries，確保真正消失）
@@ -5606,15 +5566,23 @@ function renderAdminStudents(){
     tbody.innerHTML='<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--muted);font-family:\'DM Mono\',monospace;font-size:11px">此班級無學生資料</td></tr>';
     return;
   }
-  // 建立學生→考場對照表（從快照）
+  // ★ 建立學生→考場對照表（從快照）
+  // 同時支援 snap.roomId 欄位和外層 key 兩種來源，確保對得上
   const stuRoomMap={};
-  Object.entries(DB.savedScheduleSnapshot||{}).forEach(([roomId,snaps])=>{
-    const rName=DB.rooms.find(r=>r.id===roomId)?.name||roomId;
-    (snaps||[]).forEach(snap=>{
+  const snapData=DB.savedScheduleSnapshot||{};
+  Object.entries(snapData).forEach(([outerRoomId,snaps])=>{
+    if(!snaps||!snaps.length)return;
+    (snaps).forEach(snap=>{
+      // roomId 優先用 snap.roomId，fallback 外層 key
+      const roomId=snap.roomId||outerRoomId;
+      const rName=DB.rooms.find(r=>r.id===roomId)?.name
+                ||DB.rooms.find(r=>r.id===outerRoomId)?.name
+                ||(snap.roomName||roomId);
       if(!stuRoomMap[snap.studentId])stuRoomMap[snap.studentId]={major:[],minor:[],elective:[]};
-      if(snap.type==='major'&&!stuRoomMap[snap.studentId].major.includes(rName))stuRoomMap[snap.studentId].major.push(rName);
-      if(snap.type==='minor'&&!stuRoomMap[snap.studentId].minor.includes(rName))stuRoomMap[snap.studentId].minor.push(rName);
-      if(snap.type==='elective'&&!stuRoomMap[snap.studentId].elective.includes(rName))stuRoomMap[snap.studentId].elective.push(rName);
+      const t=snap.type;
+      if((t==='major'||t==='minor'||t==='elective')&&!stuRoomMap[snap.studentId][t].includes(rName)){
+        stuRoomMap[snap.studentId][t].push(rName);
+      }
     });
   });
   tbody.innerHTML=stus.map(s=>{
