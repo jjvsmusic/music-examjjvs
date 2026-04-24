@@ -2,9 +2,10 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
+<link rel="icon" href="data:,">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
 <title>音樂術科期末考評量系統</title>
-<link rel="manifest" href="manifest.json">
+<!-- manifest 由 JS 動態建立為 blob URL，無需靜態檔案 -->
 <meta name="theme-color" content="#b5892a">
 <!-- iOS PWA -->
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -28,7 +29,7 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
-body{font-family:'Noto Serif TC',serif;background:var(--paper);color:var(--ink);display:flex;flex-direction:column}
+body{font-family:Noto Serif TC,serif;background:var(--paper);color:var(--ink);display:flex;flex-direction:column}
 body::after{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");pointer-events:none;z-index:9000}
 
 /* LOGIN */
@@ -36,14 +37,14 @@ body::after{content:'';position:fixed;inset:0;background-image:url("data:image/s
 #login-screen.gone{opacity:0;visibility:hidden}
 .login-wrap{display:flex;box-shadow:0 0 0 1px var(--gold),0 32px 80px rgba(0,0,0,.6);align-self:flex-start;margin:auto}
 .login-deco{width:140px;background:var(--gold);padding:28px 16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px}
-.login-deco-sym{font-family:'Cormorant Garamond',serif;font-size:56px;color:var(--ink);line-height:1;opacity:.7}
+.login-deco-sym{font-family:Cormorant Garamond,serif;font-size:56px;color:var(--ink);line-height:1;opacity:.7}
 .login-deco-txt{font-family:\'DM Mono\',monospace;font-size:8px;letter-spacing:4px;color:var(--ink);opacity:.5;writing-mode:vertical-rl;transform:rotate(180deg);text-transform:uppercase}
 .login-form{background:var(--paper);padding:28px 28px;width:340px}
-.login-title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:300;line-height:1.35;margin-bottom:4px}
+.login-title{font-family:Cormorant Garamond,serif;font-size:22px;font-weight:300;line-height:1.35;margin-bottom:4px}
 .login-sub{font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:3px;color:var(--muted);margin-bottom:16px;text-transform:uppercase}
 .lf{margin-bottom:10px}
 .lf label{display:block;font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:5px;text-transform:uppercase}
-.lf input{width:100%;padding:9px 12px;border:1px solid var(--border);background:var(--cream);font-family:'Noto Serif TC',serif;font-size:14px;color:var(--ink);outline:none;border-radius:var(--r);transition:border-color .2s}
+.lf input{width:100%;padding:9px 12px;border:1px solid var(--border);background:var(--cream);font-family:Noto Serif TC,serif;font-size:14px;color:var(--ink);outline:none;border-radius:var(--r);transition:border-color .2s}
 .lf input:focus{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-bg)}
 .login-err{font-family:\'DM Mono\',monospace;font-size:10px;color:var(--rust);min-height:14px;margin-bottom:10px}
 .login-btn{width:100%;padding:13px;background:var(--ink);color:var(--gold);border:none;cursor:pointer;font-family:\'DM Mono\',monospace;font-size:10px;letter-spacing:3px;text-transform:uppercase;border-radius:var(--r);transition:all .2s;margin-bottom:8px}
@@ -60,7 +61,7 @@ body::after{content:'';position:fixed;inset:0;background-image:url("data:image/s
 
 /* TOPBAR */
 .topbar{background:var(--ink);height:52px;display:flex;align-items:center;padding:0 20px;gap:0;flex-shrink:0;border-bottom:2px solid var(--gold)}
-.tb-logo{font-family:'Cormorant Garamond',serif;font-size:18px;color:var(--gold);font-weight:300;letter-spacing:1px;white-space:nowrap;padding-right:18px;border-right:1px solid rgba(181,137,42,.3);margin-right:14px}
+.tb-logo{font-family:Cormorant Garamond,serif;font-size:18px;color:var(--gold);font-weight:300;letter-spacing:1px;white-space:nowrap;padding-right:18px;border-right:1px solid rgba(181,137,42,.3);margin-right:14px}
 .tb-logo em{font-style:italic}
 .tb-nav{display:flex;gap:2px;flex:1;overflow-x:auto;scrollbar-width:none}
 .tb-nav::-webkit-scrollbar{display:none}
@@ -79,7 +80,7 @@ body::after{content:'';position:fixed;inset:0;background-image:url("data:image/s
 .pg.on{display:block}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .ph{display:flex;align-items:baseline;gap:12px;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--border)}
-.ph h1{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:300}
+.ph h1{font-family:Cormorant Garamond,serif;font-size:28px;font-weight:300}
 .ph span{font-family:\'DM Mono\',monospace;font-size:9px;color:var(--muted);letter-spacing:2px}
 
 /* CARDS */
@@ -96,7 +97,7 @@ body::after{content:'';position:fixed;inset:0;background-image:url("data:image/s
 .fr{display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;align-items:flex-end}
 .fg{display:flex;flex-direction:column;gap:5px;flex:1;min-width:140px}
 .fg label{font-family:\'DM Mono\',monospace;font-size:8px;letter-spacing:2px;color:var(--muted);text-transform:uppercase}
-.fg input,.fg select,.fg textarea{padding:8px 12px;border:1px solid var(--border);background:var(--paper);font-family:'Noto Serif TC',serif;font-size:14px;color:var(--ink);outline:none;border-radius:var(--r);transition:border-color .2s;width:100%}
+.fg input,.fg select,.fg textarea{padding:8px 12px;border:1px solid var(--border);background:var(--paper);font-family:Noto Serif TC,serif;font-size:14px;color:var(--ink);outline:none;border-radius:var(--r);transition:border-color .2s;width:100%}
 .fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-bg)}
 .fg textarea{resize:vertical;min-height:64px;line-height:1.7}
 
@@ -144,7 +145,7 @@ td{padding:9px 12px;font-size:13px;vertical-align:middle}
 
 /* STAT CARD */
 .sc{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:16px;text-align:center}
-.sn{font-family:'Cormorant Garamond',serif;font-size:40px;font-weight:300;color:var(--ink);line-height:1}
+.sn{font-family:Cormorant Garamond,serif;font-size:40px;font-weight:300;color:var(--ink);line-height:1}
 .sl{font-family:\'DM Mono\',monospace;font-size:8px;letter-spacing:2px;color:var(--muted);margin-top:4px;text-transform:uppercase}
 
 /* BADGES */
@@ -187,7 +188,7 @@ td{padding:9px 12px;font-size:13px;vertical-align:middle}
 .score-inp:focus{background:var(--gold-bg)}
 .score-inp.empty-warn{background:#fff3f3!important}
 .score-inp.red-score{color:var(--red)}
-.comment-inp{width:100%;border:none;background:transparent;font-family:'Noto Serif TC',serif;font-size:12px;color:var(--ink);outline:none;padding:8px;resize:vertical;height:88px;min-height:72px;line-height:1.7;overflow-y:auto}
+.comment-inp{width:100%;border:none;background:transparent;font-family:Noto Serif TC,serif;font-size:12px;color:var(--ink);outline:none;padding:8px;resize:vertical;height:88px;min-height:72px;line-height:1.7;overflow-y:auto}
 .comment-inp:focus{background:var(--gold-bg)}
 .jst-row-a td{background:#fff5f5!important}
 
@@ -195,7 +196,7 @@ td{padding:9px 12px;font-size:13px;vertical-align:middle}
 .isb{border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:12px}
 .isb-h{background:var(--ink);color:var(--paper);padding:9px 14px;display:flex;align-items:center;justify-content:space-between}
 .isb-h-name{font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:2px}
-.isb-h-score{font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--gold)}
+.isb-h-score{font-family:Cormorant Garamond,serif;font-size:22px;color:var(--gold)}
 .isb-b{padding:14px;background:var(--white)}
 
 /* MODAL */
@@ -203,7 +204,7 @@ td{padding:9px 12px;font-size:13px;vertical-align:middle}
 .overlay.on{opacity:1;visibility:visible}
 .modal{background:var(--paper);padding:26px;border-radius:var(--r);box-shadow:0 0 0 1px var(--gold),0 20px 60px rgba(0,0,0,.4);transform:translateY(16px);transition:transform .3s;max-height:90vh;overflow-y:auto;width:540px;max-width:96vw}
 .overlay.on .modal{transform:translateY(0)}
-.modal-t{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:300;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.modal-t{font-family:Cormorant Garamond,serif;font-size:22px;font-weight:300;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
 .modal-ft{margin-top:18px;padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:7px}
 
 /* TOAST */
@@ -226,27 +227,27 @@ td{padding:9px 12px;font-size:13px;vertical-align:middle}
 .jsup-info-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;margin-bottom:22px}
 .jsup-info-card{border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
 .jsup-info-h{background:var(--ink);padding:10px 14px}
-.jsup-info-name{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--gold)}
-.jsup-info-loc{font-family:'DM Mono',monospace;font-size:8px;color:rgba(255,255,255,.45);margin-top:3px}
+.jsup-info-name{font-family:DM Mono,monospace;font-size:10px;letter-spacing:2px;color:var(--gold)}
+.jsup-info-loc{font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.45);margin-top:3px}
 .jsup-info-b{padding:10px 14px;background:var(--white)}
 .jsup-info-dt{font-size:13px;color:var(--ink);font-weight:600;line-height:1.7}
-.jsup-info-dt-label{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px;margin-bottom:2px}
+.jsup-info-dt-label{font-family:DM Mono,monospace;font-size:8px;color:var(--muted);letter-spacing:1px;margin-bottom:2px}
 /* 勾選填報區 */
 .jsup-select-section{border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:18px}
-.jsup-select-h{background:var(--cream);padding:10px 16px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.jsup-select-h{background:var(--cream);padding:10px 16px;font-family:DM Mono,monospace;font-size:9px;letter-spacing:2px;color:var(--muted);display:flex;align-items:center;gap:6px}
 .jsup-row{border-bottom:1px solid var(--cream);padding:12px 16px;background:var(--white);transition:background .15s}
 .jsup-row:last-child{border-bottom:none}
 .jsup-row-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .jsup-row-name{font-size:13px;font-weight:700;color:var(--ink);min-width:100px}
-.jsup-row-dt{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)}
+.jsup-row-dt{font-family:DM Mono,monospace;font-size:9px;color:var(--muted)}
 .jsup-row-opts{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;margin-left:0}
-.jsup-opt-btn{padding:5px 13px;border-radius:20px;border:1px solid var(--border);background:var(--cream);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;cursor:pointer;transition:all .18s;color:var(--ink);white-space:nowrap}
+.jsup-opt-btn{padding:5px 13px;border-radius:20px;border:1px solid var(--border);background:var(--cream);font-family:DM Mono,monospace;font-size:9px;letter-spacing:1px;cursor:pointer;transition:all .18s;color:var(--ink);white-space:nowrap}
 .jsup-opt-btn:hover{border-color:var(--gold);background:var(--gold-bg)}
 .jsup-opt-btn.active-attend{background:var(--sage);color:#fff;border-color:var(--sage)}
 .jsup-opt-btn.active-other{background:var(--orange);color:#fff;border-color:var(--orange)}
 .jsup-opt-btn.active-sub{background:var(--rust);color:#fff;border-color:var(--rust)}
 .jsup-expand{margin-top:10px;padding:12px 14px;border-radius:var(--r);border:1px solid var(--border);background:var(--cream);animation:fadeUp .2s ease}
-.jsup-status-badge{padding:3px 10px;border-radius:20px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px}
+.jsup-status-badge{padding:3px 10px;border-radius:20px;font-family:DM Mono,monospace;font-size:9px;letter-spacing:1px}
 .jsup-status-attend{background:#d4edda;color:#155724;border:1px solid #28a745}
 .jsup-status-sub{background:#fff3cd;color:#856404;border:1px solid #ffc107}
 .jsup-status-other{background:#e2e3e5;color:#383d41;border:1px solid #d6d8db}
@@ -290,10 +291,10 @@ td{padding:9px 12px;font-size:13px;vertical-align:middle}
 
 /* JURY REMARKS DROPDOWN */
 .remark-cell{min-width:90px;max-width:110px;width:90px;padding:3px}
-.remark-sel{width:100%;border:none;background:transparent;font-family:'Noto Serif TC',serif;font-size:10px;color:var(--ink);outline:none;padding:3px 1px;cursor:pointer}
+.remark-sel{width:100%;border:none;background:transparent;font-family:Noto Serif TC,serif;font-size:10px;color:var(--ink);outline:none;padding:3px 1px;cursor:pointer}
 .remark-sel:focus{background:var(--gold-bg)}
 .remark-sel.has-remark{color:var(--rust);font-weight:600}
-.remark-text-inp{width:100%;border:none;border-top:1px solid var(--cream);background:transparent;font-family:'Noto Serif TC',serif;font-size:11px;color:var(--ink);outline:none;padding:4px 6px;resize:none;min-height:36px;line-height:1.6}
+.remark-text-inp{width:100%;border:none;border-top:1px solid var(--cream);background:transparent;font-family:Noto Serif TC,serif;font-size:11px;color:var(--ink);outline:none;padding:4px 6px;resize:none;min-height:36px;line-height:1.6}
 .remark-text-inp:focus{background:var(--gold-bg)}
 
 /* INVIGILATOR PAGE */
@@ -331,7 +332,7 @@ td{padding:9px 12px;font-size:13px;vertical-align:middle}
 /* THANK YOU */
 .ty-wrap{text-align:center;padding:32px 24px}
 .ty-sym{font-size:44px;margin-bottom:14px}
-.ty-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:300;margin-bottom:10px}
+.ty-title{font-family:Cormorant Garamond,serif;font-size:26px;font-weight:300;margin-bottom:10px}
 .ty-text{font-size:13px;line-height:1.9;color:var(--muted);max-width:340px;margin:0 auto}
 
 /* PROGRESS */
@@ -363,13 +364,13 @@ td{padding:9px 12px;font-size:13px;vertical-align:middle}
 
 /* LOOKUP */
 .lookup-bar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
-.lookup-inp{padding:8px 12px;border:1px solid var(--border);background:var(--white);font-family:'Noto Serif TC',serif;font-size:14px;outline:none;border-radius:var(--r);flex:1;min-width:140px;color:var(--ink)}
+.lookup-inp{padding:8px 12px;border:1px solid var(--border);background:var(--white);font-family:Noto Serif TC,serif;font-size:14px;outline:none;border-radius:var(--r);flex:1;min-width:140px;color:var(--ink)}
 .lookup-inp:focus{border-color:var(--gold)}
 
 /* ROOM SELECT BAR */
 .room-bar{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
 .room-bar label{font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:2px;color:var(--muted)}
-.room-bar select{padding:7px 12px;border:1px solid var(--border);background:var(--paper);font-family:'Noto Serif TC',serif;font-size:14px;outline:none;border-radius:var(--r)}
+.room-bar select{padding:7px 12px;border:1px solid var(--border);background:var(--paper);font-family:Noto Serif TC,serif;font-size:14px;outline:none;border-radius:var(--r)}
 
 /* DEDUCTION */
 .deduct-row{display:grid;grid-template-columns:auto 1fr 1fr auto;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--cream)}
@@ -439,222 +440,286 @@ tbody td{color:var(--ink)!important}
   link.href=url;
 })();
 
-if('serviceWorker' in navigator){
-  window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js')
-      .then(r=>console.log('[SW] 已註冊:',r.scope))
-      .catch(e=>console.warn('[SW] 未找到 sw.js，離線功能需另行設定'));
-    navigator.serviceWorker.addEventListener('message',e=>{
-      if(e.data?.type==='SW_SYNC_REQUEST'&&typeof syncPendingToFirebase==='function')syncPendingToFirebase();
-    });
-  });
-}
+// Service Worker 已停用（sw.js 不存在時不報錯）
+// if('serviceWorker' in navigator){ ... }
 </script>
 
-<!-- ══ FIREBASE SDK (compat 版，可與一般 script 共存) ══ -->
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<!-- ══ FIREBASE：使用 Fetch REST API，無需外部 SDK ══ -->
 <script>
 // ══════════════════════════════════════════════
-// ★ 請將以下設定換成您的 Firebase 專案設定 ★
-// 取得位置：Firebase Console → 專案設定（齒輪）→ 您的應用程式 → firebaseConfig
+// Firebase 設定（REST API 模式，不載入任何外部 script）
 // ══════════════════════════════════════════════
-const firebaseConfig = {
-  apiKey: "AIzaSyBf6ApINYaNblGk6NScUy48MwjjrUNB_Lk",
-  authDomain: "musicexamjjvs.firebaseapp.com",
-  projectId: "musicexamjjvs",
-  storageBucket: "musicexamjjvs.firebasestorage.app",
-  messagingSenderId: "95917594092",
-  appId: "1:95917594092:web:768a4bc03d23456e1f5cc9"
-};
+(function(){
+  const PROJECT = 'musicexamjjvs';
+  const API_KEY = 'AIzaSyBf6ApINYaNblGk6NScUy48MwjjrUNB_Lk';
+  const FS_BASE = 'https://firestore.googleapis.com/v1/projects/' + PROJECT + '/databases/(default)/documents';
+  const AUTH_BASE = 'https://identitytoolkit.googleapis.com/v1';
 
-// 初始化 Firebase（只在有真實設定時才連線）
-if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
-  try {
-    firebase.initializeApp(firebaseConfig);
-    const _db = firebase.firestore();
-    const _auth = firebase.auth();
+  // ── token 管理 ──
+  let _idToken = null;
+  let _tokenExpiry = 0;
 
-    // ★ 啟用離線持久化
-    //   synchronizeTabs:false → 確保單一分頁獨佔持久化，避免 failed-precondition
-    //   評審用平板/手機通常只開一個分頁，此設定最穩定
-    _db.enablePersistence({ synchronizeTabs: false })
-      .then(() => {
-        console.log('[Firebase] 離線持久化已啟用 ✓');
-        // 持久化成功後才啟動 online 事件監聽，避免重複同步
-        window.addEventListener('online', () => {
-          ST.isOnline = true;
-          document.getElementById('off-bar').classList.remove('show');
-          if (typeof syncPendingToFirebase === 'function') syncPendingToFirebase();
+  async function _getToken(){
+    if(_idToken && Date.now() < _tokenExpiry - 60000) return _idToken;
+    try {
+      // 嘗試從 localStorage 取已有的 refresh token
+      let refreshToken = null;
+      try { refreshToken = localStorage.getItem('_fbRefreshToken'); } catch(e){}
+
+      if(refreshToken){
+        const r = await fetch(`${AUTH_BASE}/token?key=${API_KEY}`, {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({grant_type:'refresh_token', refresh_token: refreshToken})
         });
-      })
-      .catch(err => {
-        if (err.code === 'failed-precondition') {
-          console.warn('[Firebase] 偵測到多個分頁，離線持久化停用。請只開一個分頁使用系統。');
-        } else if (err.code === 'unimplemented') {
-          console.warn('[Firebase] 此瀏覽器不支援離線持久化，請改用 Chrome 或 Edge。');
+        if(r.ok){
+          const d = await r.json();
+          _idToken = d.id_token;
+          _tokenExpiry = Date.now() + (parseInt(d.expires_in)||3600)*1000;
+          try { localStorage.setItem('_fbRefreshToken', d.refresh_token); } catch(e){}
+          return _idToken;
         }
-        // 即使持久化失敗，仍加上 online 事件
-        window.addEventListener('online', () => {
-          ST.isOnline = true;
-          document.getElementById('off-bar').classList.remove('show');
-          if (typeof syncPendingToFirebase === 'function') syncPendingToFirebase();
-        });
+      }
+      // 匿名登入取新 token
+      const r2 = await fetch(`${AUTH_BASE}/accounts:signUp?key=${API_KEY}`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({returnSecureToken:true})
       });
-
-    window._FB = {
-      db: _db,
-      auth: _auth,
-      doc: (db, ...path) => {
-        let ref = db;
-        for (let i = 0; i < path.length; i += 2) {
-          ref = ref.collection(path[i]).doc(path[i+1]);
-        }
-        return ref;
-      },
-      setDoc: (ref, data, opts) => opts?.merge ? ref.set(data, {merge:true}) : ref.set(data),
-      getDoc: (ref) => ref.get(),
-      collection: (db, ...path) => {
-        let ref = db;
-        for (let i = 0; i < path.length; i++) {
-          ref = i % 2 === 0 ? ref.collection(path[i]) : ref.doc(path[i]);
-        }
-        return ref;
-      },
-      getDocs: (ref) => ref.get(),
-      onSnapshot: (ref, cb) => ref.onSnapshot(cb),
-      serverTimestamp: () => firebase.firestore.FieldValue.serverTimestamp(),
-      deleteDoc: (ref) => ref.delete(),
-    };
-
-    // ★ 匿名登入：確保每個使用者都有 Firebase UID，
-    //   Firestore 安全規則才能用 request.auth != null 來擋外部攻擊
-    window._fbAuthReady = new Promise((resolve) => {
-      // onAuthStateChanged 會在 SDK 初始化後第一次確認身分狀態
-      // 用 unsubscribe 確保只處理一次，避免重複 resolve
-      const unsub = _auth.onAuthStateChanged(user => {
-        unsub(); // 取消後續監聽，只取第一次結果
-        if (user) {
-          // 已有匿名 session（持久化），強制刷新 token 確保 Firestore 能認證
-          user.getIdToken(true)
-            .then(() => {
-              console.log('[Firebase Auth] 已有匿名 session UID:', user.uid);
-              window._fbUid = user.uid;
-              resolve(user);
-            })
-            .catch(() => {
-              // token 刷新失敗（離線），仍 resolve 讓程式繼續靠快取運作
-              window._fbUid = user.uid;
-              resolve(user);
-            });
-        } else {
-          // 沒有 session，進行匿名登入
-          _auth.signInAnonymously()
-            .then(cred => {
-              console.log('[Firebase Auth] 匿名登入成功 ✓ UID:', cred.user.uid);
-              window._fbUid = cred.user.uid;
-              resolve(cred.user);
-            })
-            .catch(e => {
-              console.warn('[Firebase Auth] 匿名登入失敗（離線？）:', e.message);
-              resolve(null); // 仍允許繼續，靠持久化快取運作
-            });
-        }
-      });
-    });
-
-    console.log('[Firebase] 連線成功 ✓');
-
-    // 啟動後即時監聽評審分數變動（涵蓋所有考場）
-    window._startJuryListener = function(){
-      try {
-        DB.rooms.forEach(room => {
-          const roomId = room.id; // ★ 修正：在外層 forEach 捕捉 roomId，避免 snapshot callback 內找不到 roomDoc
-          _db.collection('juryScores').doc(roomId)
-            .collection('entries').onSnapshot(snapshot => {
-                  snapshot.forEach(entryDoc => {
-                    const entryKey = entryDoc.id;
-                    if (!window.DB) return;
-                    if (!window.DB.juryScores[roomId]) window.DB.juryScores[roomId] = {};
-                    // 過濾掉內部欄位 (_updatedAt 等)
-                    const raw = entryDoc.data();
-                    const jurors = {};
-                    Object.keys(raw).forEach(k => { if(!k.startsWith('_')) jurors[k] = raw[k]; });
-                    window.DB.juryScores[roomId][entryKey] = jurors;
-                  });
-                  if (document.getElementById('pg-results')?.classList.contains('on')) {
-                    if (typeof renderResults === 'function') renderResults();
-                  }
-                });
-        });
-      } catch(e) { console.warn('[Firebase] 監聽失敗:', e); }
-    };
-    // launchApp 後再啟動監聽（等 DB.rooms 載入完成）
-    // 監聽 liveExam 即時同步
-    window._startLiveExamListener = function(){
-      if(!window._FB)return;
-      const db=window._FB.db;
-      try{
-        db.collection('liveExam').onSnapshot(snapshot=>{
-          snapshot.forEach(doc=>{
-            const{_updatedAt,...rest}=doc.data();
-            DB.liveExam[doc.id]=rest;
-          });
-          // 評審頁面：完整重建（無輸入框問題）
-          if(document.getElementById('pg-jury')?.classList.contains('on'))renderJuryTable();
-          // 監考頁面：局部更新（避免破壞正在輸入的 scaleKey input）
-          if(document.getElementById('pg-invigilator')?.classList.contains('on'))_patchInvigLive();
-        });
-        // ★ listener 啟動後若評審頁面已開著，立即補一次 render（防止啟動前的 snapshot 已錯過）
-        setTimeout(()=>{
-          if(document.getElementById('pg-jury')?.classList.contains('on'))renderJuryTable();
-        },600);
-      }catch(e){console.warn('[Firebase] liveExam 監聽失敗:',e);}
-    };
-
-    // ★ 局部更新監考表格的 live 狀態（不重建 DOM，只更新樣式/按鈕/調性badge）
-    window._patchInvigLive = function(){
-      const roomId=ST.invigRoom?.id;if(!roomId)return;
-      const liveState=DB.liveExam[roomId]||{};
-      const liveKey=liveState.playing||'';
-      const liveScaleKey=liveState.scaleKey||'';
-      // 取得目前渲染的 entries（依 renderInvigTable 相同邏輯）
-      let entries=getScheduleEntries().filter(e=>e.roomId===roomId);
-      if(!entries.length)return;
-      entries.forEach((e,i)=>{
-        const entryKey=e.studentId+'_'+e.type;
-        const isLive=liveKey===entryKey;
-        const row=document.getElementById('iv-row-'+i);
-        const playBtn=document.getElementById('iv-play-'+i);
-        const scaleInp=document.getElementById('iv-scale-'+i);
-        if(!row)return;
-        // 更新 row 背景色
-        const isBlack=!!(DB.blackSign[roomId]?.[entryKey]);
-        row.style.background=isBlack?'rgba(139,105,20,0.13)':isLive?'rgba(36,113,163,0.10)':'';
-        // 更新演奏按鈕
-        if(playBtn){
-          playBtn.className='playing-btn '+(isLive?'playing':'idle');
-          playBtn.textContent=isLive?'🎵 演奏中（點擊結束）':'▶ 點此開始演奏';
-        }
-        // 更新調性輸入框（只有在非 active focus 時才更新 value）
-        if(scaleInp){
-          scaleInp.disabled=!isLive;
-          scaleInp.title=isLive?'':'請先點擊演奏中';
-          // 若此 input 不是目前焦點，才更新顯示的值
-          if(document.activeElement!==scaleInp){
-            scaleInp.value=isLive?liveScaleKey:'';
-          }
-        }
-      });
-    };
-    window._patchInvigLive=window._patchInvigLive;
-  } catch(e) {
-    console.warn('[Firebase] 初始化失敗:', e);
+      if(r2.ok){
+        const d2 = await r2.json();
+        _idToken = d2.idToken;
+        _tokenExpiry = Date.now() + (parseInt(d2.expiresIn)||3600)*1000;
+        try { localStorage.setItem('_fbRefreshToken', d2.refreshToken); } catch(e){}
+        window._fbUid = d2.localId;
+        return _idToken;
+      }
+    } catch(e){
+      console.warn('[FB-REST] token 取得失敗:', e.message);
+    }
+    return null;
   }
-} else {
-  console.warn('[Firebase] 尚未填入設定，使用本機模式');
-}
+
+  // ── Firestore 值轉換：JS → Firestore 格式 ──
+  function _toFS(val){
+    if(val === null || val === undefined) return {nullValue: null};
+    if(typeof val === 'boolean') return {booleanValue: val};
+    if(typeof val === 'number') return Number.isInteger(val) ? {integerValue: String(val)} : {doubleValue: val};
+    if(typeof val === 'string') return {stringValue: val};
+    if(Array.isArray(val)) return {arrayValue:{values: val.map(_toFS)}};
+    if(val instanceof Date) return {timestampValue: val.toISOString()};
+    if(typeof val === 'object'){
+      const fields = {};
+      Object.keys(val).forEach(k => { fields[k] = _toFS(val[k]); });
+      return {mapValue:{fields}};
+    }
+    return {stringValue: String(val)};
+  }
+
+  // ── Firestore 值轉換：Firestore → JS ──
+  function _fromFS(fval){
+    if(!fval) return null;
+    if('nullValue' in fval) return null;
+    if('booleanValue' in fval) return fval.booleanValue;
+    if('integerValue' in fval) return parseInt(fval.integerValue);
+    if('doubleValue' in fval) return fval.doubleValue;
+    if('stringValue' in fval) return fval.stringValue;
+    if('timestampValue' in fval) return fval.timestampValue;
+    if('arrayValue' in fval) return (fval.arrayValue.values||[]).map(_fromFS);
+    if('mapValue' in fval){
+      const obj = {};
+      Object.keys(fval.mapValue.fields||{}).forEach(k => { obj[k] = _fromFS(fval.mapValue.fields[k]); });
+      return obj;
+    }
+    return null;
+  }
+
+  // ── 文件轉換 ──
+  function _docToObj(doc){
+    const obj = {id: doc.name.split('/').pop()};
+    Object.keys(doc.fields||{}).forEach(k => { obj[k] = _fromFS(doc.fields[k]); });
+    return obj;
+  }
+
+  // ── REST helpers ──
+  async function _fsGet(path){
+    const token = await _getToken();
+    const headers = token ? {Authorization:'Bearer '+token} : {};
+    const r = await fetch(`${FS_BASE}/${path}`, {headers});
+    if(!r.ok) return null;
+    return r.json();
+  }
+
+  async function _fsList(col){
+    const token = await _getToken();
+    const headers = token ? {Authorization:'Bearer '+token} : {};
+    const results = [];
+    let pageToken = null;
+    do {
+      const url = `${FS_BASE}/${col}?pageSize=300${pageToken?'&pageToken='+pageToken:''}`;
+      const r = await fetch(url, {headers});
+      if(!r.ok) break;
+      const d = await r.json();
+      (d.documents||[]).forEach(doc => results.push(_docToObj(doc)));
+      pageToken = d.nextPageToken || null;
+    } while(pageToken);
+    return results;
+  }
+
+  async function _fsSet(path, data){
+    const token = await _getToken();
+    const headers = {'Content-Type':'application/json', ...(token?{Authorization:'Bearer '+token}:{})};
+    // PATCH with updateMask 做 merge
+    const fields = {};
+    const mask = [];
+    Object.keys(data).forEach(k => {
+      fields[k] = _toFS(data[k]);
+      mask.push('fields.' + k);
+    });
+    // 先試 PATCH，若文件不存在改用 POST（實際用 ?currentDocument.exists=false 的做法）
+    const r = await fetch(`${FS_BASE}/${path}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({fields})
+    });
+    return r.ok;
+  }
+
+  async function _fsDelete(path){
+    const token = await _getToken();
+    const headers = token ? {Authorization:'Bearer '+token} : {};
+    const r = await fetch(`${FS_BASE}/${path}`, {method:'DELETE', headers});
+    return r.ok;
+  }
+
+  // ── window._FB 相容層（讓現有程式碼能繼續用） ──
+  window._FB = {
+    db: null, // REST 模式下不用 db 物件
+    _rest: true,
+    serverTimestamp: () => new Date().toISOString(),
+
+    // collection().doc().set() 相容
+    collection: function(_, col){ return {
+      doc: function(docId){ return {
+        id: docId,
+        _col: col,
+        set: function(data, opts){ return _fsSet(col+'/'+docId, data); },
+        get: function(){ return _fsGet(col+'/'+docId).then(d => d ? {exists:true, data:()=>_docToObj(d), id:docId} : {exists:false, data:()=>({}), id:docId}); },
+        update: function(data){ return _fsSet(col+'/'+docId, data); },
+        delete: function(){ return _fsDelete(col+'/'+docId); },
+        collection: function(subCol){ return {
+          doc: function(subId){ return {
+            id: subId,
+            set: function(data, opts){ return _fsSet(col+'/'+docId+'/'+subCol+'/'+subId, data); },
+            get: function(){ return _fsGet(col+'/'+docId+'/'+subCol+'/'+subId).then(d => d ? {exists:true, data:()=>_docToObj(d)} : {exists:false, data:()=>({})}); },
+          };},
+          onSnapshot: function(cb){
+            // REST 模式不支援即時監聽，改為輪詢（每 8 秒）
+            async function poll(){
+              try {
+                const docs = await _fsList(col+'/'+docId+'/'+subCol);
+                const fakeSnap = {forEach: fn => docs.forEach(d => fn({id:d.id, data:()=>d}))};
+                cb(fakeSnap);
+              } catch(e){}
+            }
+            poll();
+            const t = setInterval(poll, 8000);
+            return () => clearInterval(t); // unsubscribe
+          }
+        };}
+      };}
+    };},
+
+    // list collection
+    _list: _fsList,
+    _set: _fsSet,
+    _delete: _fsDelete,
+  };
+
+  // liveExam 輪詢
+  window._startLiveExamListener = function(){
+    if(!window._FB)return;
+    async function pollLive(){
+      try{
+        const docs = await _fsList('liveExam');
+        let changed = false;
+        docs.forEach(d => {
+          const {id, ...rest} = d;
+          if(JSON.stringify(DB.liveExam[id]) !== JSON.stringify(rest)){
+            DB.liveExam[id] = rest; changed = true;
+          }
+        });
+        if(changed){
+          if(document.getElementById('pg-jury')?.classList.contains('on'))renderJuryTable();
+          if(document.getElementById('pg-invigilator')?.classList.contains('on'))_patchInvigLive();
+        }
+      }catch(e){}
+    }
+    pollLive();
+    setInterval(pollLive, 6000);
+  };
+
+  window._startJuryListener = function(){
+    if(!window._FB)return;
+    async function pollJury(){
+      try{
+        for(const room of DB.rooms){
+          const docs = await _fsList('juryScores/'+room.id+'/entries');
+          if(!DB.juryScores[room.id])DB.juryScores[room.id]={};
+          docs.forEach(d=>{
+            const {id,...rest}=d;
+            DB.juryScores[room.id][id]=rest;
+          });
+        }
+        if(document.getElementById('pg-results')?.classList.contains('on'))renderResults();
+      }catch(e){}
+    }
+    pollJury();
+    setInterval(pollJury, 10000);
+  };
+
+  // ★ 局部更新監考表格
+  window._patchInvigLive = function(){
+    const roomId=ST.invigRoom?.id;if(!roomId)return;
+    const liveState=DB.liveExam[roomId]||{};
+    const liveKey=liveState.playing||'';
+    const liveScaleKey=liveState.scaleKey||'';
+    let entries;
+    if(DB.savedScheduleSnapshot[roomId]&&DB.savedScheduleSnapshot[roomId].length){
+      entries=DB.savedScheduleSnapshot[roomId];
+    } else {
+      entries=getScheduleEntries().filter(e=>e.roomId===roomId);
+    }
+    if(!entries.length)return;
+    entries.forEach((e,i)=>{
+      const entryKey=e.studentId+'_'+e.type;
+      const isLive=liveKey===entryKey;
+      const row=document.getElementById('iv-row-'+i);
+      const playBtn=document.getElementById('iv-play-'+i);
+      const scaleInp=document.getElementById('iv-scale-'+i);
+      if(!row)return;
+      const isBlack=!!(DB.blackSign[roomId]?.[entryKey]);
+      row.style.background=isBlack?'rgba(139,105,20,0.13)':isLive?'rgba(36,113,163,0.10)':'';
+      if(playBtn){
+        playBtn.className='playing-btn '+(isLive?'playing':'idle');
+        playBtn.textContent=isLive?'🎵 演奏中（點擊結束）':'▶ 點此開始演奏';
+      }
+      if(scaleInp){
+        scaleInp.disabled=!isLive;
+        scaleInp.title=isLive?'':'請先點擊演奏中';
+        if(document.activeElement!==scaleInp){
+          scaleInp.value=isLive?liveScaleKey:'';
+        }
+      }
+    });
+  };
+
+  // _fbAuthReady：REST 模式下直接 resolve
+  window._fbAuthReady = _getToken().then(t => {
+    console.log('[FB-REST] 認證完成, token:', t?'OK':'無');
+    return t;
+  }).catch(() => Promise.resolve(null));
+
+  console.log('[FB-REST] Firebase REST 模式已啟動 ✓');
+})();
 </script>
 </head>
 <body>
@@ -707,7 +772,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
     <h2 class="modal-t">🎼 評審入場確認</h2>
     <div style="background:var(--gold-bg);border:1px solid var(--gold);border-radius:var(--r);padding:12px 14px;margin-bottom:16px">
       <div style="font-family:\'DM Mono\',monospace;font-size:8px;letter-spacing:2px;color:var(--gold);margin-bottom:4px">已驗證考場代碼</div>
-      <div id="jn-room-name" style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--ink)"></div>
+      <div id="jn-room-name" style="font-family:Cormorant Garamond,serif;font-size:20px;color:var(--ink)"></div>
       <div id="jn-room-loc" style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-top:2px"></div>
     </div>
     <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">請填入您的姓名後即可開始評分，全程無需帳號或密碼。</p>
@@ -886,7 +951,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
       <div style="display:flex;align-items:flex-start;gap:10px;max-width:900px;margin:0 auto">
         <span style="font-size:18px;flex-shrink:0">📢</span>
         <div>
-          <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--gold);margin-bottom:3px">公布欄</div>
+          <div style="font-family:DM Mono,monospace;font-size:8px;letter-spacing:2px;color:var(--gold);margin-bottom:3px">公布欄</div>
           <div class="bulletin-text" style="font-size:13px;color:var(--ink);line-height:1.8;white-space:pre-line"></div>
         </div>
       </div>
@@ -993,7 +1058,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
       <div style="display:flex;align-items:flex-start;gap:10px;max-width:900px;margin:0 auto">
         <span style="font-size:18px;flex-shrink:0">📢</span>
         <div>
-          <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--steel);margin-bottom:3px">教師公布欄</div>
+          <div style="font-family:DM Mono,monospace;font-size:8px;letter-spacing:2px;color:var(--steel);margin-bottom:3px">教師公布欄</div>
           <div class="bulletin-text" style="font-size:13px;color:var(--ink);line-height:1.8;white-space:pre-line"></div>
         </div>
       </div>
@@ -1096,7 +1161,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
             <div class="bg">
               <!-- ★ 管理員教師模式切換（僅 admin 可見） -->
               <div id="tea-view-toggle" style="display:none;align-items:center;gap:5px;background:var(--cream);border:1px solid var(--border);border-radius:var(--r);padding:3px 6px">
-                <span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px">學生範圍：</span>
+                <span style="font-family:DM Mono,monospace;font-size:8px;color:var(--muted);letter-spacing:1px">學生範圍：</span>
                 <button id="tea-view-mine" class="btn btn-p btn-xs" onclick="setTeaView(false)">我的學生</button>
                 <button id="tea-view-all" class="btn btn-s btn-xs" onclick="setTeaView(true)">全部學生</button>
               </div>
@@ -1118,8 +1183,8 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
         <div id="tea-all-done-banner" style="display:none">
           <div style="background:linear-gradient(135deg,#d4edda,#c3e6cb);border:1px solid var(--sage);border-radius:var(--r);padding:20px 24px;text-align:center;margin-bottom:14px">
             <div style="font-size:28px;margin-bottom:8px">🎉</div>
-            <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:300;color:var(--sage);margin-bottom:8px">名單內評量已全部完成！</div>
-            <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:16px">是否有不在上方名單中的學生需要補充評量？</div>
+            <div style="font-family:Cormorant Garamond,serif;font-size:22px;font-weight:300;color:var(--sage);margin-bottom:8px">名單內評量已全部完成！</div>
+            <div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);margin-bottom:16px">是否有不在上方名單中的學生需要補充評量？</div>
             <div class="bg" style="justify-content:center;flex-wrap:wrap;gap:8px">
               <button class="btn btn-b btn-sm" onclick="openTeaSelfAddPanel();document.getElementById('tea-all-done-banner').style.display='none'">📋 有，去搜尋補充</button>
               <button class="btn btn-g" onclick="switchTeaSubTab('signup',document.getElementById('tsub-signup'));document.getElementById('tea-all-done-banner').style.display='none'">沒有，前往期末考評分報名 →</button>
@@ -1134,26 +1199,26 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
         <div class="jsup-card">
           <div class="card-t" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
             <span>📋 期末考評分參與確認</span>
-            <span id="jsup-submit-status" style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)"></span>
+            <span id="jsup-submit-status" style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted)"></span>
           </div>
 
           <!-- 說明文字 -->
           <div class="jsup-note" id="jsup-note-text"></div>
 
           <!-- ① 考場資訊展示（純資訊，不選項） -->
-          <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:8px">① 考場資訊一覽</div>
+          <div style="font-family:DM Mono,monospace;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:8px">① 考場資訊一覽</div>
           <div class="jsup-info-grid" id="jsup-info-grid"></div>
 
           <!-- ② 勾選填報區（每考場一列，含選項） -->
-          <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:8px">② 請選擇您對各考場的出席狀態</div>
+          <div style="font-family:DM Mono,monospace;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:8px">② 請選擇您對各考場的出席狀態</div>
           <div class="jsup-select-section">
             <div class="jsup-select-h">📌 請依考場逐一勾選（可複選確認參加的考場）</div>
             <div id="jsup-rows-body"></div>
           </div>
 
           <!-- ③ 整體補充說明 -->
-          <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:6px">③ 補充說明（選填）</div>
-          <textarea id="jsup-global-note" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;min-height:80px;outline:none;resize:vertical;font-family:'Noto Serif TC',serif;line-height:1.8;background:var(--paper)" placeholder="如有其他需要說明的事項，請填寫於此..."></textarea>
+          <div style="font-family:DM Mono,monospace;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:6px">③ 補充說明（選填）</div>
+          <textarea id="jsup-global-note" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;min-height:80px;outline:none;resize:vertical;font-family:Noto Serif TC,serif;line-height:1.8;background:var(--paper)" placeholder="如有其他需要說明的事項，請填寫於此..."></textarea>
 
           <div class="bg" style="margin-top:16px">
             <button class="btn btn-g" onclick="submitJurySignup()">✓ 確認送出報名</button>
@@ -1201,15 +1266,15 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
     <div class="pg" id="pg-jury">
       <!-- ★ 管理員考場切換按鈕（評審登入後自動隱藏） -->
       <div id="jury-admin-room-bar" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;padding:10px 14px;background:var(--cream);border-radius:var(--r);border:1px solid var(--border)">
-        <span style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;color:var(--muted);flex-shrink:0">篩選考場：</span>
-        <select id="jury-admin-room-select" onchange="adminJurySelectRoom(this.value,null)" style="padding:6px 10px;border:1px solid var(--border);background:var(--paper);font-family:'Noto Serif TC',serif;font-size:13px;color:var(--ink);outline:none;border-radius:var(--r);min-width:140px;cursor:pointer">
+        <span style="font-family:DM Mono,monospace;font-size:9px;letter-spacing:1.5px;color:var(--muted);flex-shrink:0">篩選考場：</span>
+        <select id="jury-admin-room-select" onchange="adminJurySelectRoom(this.value,null)" style="padding:6px 10px;border:1px solid var(--border);background:var(--paper);font-family:Noto Serif TC,serif;font-size:13px;color:var(--ink);outline:none;border-radius:var(--r);min-width:140px;cursor:pointer">
         </select>
         <div id="jury-admin-room-btns" style="display:flex;gap:6px;flex-wrap:wrap"></div>
       </div>
       <!-- 考場大標題 -->
       <div style="background:var(--ink);border-radius:var(--r);padding:18px 24px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
         <div>
-          <div id="jury-room-disp" style="font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:300;color:var(--gold);line-height:1.2">—</div>
+          <div id="jury-room-disp" style="font-family:Cormorant Garamond,serif;font-size:32px;font-weight:300;color:var(--gold);line-height:1.2">—</div>
           <div id="jury-location-disp" style="font-family:\'DM Mono\',monospace;font-size:11px;color:rgba(255,255,255,.5);margin-top:4px;letter-spacing:1.5px"></div>
         <div id="jury-datetime-disp" style="font-family:\'DM Mono\',monospace;font-size:10px;color:rgba(181,137,42,.7);margin-top:2px;letter-spacing:1px"></div>
         </div>
@@ -1479,7 +1544,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
           <div class="card">
             <div class="card-t">考場管理</div>
             <div class="bg" style="margin-bottom:12px"><button class="btn btn-p btn-sm" onclick="addRoom()">＋ 新增考場</button></div>
-            <p style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:8px">可拖曳 ⠿ 調整考場順序，順序將影響各頁面考場顯示順序。</p>
+            <p style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted);margin-bottom:8px">可拖曳 ⠿ 調整考場順序，順序將影響各頁面考場顯示順序。</p>
             <div class="tw"><table>
               <thead><tr><th style="width:24px"></th><th>考場名稱</th><th>考試地點</th><th>考試日期時間</th><th>評審代碼</th><th>監考代碼</th><th>操作</th></tr></thead>
               <tbody id="rooms-tbody"></tbody>
@@ -1552,7 +1617,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
         <!-- ★ 公布欄設定 -->
         <div class="card" style="margin-bottom:16px">
           <div class="card-t">📢 公布欄</div>
-          <p style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:14px;line-height:1.8">
+          <p style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);margin-bottom:14px;line-height:1.8">
             公布欄內容會顯示在教師和學生的頁面頂部。支援換行，留空則不顯示。
           </p>
           <div class="g2">
@@ -1644,7 +1709,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
         <div class="g2" style="margin-bottom:16px">
           <div class="card">
             <div class="card-t">說明文字設定</div>
-            <p style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.8">此文字會顯示在教師填報頁面頂部，說明評分規則。</p>
+            <p style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.8">此文字會顯示在教師填報頁面頂部，說明評分規則。</p>
             <div class="fg"><label>說明文字（支援換行）</label>
               <textarea id="jsup-note-inp" style="min-height:100px;line-height:1.8" placeholder="例：有兩位（含）以上學生需參與評分..."></textarea>
             </div>
@@ -1652,7 +1717,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
           </div>
           <div class="card">
             <div class="card-t">選項管理</div>
-            <p style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.8">
+            <p style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.8">
               可新增、修改、刪除選項。「是否為代評選項」若勾選，選擇後會要求填入代評老師姓名與電話，並再次選擇考場。
             </p>
             <div id="jsup-opts-list" style="margin-bottom:10px"></div>
@@ -1756,14 +1821,14 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
       <div class="room-bar">
         <!-- 檢視模式切換 -->
         <div style="display:flex;align-items:center;gap:6px;background:var(--cream);border:1px solid var(--border);border-radius:var(--r);padding:4px 8px">
-          <span style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1px;color:var(--muted)">檢視：</span>
+          <span style="font-family:DM Mono,monospace;font-size:8px;letter-spacing:1px;color:var(--muted)">檢視：</span>
           <button id="res-view-exam" class="btn btn-p btn-xs" onclick="setResultView('exam')">考場順序</button>
           <button id="res-view-class" class="btn btn-s btn-xs" onclick="setResultView('class')">班級彙整</button>
         </div>
         <label id="res-room-label">考場</label>
         <select id="result-room" onchange="renderResults()"><option value="">選擇考場</option></select>
         <label>班級</label>
-        <select id="result-class" onchange="renderResults()" style="padding:7px 12px;border:1px solid var(--border);background:var(--paper);font-family:'Noto Serif TC',serif;font-size:14px;outline:none;border-radius:var(--r)"><option value="">全部班級</option></select>
+        <select id="result-class" onchange="renderResults()" style="padding:7px 12px;border:1px solid var(--border);background:var(--paper);font-family:Noto Serif TC,serif;font-size:14px;outline:none;border-radius:var(--r)"><option value="">全部班級</option></select>
         <button class="btn btn-d btn-sm" id="result-remark-filter-btn" onclick="toggleRemarkFilter()" title="顯示有備註（疑似需扣分）的學生">⚠ 疑似扣分篩選</button>
         <button class="btn btn-b btn-sm" onclick="exportResultsCSV()">↓ 匯出本班 CSV</button>
         <button class="btn btn-s btn-sm" onclick="exportResultsCSV(true)">↓ 全部匯出</button>
@@ -2005,27 +2070,47 @@ const fmtScore = v => {
 function doLogin(){
   const acc=document.getElementById('l-user').value.trim();
   const pass=document.getElementById('l-pass').value.trim()||'000';
-  const u=DB.users.find(u=>u.account===acc&&u.pass===pass);
-  if(!u){
-    // Extra debug: check if account exists but pass wrong
-    const accExists=DB.users.find(u=>u.account===acc);
-    if(accExists){document.getElementById('l-err').textContent='密碼錯誤';return;}
-    document.getElementById('l-err').textContent='帳號不存在或密碼錯誤';return;
+  const errEl=document.getElementById('l-err');
+  errEl.textContent='';
+
+  function _tryLogin(){
+    const u=DB.users.find(u=>u.account===acc&&u.pass===pass);
+    if(!u){
+      const accExists=DB.users.find(u=>u.account===acc);
+      if(accExists){errEl.textContent='密碼錯誤';return;}
+      errEl.textContent='帳號不存在或密碼錯誤';return;
+    }
+    ST.user=u;ST.role=u.role;
+    if(u.role==='admin'){
+      try{sessionStorage.setItem('_adminSession',JSON.stringify({id:u.id,role:u.role}));}catch(e){}
+    }
+    launchApp();
+    if(pass==='000'&&u.role!=='jury'){
+      setTimeout(()=>{
+        document.getElementById('fl-new').value='';
+        document.getElementById('fl-confirm').value='';
+        document.getElementById('fl-err').textContent='';
+        openOverlay('first-login-modal');
+      },600);
+    }
   }
-  ST.user=u;ST.role=u.role;
-  // ★ #8 管理員登入時儲存 session
-  if(u.role==='admin'){
-    try{sessionStorage.setItem('_adminSession',JSON.stringify({id:u.id,role:u.role}));}catch(e){}
-  }
-  launchApp();
-  // 首次登入（密碼仍為預設 000）提示修改
-  if(pass==='000'&&u.role!=='jury'){
-    setTimeout(()=>{
-      document.getElementById('fl-new').value='';
-      document.getElementById('fl-confirm').value='';
-      document.getElementById('fl-err').textContent='';
-      openOverlay('first-login-modal');
-    },600);
+
+  // 若 Firebase 已連線，先確保 users 已從 Firestore 同步後再比對
+  if(window._FB){
+    errEl.textContent='驗證中...';
+    const authWait=window._fbAuthReady||Promise.resolve(null);
+    authWait.then(()=>{
+      fbLoad('users',docs=>{
+        if(docs.length){
+          DB.users.length=0;
+          docs.forEach(fd=>{const{_updatedAt,...rest}=fd;DB.users.push(rest);});
+        }
+        errEl.textContent='';
+        _tryLogin();
+      });
+    });
+  } else {
+    _tryLogin();
   }
 }
 window.doLogin=doLogin;
@@ -2191,35 +2276,53 @@ function doChangePassword(){
 window.doChangePassword=doChangePassword;
 
 
-// ════ Firebase 共用 helper ════
+// ════ Firebase 共用 helper（REST 模式相容）════
 function fbSet(col, docId, data){
   if(!window._FB)return;
-  const {db,serverTimestamp}=window._FB;
-  // ★ 等 Auth 就緒後再寫入，確保安全規則通過
   (window._fbAuthReady||Promise.resolve()).then(()=>{
-    // Remove undefined values to prevent Firestore errors
-    const clean=JSON.parse(JSON.stringify({...data}));
-    db.collection(col).doc(docId)
-      .set({...clean, _updatedAt:serverTimestamp()},{merge:true})
-      .catch(e=>console.warn('[FB write]',col,docId,e));
+    try{
+      const clean=JSON.parse(JSON.stringify({...data}));
+      if(window._FB._rest){
+        // REST 模式
+        window._FB._set(col+'/'+docId, {...clean, _updatedAt: new Date().toISOString()})
+          .catch(e=>console.warn('[FB write]',col,docId,e));
+      } else {
+        const {db,serverTimestamp}=window._FB;
+        db.collection(col).doc(docId)
+          .set({...clean, _updatedAt:serverTimestamp()},{merge:true})
+          .catch(e=>console.warn('[FB write]',col,docId,e));
+      }
+    }catch(e){console.warn('[fbSet]',e);}
   });
 }
 function fbDelete(col, docId){
   if(!window._FB)return;
-  const {db}=window._FB;
   (window._fbAuthReady||Promise.resolve()).then(()=>{
-    db.collection(col).doc(docId).delete()
-      .catch(e=>console.warn('[FB delete]',col,docId,e));
+    try{
+      if(window._FB._rest){
+        window._FB._delete(col+'/'+docId).catch(e=>console.warn('[FB delete]',col,docId,e));
+      } else {
+        window._FB.db.collection(col).doc(docId).delete()
+          .catch(e=>console.warn('[FB delete]',col,docId,e));
+      }
+    }catch(e){console.warn('[fbDelete]',e);}
   });
 }
 function fbLoad(col, cb){
   if(!window._FB){cb([]);return;}
-  const {db}=window._FB;
-  // ★ 等 Auth 就緒後再讀取，確保安全規則通過
   (window._fbAuthReady||Promise.resolve()).then(()=>{
-    db.collection(col).get()
-      .then(snap=>{const docs=[];snap.forEach(d=>docs.push({id:d.id,...d.data()}));cb(docs);})
-      .catch(e=>{console.warn('[FB load]',col,e);cb([]);});
+    try{
+      if(window._FB._rest){
+        // REST 模式：直接 fetch list
+        window._FB._list(col)
+          .then(docs=>cb(docs))
+          .catch(e=>{console.warn('[FB load]',col,e);cb([]);});
+      } else {
+        window._FB.db.collection(col).get()
+          .then(snap=>{const docs=[];snap.forEach(d=>docs.push({id:d.id,...d.data()}));cb(docs);})
+          .catch(e=>{console.warn('[FB load]',col,e);cb([]);});
+      }
+    }catch(e){console.warn('[fbLoad]',e);cb([]);}
   });
 }
 
@@ -2553,7 +2656,7 @@ function showPendingPage(pageId,label){
   pp.innerHTML=`<div class="ph"><h1>${label}</h1><span>Not Yet Available</span></div>
     <div class="card" style="text-align:center;padding:40px 24px">
       <div style="font-size:36px;margin-bottom:14px">🔒</div>
-      <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:300;margin-bottom:12px">尚未開放</div>
+      <div style="font-family:Cormorant Garamond,serif;font-size:22px;font-weight:300;margin-bottom:12px">尚未開放</div>
       <div style="font-size:13px;line-height:1.9;color:var(--muted);max-width:400px;margin:0 auto">${msg}</div>
     </div>`;
   pp.classList.add('on');
@@ -2655,7 +2758,7 @@ function filterRepInst(type){
         const box=document.createElement('div');
         box.id=msgBoxId;
         box.style.cssText='margin-top:10px;background:#fff8e6;border:1px solid var(--gold);border-left:4px solid var(--gold);border-radius:var(--r);padding:12px 14px';
-        box.innerHTML=`<div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--gold);margin-bottom:6px">📌 注意事項</div>
+        box.innerHTML=`<div style="font-family:DM Mono,monospace;font-size:8px;letter-spacing:2px;color:var(--gold);margin-bottom:6px">📌 注意事項</div>
           <div style="font-size:13px;line-height:1.9;color:var(--ink)">${htmlText}</div>`;
         sel.closest('.fr,.reg-sec-b')||sel.parentNode.parentNode;
         sel.parentNode.after(box);
@@ -2783,7 +2886,7 @@ function renderRepDoneInfo(){
   const sectHtml=sections.map(s=>`
     <div style="border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:12px">
       <div style="background:var(--ink);color:var(--gold);padding:9px 16px;display:flex;align-items:center;gap:10px">
-        <span style="font-family:'Cormorant Garamond',serif;font-size:18px">${s.icon}</span>
+        <span style="font-family:Cormorant Garamond,serif;font-size:18px">${s.icon}</span>
         <span style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase">${s.label}</span>
         <span style="font-size:13px;font-weight:600;color:var(--paper)">${s.inst}</span>
       </div>
@@ -2795,7 +2898,7 @@ function renderRepDoneInfo(){
               ${r.composer||r.title
                 ? `<div style="font-size:12px;color:var(--muted);margin-bottom:2px">${r.composer||'—'}</div>
                    <div style="font-size:14px;color:var(--ink);font-style:italic">${r.title||'—'}</div>`
-                : `<span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--border)">未填寫</span>`}
+                : `<span style="font-family:DM Mono,monospace;font-size:11px;color:var(--border)">未填寫</span>`}
             </div>
           </div>`).join('')}
       </div>
@@ -2976,19 +3079,19 @@ function renderScoresPage(){
         <div>
           <span style="font-family:\'DM Mono\',monospace;font-size:8px;letter-spacing:2px;color:var(--muted)">${typeName(t.type)} · </span>
           <span class="isb-h-name">${iname(t.inst)}</span>
-          ${t.rank&&t.rank<=3?`<span style="margin-left:10px;font-family:'DM Mono',monospace;font-size:8px;color:var(--gold)">第${t.rank}名 · ${t.room}</span>`:`<span style="margin-left:10px;font-family:'DM Mono',monospace;font-size:8px;color:var(--muted)">${t.room}</span>`}
+          ${t.rank&&t.rank<=3?`<span style="margin-left:10px;font-family:DM Mono,monospace;font-size:8px;color:var(--gold)">第${t.rank}名 · ${t.room}</span>`:`<span style="margin-left:10px;font-family:DM Mono,monospace;font-size:8px;color:var(--muted)">${t.room}</span>`}
         </div>
         <div class="isb-h-score ${fs!==null&&fs<60?'red-score':''}">${fs!==null?fs.toFixed(2):'—'}</div>
       </div>
       <div class="isb-b">
         <div class="g3" style="margin-bottom:12px">
           <div><div style="font-family:\'DM Mono\',monospace;font-size:8px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">音階/視奏</div>
-            <div style="font-family:'Cormorant Garamond',serif;font-size:28px;color:var(--ink)" class="${result.fS!==null&&result.fS<60?'red-score':''}">${result.fS!==null?result.fS.toFixed(1):'—'}</div></div>
+            <div style="font-family:Cormorant Garamond,serif;font-size:28px;color:var(--ink)" class="${result.fS!==null&&result.fS<60?'red-score':''}">${result.fS!==null?result.fS.toFixed(1):'—'}</div></div>
           <div><div style="font-family:\'DM Mono\',monospace;font-size:8px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">指定曲</div>
-            <div style="font-family:'Cormorant Garamond',serif;font-size:28px" class="${result.fA!==null&&result.fA<60?'red-score':''}">${result.fA!==null?result.fA.toFixed(1):'—'}</div>
+            <div style="font-family:Cormorant Garamond,serif;font-size:28px" class="${result.fA!==null&&result.fA<60?'red-score':''}">${result.fA!==null?result.fA.toFixed(1):'—'}</div>
             <div style="font-size:11px;color:var(--muted);margin-top:3px">${t.ac||''} — ${t.at||''}</div></div>
           <div><div style="font-family:\'DM Mono\',monospace;font-size:8px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">自選曲</div>
-            <div style="font-family:'Cormorant Garamond',serif;font-size:28px" class="${result.fF!==null&&result.fF<60?'red-score':''}">${result.fF!==null?result.fF.toFixed(1):'—'}</div>
+            <div style="font-family:Cormorant Garamond,serif;font-size:28px" class="${result.fF!==null&&result.fF<60?'red-score':''}">${result.fF!==null?result.fF.toFixed(1):'—'}</div>
             <div style="font-size:11px;color:var(--muted);margin-top:3px">${t.fc||''} — ${t.ft||''}</div></div>
         </div>
         <div style="font-size:13px;line-height:1.9;margin-bottom:8px"><strong style="font-family:\'DM Mono\',monospace;font-size:8px;letter-spacing:1.5px;color:var(--gold)">術科評語</strong><br>${comment||'—'}</div>
@@ -3136,24 +3239,24 @@ function renderTeaTable(){
           <label style="display:flex;align-items:center;gap:7px;cursor:pointer;flex:1;min-width:160px">
             <input type="checkbox" ${done?'checked':''} style="width:15px;height:15px;cursor:pointer;accent-color:var(--gold)"
               onchange="teaInlineToggle('${s.id}','${k}',this.checked)">
-            <span style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;color:${done?'var(--sage)':'var(--muted)'}">${typeName(k)}</span>
+            <span style="font-family:DM Mono,monospace;font-size:9px;letter-spacing:1px;color:${done?'var(--sage)':'var(--muted)'}">${typeName(k)}</span>
             <strong style="font-size:13px">${iname(s[k])}</strong>
-            ${done?`<span style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;${scoreColor}">${t.score}</span>`:`<span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--border)">未填</span>`}
+            ${done?`<span style="font-family:DM Mono,monospace;font-size:15px;font-weight:700;${scoreColor}">${t.score}</span>`:`<span style="font-family:DM Mono,monospace;font-size:11px;color:var(--border)">未填</span>`}
           </label>
           ${done?`<button class="btn btn-s btn-xs" onclick="teaInlineEdit('${s.id}','${k}')">修改</button>`:''}
         </div>
         <div id="tea-inline-form-${s.id}-${k}" style="display:none;margin-top:10px;padding:12px;background:var(--cream);border-radius:var(--r)">
           <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
             <div style="flex:0 0 120px">
-              <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1px;color:var(--muted);margin-bottom:4px">平時成績（0–100）</div>
+              <div style="font-family:DM Mono,monospace;font-size:8px;letter-spacing:1px;color:var(--muted);margin-bottom:4px">平時成績（0–100）</div>
               <input type="text" inputmode="decimal" id="ti-score-${s.id}-${k}" value="${t?.score??''}"
                 placeholder="輸入分數" readonly
                 onclick="openNP('ti-score-${s.id}-${k}','平時成績',v=>{document.getElementById('ti-score-${s.id}-${k}').value=v;})"
-                style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:'DM Mono',monospace;font-size:20px;font-weight:700;text-align:center;cursor:pointer;outline:none;background:var(--white)">
+                style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:DM Mono,monospace;font-size:20px;font-weight:700;text-align:center;cursor:pointer;outline:none;background:var(--white)">
             </div>
             <div style="flex:1;min-width:180px">
-              <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1px;color:var(--muted);margin-bottom:4px">評語</div>
-              <textarea id="ti-comment-${s.id}-${k}" style="width:100%;min-height:64px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:'Noto Serif TC',serif;font-size:13px;line-height:1.7;resize:vertical;outline:none;background:var(--white)" placeholder="填寫評語...">${t?.comment??''}</textarea>
+              <div style="font-family:DM Mono,monospace;font-size:8px;letter-spacing:1px;color:var(--muted);margin-bottom:4px">評語</div>
+              <textarea id="ti-comment-${s.id}-${k}" style="width:100%;min-height:64px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:Noto Serif TC,serif;font-size:13px;line-height:1.7;resize:vertical;outline:none;background:var(--white)" placeholder="填寫評語...">${t?.comment??''}</textarea>
             </div>
           </div>
           <div style="display:flex;gap:7px;margin-top:8px">
@@ -3167,7 +3270,7 @@ function renderTeaTable(){
       <div style="background:var(--cream);padding:8px 14px;display:flex;align-items:center;gap:12px;justify-content:space-between">
         <div>
           <strong>${s.name}</strong>
-          <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:8px">${s.class}·座${s.seat}</span>
+          <span style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted);margin-left:8px">${s.class}·座${s.seat}</span>
           ${s.repDone?'<span class="badge b-elective" style="margin-left:6px">已填報</span>':'<span class="badge b-absent" style="margin-left:6px">未填報</span>'}
         </div>
         <span class="dot ${allDone?'dg':'dr'}" title="${allDone?'已完成評量':'尚未完成評量'}"></span>
@@ -3457,7 +3560,7 @@ function teaWizPickType(type){
   const instName=iname(s[type])||'—';
   document.getElementById('tea-wiz-info').innerHTML=
     `<strong>${s.name}</strong> <span style="color:var(--muted);font-size:12px">${s.class}·座${s.seat}</span>`+
-    ` — <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--steel)">${typeName(type)}</span>`+
+    ` — <span style="font-family:DM Mono,monospace;font-size:11px;color:var(--steel)">${typeName(type)}</span>`+
     ` <strong style="color:var(--ink)">${instName}</strong>`+
     (s[acKey]?`<div style="font-size:11px;color:var(--muted);margin-top:4px">🎵 指定：${s[acKey]||''} — <em>${s[atKey]||''}</em></div>`:'<div style="font-size:10px;color:var(--border);margin-top:4px">（曲目尚未填報）</div>')+
     (s[fcKey]?`<div style="font-size:11px;color:var(--muted)">🎼 自選：${s[fcKey]||''} — <em>${s[ftKey]||''}</em></div>`:'');
@@ -3551,12 +3654,12 @@ function teaCheckAllDone(){
     if(incompleteDiv){
       incompleteDiv.style.display='block';
       incompleteDiv.innerHTML=`<div style="background:#fff8e6;border:1px solid var(--gold);border-left:4px solid var(--gold);border-radius:var(--r);padding:14px 16px;margin-bottom:14px">
-        <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--gold);margin-bottom:8px">⚠ 以下學生尚未完成全部評量</div>
+        <div style="font-family:DM Mono,monospace;font-size:10px;letter-spacing:2px;color:var(--gold);margin-bottom:8px">⚠ 以下學生尚未完成全部評量</div>
         ${incomplete.map(s=>{
           const missing=['major','minor','elective'].filter(k=>s[k]&&!DB.teacherComments[s.id]?.[k]?.score);
           return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-            <span style="font-size:13px">${s.name} <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">${s.class}·座${s.seat}</span></span>
-            <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--rust)">${missing.map(k=>typeName(k)).join('、')} 未填</span>
+            <span style="font-size:13px">${s.name} <span style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted)">${s.class}·座${s.seat}</span></span>
+            <span style="font-family:DM Mono,monospace;font-size:9px;color:var(--rust)">${missing.map(k=>typeName(k)).join('、')} 未填</span>
             <button class="btn btn-p btn-xs" onclick="teaWizOpenDirect('${s.id}','${missing[0]}')">去填寫</button>
           </div>`;
         }).join('')}
@@ -3810,7 +3913,7 @@ function renderJuryTable(){
     const pieceLineStyle=`display:flex;gap:4px;align-items:baseline;line-height:1.55;word-break:break-word;flex-wrap:wrap`;
     const composerStyle=`font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap`;
     const titleStyle=`font-size:11px;font-style:italic;color:var(--steel)`;
-    const labelStyle=`font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.5px;white-space:nowrap;flex-shrink:0`;
+    const labelStyle=`font-family:DM Mono,monospace;font-size:9px;color:var(--muted);letter-spacing:.5px;white-space:nowrap;flex-shrink:0`;
     const pieceCellContent=
       `<div style="padding:5px 0 4px 0">`+
         (_hasAssigned
@@ -3831,7 +3934,7 @@ function renderJuryTable(){
 
     // 列1
     let _row1=`<tr id="jr-${i}" class="${rowClass}">`;
-    _row1+=`<td rowspan="2" style="text-align:center;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);vertical-align:middle;border-right:1px solid var(--border);width:28px;padding:4px 1px;position:sticky;left:0;z-index:10;background:inherit">${String(e.order).padStart(2,'0')}</td>`;
+    _row1+=`<td rowspan="2" style="text-align:center;font-family:DM Mono,monospace;font-size:11px;color:var(--muted);vertical-align:middle;border-right:1px solid var(--border);width:28px;padding:4px 1px;position:sticky;left:0;z-index:10;background:inherit">${String(e.order).padStart(2,'0')}</td>`;
     _row1+=`<td rowspan="2" style="padding:0;border-right:1px solid var(--border);width:120px;max-width:120px;position:sticky;left:28px;z-index:10;background:inherit">${nameCell.replace(/<td[^>]*>/,'').replace('</td>','')}</td>`;
     _row1+=`<td rowspan="2" style="border-right:1px solid var(--border);text-align:center;vertical-align:middle;width:36px">${absentCell.replace(/<td[^>]*>/,'').replace('</td>','')}</td>`;
     // 所有評分欄位（分數格）
@@ -4082,10 +4185,8 @@ function toggleLivePlay(roomId,entryKey,rowIdx){
     else renderInvigTable();
   }
   if(document.getElementById('pg-jury')?.classList.contains('on'))renderJuryTable();
-  // 若在線同步 Firebase
   if(ST.isOnline&&window._FB){
-    const {db,serverTimestamp}=window._FB;
-    db.collection('liveExam').doc(roomId).set({...DB.liveExam[roomId],_updatedAt:serverTimestamp()},{merge:true}).catch(()=>{});
+    fbSet('liveExam',roomId,{...DB.liveExam[roomId]});
   }
 }
 window.toggleLivePlay=toggleLivePlay;
@@ -4094,9 +4195,7 @@ function saveScaleKey(roomId,entryKey,val){
   if(!DB.liveExam[roomId])DB.liveExam[roomId]={};
   DB.liveExam[roomId].scaleKey=val;
   if(ST.isOnline&&window._FB){
-    const {db,serverTimestamp}=window._FB;
-    db.collection('liveExam').doc(roomId).set({...DB.liveExam[roomId],_updatedAt:serverTimestamp()},{merge:true}).catch(()=>{});
-    // Firebase onSnapshot 會自動更新評審端，不需本地額外呼叫
+    fbSet('liveExam',roomId,{...DB.liveExam[roomId]});
   } else {
     // 離線時本地更新評審頁面
     if(document.getElementById('pg-jury')?.classList.contains('on'))renderJuryTable();
@@ -4251,14 +4350,14 @@ function checkJuryBeforeSubmit(){
   const body=document.getElementById('check-modal-body');
   const confirmBtn=document.getElementById('check-confirm-btn');
   if(missing.length){
-    body.innerHTML=`<div style="color:var(--rust);font-family:'DM Mono',monospace;font-size:11px;margin-bottom:14px">⚠ 以下學生尚有未填分數</div>`+
+    body.innerHTML=`<div style="color:var(--rust);font-family:DM Mono,monospace;font-size:11px;margin-bottom:14px">⚠ 以下學生尚有未填分數</div>`+
       missing.map(m=>`<div style="padding:8px 12px;background:var(--cream);border-radius:var(--r);margin-bottom:6px;font-size:13px">
         <strong>${m.name}</strong> <span style="color:var(--muted);font-size:11px">${m.inst}·${m.type}</span>
         <div style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--rust);margin-top:4px">未填：${m.fields.map(f=>({scale:'音階',assigned:'指定曲',free:'自選曲'})[f]).join('、')}</div>
       </div>`).join('');
     confirmBtn.style.display='none';
   }else{
-    body.innerHTML=`<div style="color:var(--sage);font-family:'DM Mono',monospace;font-size:12px;text-align:center;padding:16px">✓ 所有分數均已填寫完畢，可以送出。</div>`;
+    body.innerHTML=`<div style="color:var(--sage);font-family:DM Mono,monospace;font-size:12px;text-align:center;padding:16px">✓ 所有分數均已填寫完畢，可以送出。</div>`;
     confirmBtn.style.display='inline-flex';
   }
   openOverlay('check-modal');
@@ -4481,7 +4580,7 @@ function renderSchExcludeUI(){
   if(!listEl)return;
   const rules=SCH_STATE.excludeRules||[];
   if(!rules.length){
-    listEl.innerHTML=`<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--border)">尚無排除規則</span>`;
+    listEl.innerHTML=`<span style="font-family:DM Mono,monospace;font-size:9px;color:var(--border)">尚無排除規則</span>`;
     return;
   }
   listEl.innerHTML='';
@@ -4490,7 +4589,7 @@ function renderSchExcludeUI(){
     const typeName2={major:'主修',minor:'副修',elective:'選修'}[r.type]||'全部修別';
     const clsName=r.cls||'全部班級';
     const tag=document.createElement('div');
-    tag.style.cssText="display:inline-flex;align-items:center;gap:5px;padding:4px 8px;background:#f8d7da;border:1px solid var(--rust);border-radius:20px;font-family:'DM Mono',monospace;font-size:9px;color:var(--rust)";
+    tag.style.cssText="display:inline-flex;align-items:center;gap:5px;padding:4px 8px;background:#f8d7da;border:1px solid var(--rust);border-radius:20px;font-family:DM Mono,monospace;font-size:9px;color:var(--rust)";
     tag.innerHTML=`${catName} × ${typeName2} × ${clsName} <button onclick="schRemoveExcludeRule(${idx})" style="background:none;border:none;cursor:pointer;color:var(--rust);font-size:12px;padding:0;line-height:1;margin-left:2px">✕</button>`;
     listEl.appendChild(tag);
   });
@@ -4525,7 +4624,7 @@ function renderSchCatUI(){
   el.innerHTML='';
   SCH_STATE.catOrder.forEach((c,idx)=>{
     const tag=document.createElement('div');
-    tag.style.cssText=`display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border:1px solid var(--border);border-radius:20px;cursor:grab;font-family:'DM Mono',monospace;font-size:9px;transition:all .15s;background:${c.active?'var(--gold);color:var(--ink)':'var(--white)'}`;
+    tag.style.cssText=`display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border:1px solid var(--border);border-radius:20px;cursor:grab;font-family:DM Mono,monospace;font-size:9px;transition:all .15s;background:${c.active?'var(--gold);color:var(--ink)':'var(--white)'}`;
     tag.draggable=true;tag.dataset.idx=idx;
     tag.innerHTML=c.name;
     tag.addEventListener('click',()=>{c.active=!c.active;tag.style.background=c.active?'var(--gold)':'var(--white)';tag.style.color=c.active?'var(--ink)':'';renderSchInstUI();});
@@ -4562,7 +4661,7 @@ function renderSchInstUI(){
     insts.forEach(inst=>{
       const idx=SCH_STATE.instOrder.indexOf(inst);
       const tag=document.createElement('div');
-      tag.style.cssText=`display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid var(--border);border-radius:20px;cursor:grab;font-family:'DM Mono',monospace;font-size:9px;transition:all .15s;background:${inst.active?'var(--ink);color:var(--gold)':'var(--white)'}`;
+      tag.style.cssText=`display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid var(--border);border-radius:20px;cursor:grab;font-family:DM Mono,monospace;font-size:9px;transition:all .15s;background:${inst.active?'var(--ink);color:var(--gold)':'var(--white)'}`;
       tag.draggable=true;tag.dataset.idx=idx;
       tag.innerHTML=inst.name;
       tag.addEventListener('click',()=>{
@@ -4590,7 +4689,7 @@ function renderSchTypeUI(){
   el.innerHTML='';
   SCH_STATE.typeOrder.forEach((t,idx)=>{
     const tag=document.createElement('div');
-    tag.style.cssText=`display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid var(--border);border-radius:20px;cursor:grab;font-family:'DM Mono',monospace;font-size:9px;transition:all .15s;background:${t.active?'var(--steel);color:#fff':'var(--white)'}`;
+    tag.style.cssText=`display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid var(--border);border-radius:20px;cursor:grab;font-family:DM Mono,monospace;font-size:9px;transition:all .15s;background:${t.active?'var(--steel);color:#fff':'var(--white)'}`;
     tag.draggable=true;tag.dataset.idx=idx;
     tag.innerHTML=t.label;
     tag.addEventListener('click',()=>{t.active=!t.active;tag.style.background=t.active?'var(--steel)':'var(--white)';tag.style.color=t.active?'#fff':'';});
@@ -4614,7 +4713,7 @@ function renderSchClassUI(){
   el.innerHTML='';
   SCH_STATE.classOrder.forEach((c,idx)=>{
     const tag=document.createElement('div');
-    tag.style.cssText=`display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid var(--border);border-radius:20px;cursor:grab;font-family:'DM Mono',monospace;font-size:9px;transition:all .15s;background:${c.active?'var(--sage);color:#fff':'var(--white)'}`;
+    tag.style.cssText=`display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid var(--border);border-radius:20px;cursor:grab;font-family:DM Mono,monospace;font-size:9px;transition:all .15s;background:${c.active?'var(--sage);color:#fff':'var(--white)'}`;
     tag.draggable=true;tag.dataset.idx=idx;
     tag.innerHTML=c.cls;
     tag.addEventListener('click',()=>{c.active=!c.active;tag.style.background=c.active?'var(--sage)':'var(--white)';tag.style.color=c.active?'#fff':'';});
@@ -4651,11 +4750,13 @@ function renderSchedule(){
   const container=document.getElementById('sch-list');if(!container)return;
   let entries=getScheduleEntries();
 
-  // ★ #7 過濾手動移除的項目
+  // ★ 過濾手動移除的項目（removedEntries 優先於 extraEntries）
   entries=entries.filter(e=>!SCH_STATE.removedEntries.has(e.studentId+'_'+e.type));
 
-  // ★ #7 合併手動加入的項目
+  // ★ 合併手動加入的項目（若在 removedEntries 中則不加回）
   SCH_STATE.extraEntries.forEach(ex=>{
+    const key=ex.studentId+'_'+ex.type;
+    if(SCH_STATE.removedEntries.has(key))return; // 已被移除，不加回
     const alreadyIn=entries.some(e=>e.studentId===ex.studentId&&e.type===ex.type);
     if(alreadyIn)return;
     const stu=DB.users.find(u=>u.id===ex.studentId);if(!stu)return;
@@ -4757,7 +4858,7 @@ function renderSchedule(){
       <div class="ei-info" style="flex:1">
         <div class="ei-name">${e.name} <span style="font-size:12px;font-weight:400;color:var(--muted)">${e.class}·座${e.seat}</span>${dq?`<span class="badge b-absent" style="margin-left:6px">⛔ 扣考</span>`:''} ${isExtra?'<span style="font-family:\'DM Mono\',monospace;font-size:8px;color:var(--steel);margin-left:4px">手動加入</span>':''}</div>
         <div class="ei-detail">${e.instName}·${typeName(e.type)}·${e.roomName}${e.roomLocation?' 📍'+e.roomLocation:''}</div>
-        ${dq?`<div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--red);margin-top:2px">原因：${dq.reason}${dq.note?' ／ '+dq.note:''}</div>`:''}
+        ${dq?`<div style="font-family:DM Mono,monospace;font-size:9px;color:var(--red);margin-top:2px">原因：${dq.reason}${dq.note?' ／ '+dq.note:''}</div>`:''}
         <div class="ei-rep">${e.ac?'指定：'+e.ac+' — '+e.at:''}${e.fc?'\n自選：'+e.fc+' — '+e.ft:''}</div>
       </div>
       ${typeBadge(e.type)}
@@ -4843,20 +4944,14 @@ function schSaveSchedule(){
   });
   DB.savedScheduleSnapshot=snapshot;
 
-  if(window._FB){
-    const {db,serverTimestamp}=window._FB;
-    Promise.all([
-      db.collection('scheduleState').doc('main').set({data:JSON.stringify(data),_updatedAt:serverTimestamp()}),
-      db.collection('scheduleState').doc('snapshot').set({data:JSON.stringify(snapshot),_updatedAt:serverTimestamp()}),
-    ]).then(()=>showToast('排程已儲存 ✓（評審/監考名單已同步）','ok'))
-      .catch(()=>showToast('儲存失敗，請重試','err'));
-  } else {
-    try{
-      localStorage.setItem('scheduleState',JSON.stringify(data));
-      localStorage.setItem('scheduleSnapshot',JSON.stringify(snapshot));
-    }catch(e){}
-    showToast('排程已儲存（本機）✓','ok');
-  }
+  // 統一用 fbSet（REST 和 SDK 模式皆相容）
+  fbSet('scheduleState','main',{data:JSON.stringify(data)});
+  fbSet('scheduleState','snapshot',{data:JSON.stringify(snapshot)});
+  try{
+    localStorage.setItem('scheduleState',JSON.stringify(data));
+    localStorage.setItem('scheduleSnapshot',JSON.stringify(snapshot));
+  }catch(e){}
+  showToast('排程已儲存 ✓（評審/監考名單已同步）','ok');
 }
 
 // ★ 依目前 SCH_STATE 篩選/排序，回傳此考場的 entry 陣列（不修改 DOM）
@@ -4864,6 +4959,8 @@ function _buildFilteredEntries(roomId){
   let entries=getScheduleEntries();
   entries=entries.filter(e=>!SCH_STATE.removedEntries.has(e.studentId+'_'+e.type));
   SCH_STATE.extraEntries.forEach(ex=>{
+    const key=ex.studentId+'_'+ex.type;
+    if(SCH_STATE.removedEntries.has(key))return; // removedEntries 優先
     const alreadyIn=entries.some(e=>e.studentId===ex.studentId&&e.type===ex.type);
     if(alreadyIn)return;
     const stu=DB.users.find(u=>u.id===ex.studentId);if(!stu)return;
@@ -4938,16 +5035,19 @@ function schLoadSchedule(cb){
     }catch(e){}
     if(cb)cb();return;
   }
-  const {db}=window._FB;
-  // 同時讀取 scheduleState 和 snapshot
-  Promise.all([
-    db.collection('scheduleState').doc('main').get(),
-    db.collection('scheduleState').doc('snapshot').get(),
-  ]).then(([stateDoc,snapDoc])=>{
-    if(stateDoc.exists){try{_applyScheduleState(JSON.parse(stateDoc.data().data));}catch(e){}}
-    if(snapDoc.exists){try{DB.savedScheduleSnapshot=JSON.parse(snapDoc.data().data);}catch(e){}}
-    if(cb)cb();
-  }).catch(()=>{if(cb)cb();});
+  // REST 和 SDK 模式統一用 fbLoad
+  let done=0;
+  function chk(){done++;if(done>=2&&cb)cb();}
+  fbLoad('scheduleState',docs=>{
+    const stateDoc=docs.find(d=>d.id==='main');
+    const snapDoc=docs.find(d=>d.id==='snapshot');
+    if(stateDoc&&stateDoc.data){try{_applyScheduleState(JSON.parse(stateDoc.data));}catch(e){}}
+    else if(stateDoc){try{_applyScheduleState(JSON.parse(stateDoc.data||'null'));}catch(e){}}
+    if(snapDoc&&snapDoc.data){try{DB.savedScheduleSnapshot=JSON.parse(snapDoc.data);}catch(e){}}
+    chk();
+  });
+  // 觸發一次 tick 確保 cb 不永遠等待
+  setTimeout(()=>{if(done<2&&cb)cb();},8000);
 }
 window.schLoadSchedule=schLoadSchedule;
 
@@ -4967,11 +5067,14 @@ function _applyScheduleState(data){
   renderSchedule();
 }
 
-// ★ #7 手動移除出場名單中的某項目
+// ★ 手動移除出場名單中的某項目（同時清除 extraEntries，確保真正消失）
 function schRemoveEntry(entryKey){
   SCH_STATE.removedEntries.add(entryKey);
+  // 同時從 extraEntries 移除，避免 extra 把人加回來
+  const [sid,type]=entryKey.split('_');
+  SCH_STATE.extraEntries=SCH_STATE.extraEntries.filter(e=>!(e.studentId===sid&&e.type===type));
   renderSchedule();
-  showToast('已從排程移除，可按「加入」重新添加','warn');
+  showToast('已從排程移除','warn');
 }
 window.schRemoveEntry=schRemoveEntry;
 
@@ -4983,7 +5086,7 @@ function openSchAddModal(){
     modal=document.createElement('div');modal.id='sch-add-modal';modal.className='overlay';
     modal.innerHTML=`<div class="modal" style="width:620px;max-width:98vw">
       <h2 class="modal-t">＋ 手動加入出場名單</h2>
-      <p style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.8">
+      <p style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.8">
         搜尋學生，可強制加入（即使已被排除規則過濾）。點「移出」可從目前考場名單移除。<br>
         選擇考場後加入，會把該學生/修別排入指定考場。
       </p>
@@ -5019,7 +5122,7 @@ function schAddSearch(){
   const q=(document.getElementById('sch-add-search')?.value||'').trim();
   const res=document.getElementById('sch-add-results');if(!res)return;
   const stus=students().filter(s=>!q||s.name.includes(q)||(s.account||'').includes(q)).slice(0,40);
-  if(!stus.length){res.innerHTML='<div style="padding:14px;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;text-align:center">查無學生</div>';return;}
+  if(!stus.length){res.innerHTML=`<div style="padding:14px;color:var(--muted);font-family:DM Mono,monospace;font-size:11px;text-align:center">查無學生</div>`;return;}
 
   // 取得目前排程中實際在名單的 entryKeys（已通過篩選且未被移除的）
   const currentKeys=new Set();
@@ -5069,9 +5172,9 @@ function schAddSearch(){
         return ch.some(tt=>{const inst=DB.instruments.items.find(x=>x.id===stu[tt]);return inst&&inst.cat===r.catId;});
       });
       let statusBadge='';
-      if(inList&&!isRemoved)statusBadge=`<span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--sage);background:#d4edda;border:1px solid #c3e6cb;border-radius:10px;padding:1px 7px">✓ 已在名單</span>`;
-      else if(isRemoved)statusBadge=`<span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--rust);background:#f8d7da;border:1px solid #f5c6cb;border-radius:10px;padding:1px 7px">已移出</span>`;
-      else if(isExcluded)statusBadge=`<span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--orange);background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:1px 7px">排除規則</span>`;
+      if(inList&&!isRemoved)statusBadge=`<span style="font-family:DM Mono,monospace;font-size:8px;color:var(--sage);background:#d4edda;border:1px solid #c3e6cb;border-radius:10px;padding:1px 7px">✓ 已在名單</span>`;
+      else if(isRemoved)statusBadge=`<span style="font-family:DM Mono,monospace;font-size:8px;color:var(--rust);background:#f8d7da;border:1px solid #f5c6cb;border-radius:10px;padding:1px 7px">已移出</span>`;
+      else if(isExcluded)statusBadge=`<span style="font-family:DM Mono,monospace;font-size:8px;color:var(--orange);background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:1px 7px">排除規則</span>`;
 
       const addBtn=`<button class="btn btn-g btn-xs" onclick="schAddEntry('${s.id}','${t}')" title="強制加入（忽略排除規則）">＋ 加入</button>`;
       const removeBtn=inList&&!isRemoved?`<button class="btn btn-d btn-xs" onclick="schRemoveEntry('${key}')">移出</button>`:'';
@@ -5080,9 +5183,9 @@ function schAddSearch(){
       return `<div style="display:flex;align-items:center;gap:8px;padding:7px 14px;border-bottom:1px solid var(--cream);flex-wrap:wrap">
         <div style="flex:1;min-width:0">
           <span style="font-size:12px;font-weight:600">${s.name}</span>
-          <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:5px">${s.class}·座${s.seat}</span>
+          <span style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted);margin-left:5px">${s.class}·座${s.seat}</span>
           <span style="margin-left:6px">${typeBadge(t)}</span>
-          <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--steel);margin-left:3px">${iname(s[t])}</span>
+          <span style="font-family:DM Mono,monospace;font-size:10px;color:var(--steel);margin-left:3px">${iname(s[t])}</span>
         </div>
         <div style="display:flex;gap:5px;align-items:center;flex-shrink:0">
           ${statusBadge}
@@ -5093,7 +5196,7 @@ function schAddSearch(){
       </div>`;
     }).join('');
     return rows;
-  }).join('')||'<div style="padding:14px;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;text-align:center">查無學生</div>';
+  }).join('')||'<div style="padding:14px;color:var(--muted);font-family:DM Mono,monospace;font-size:11px;text-align:center">查無學生</div>';
 }
 window.schAddSearch=schAddSearch;
 
@@ -5317,7 +5420,7 @@ function openStuRoomModal(stuId){
 
   const roomOpts=DB.rooms.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
   document.getElementById('srm-body').innerHTML=`
-    <p style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:14px;line-height:1.8">
+    <p style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted);margin-bottom:14px;line-height:1.8">
       為每個修別選擇考場（可複選多個考場）。儲存後會直接寫入排程快照，並在排程出場名單中生效。
     </p>
     ${types.map(({t,l,inst})=>{
@@ -5328,7 +5431,7 @@ function openStuRoomModal(stuId){
           ${r.name}
         </label>`).join('');
       return `<div style="border:1px solid var(--border);border-radius:var(--r);margin-bottom:10px;overflow:hidden">
-        <div style="background:var(--cream);padding:7px 12px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;font-weight:600">
+        <div style="background:var(--cream);padding:7px 12px;font-family:DM Mono,monospace;font-size:9px;letter-spacing:1.5px;font-weight:600">
           ${l}・${iname(inst)}
         </div>
         <div style="padding:10px 12px;display:flex;flex-wrap:wrap;gap:4px">${checkboxes}</div>
@@ -5385,10 +5488,8 @@ function saveStuRoomModal(stuId){
 
   // 同步存入 Firebase
   if(window._FB){
-    const {db,serverTimestamp}=window._FB;
-    db.collection('scheduleState').doc('snapshot').set({data:JSON.stringify(snap),_updatedAt:serverTimestamp()})
-      .then(()=>showToast(`${s.name} 考場已更新並同步 ✓`,'ok'))
-      .catch(()=>showToast('Firebase 同步失敗，本機已更新','warn'));
+    fbSet('scheduleState','snapshot',{data:JSON.stringify(snap)});
+    showToast(`${s.name} 考場已更新並同步 ✓`,'ok');
   } else {
     try{localStorage.setItem('scheduleSnapshot',JSON.stringify(snap));}catch(e){}
     showToast(`${s.name} 考場已更新（本機）✓`,'ok');
@@ -5449,15 +5550,15 @@ function renderAdminStudents(){
   tbody.innerHTML=stus.map(s=>{
     const rm=stuRoomMap[s.id]||{major:[],minor:[],elective:[]};
     const roomLines=[
-      s.major?`<div style="font-size:10px;font-family:'DM Mono',monospace;line-height:1.7"><span style="color:var(--muted);letter-spacing:.5px">主</span> ${rm.major.length?rm.major.join('、'):'<span style="color:var(--border)">未分配</span>'}</div>`:'',
-      s.minor?`<div style="font-size:10px;font-family:'DM Mono',monospace;line-height:1.7"><span style="color:var(--muted);letter-spacing:.5px">副</span> ${rm.minor.length?rm.minor.join('、'):'<span style="color:var(--border)">未分配</span>'}</div>`:'',
-      s.elective?`<div style="font-size:10px;font-family:'DM Mono',monospace;line-height:1.7"><span style="color:var(--muted);letter-spacing:.5px">選</span> ${rm.elective.length?rm.elective.join('、'):'<span style="color:var(--border)">未分配</span>'}</div>`:'',
+      s.major?`<div style="font-size:10px;font-family:DM Mono,monospace;line-height:1.7"><span style="color:var(--muted);letter-spacing:.5px">主</span> ${rm.major.length?rm.major.join('、'):'<span style="color:var(--border)">未分配</span>'}</div>`:'',
+      s.minor?`<div style="font-size:10px;font-family:DM Mono,monospace;line-height:1.7"><span style="color:var(--muted);letter-spacing:.5px">副</span> ${rm.minor.length?rm.minor.join('、'):'<span style="color:var(--border)">未分配</span>'}</div>`:'',
+      s.elective?`<div style="font-size:10px;font-family:DM Mono,monospace;line-height:1.7"><span style="color:var(--muted);letter-spacing:.5px">選</span> ${rm.elective.length?rm.elective.join('、'):'<span style="color:var(--border)">未分配</span>'}</div>`:'',
     ].filter(Boolean);
     const roomCell=`<div style="display:flex;flex-direction:column;gap:1px">${roomLines.join('')}</div><button class="btn btn-s btn-xs" style="margin-top:4px;font-size:8px" onclick="openStuRoomModal('${s.id}')">✎ 調整考場</button>`;
     return `<tr>
     <td style="text-align:center"><input type="checkbox" class="stu-chk" data-id="${s.id}" onchange="updateBulkBar('student')" style="cursor:pointer;width:14px;height:14px"></td>
     <td><strong style="color:var(--ink)">${s.class}</strong></td>
-    <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--ink)">${s.seat}</td>
+    <td style="font-family:DM Mono,monospace;font-size:12px;color:var(--ink)">${s.seat}</td>
     <td><strong style="color:var(--ink)">${s.name}</strong></td>
     <td style="color:var(--ink)">${iname(s.major)||'—'}</td>
     <td style="color:var(--muted)">${iname(s.minor)||'—'}</td>
@@ -5485,7 +5586,7 @@ function renderAdminTeachers(){
   const tbody=document.getElementById('admin-tea-tbody');if(!tbody)return;
   const sorted=teachers().slice().sort((a,b)=>_teaSortDir*(a.name.localeCompare(b.name,'zh-TW-u-co-stroke')));
   tbody.innerHTML=sorted.map(t=>{
-    const myStus=(DB.teacherStudents[t.id]||[]).map(sid=>{const u=DB.users.find(u=>u.id===sid);return u?u.name:`<span style="color:var(--rust);font-family:'DM Mono',monospace;font-size:9px">[找不到:${sid}]</span>`;}).join('、')||'尚未設定';
+    const myStus=(DB.teacherStudents[t.id]||[]).map(sid=>{const u=DB.users.find(u=>u.id===sid);return u?u.name:`<span style="color:var(--rust);font-family:DM Mono,monospace;font-size:9px">[找不到:${sid}]</span>`;}).join('、')||'尚未設定';
     return `<tr>
     <td style="text-align:center"><input type="checkbox" class="tea-chk" data-id="${t.id}" onchange="updateBulkBar('teacher')" style="cursor:pointer;width:14px;height:14px"></td>
     <td><strong>${t.name}</strong></td>
@@ -5526,7 +5627,7 @@ function showAddUser(role){
     const stuOptions=students().sort((a,b)=>{const ci=DB.classes.indexOf(a.class)-DB.classes.indexOf(b.class);return ci!==0?ci:(a.seat-b.seat);}).map(s=>`<option value="${s.id}">${s.class}·${s.seat} ${s.name}</option>`).join('');
     extra=`<div class="fg" style="margin-top:8px"><label>指導的學生（可多選，按 Ctrl/Cmd 複選）</label>
       <select id="em-stu-multi" multiple style="height:140px;padding:4px 6px;font-size:13px;border:1px solid var(--border);border-radius:var(--r);outline:none;background:var(--paper)">${stuOptions}</select>
-      <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-top:4px;letter-spacing:.5px">選擇後也可至教師名單列表隨時修改</div>
+      <div style="font-family:DM Mono,monospace;font-size:8px;color:var(--muted);margin-top:4px;letter-spacing:.5px">選擇後也可至教師名單列表隨時修改</div>
     </div>`;
   }
   document.getElementById('edit-modal-body').innerHTML=`
@@ -5845,11 +5946,11 @@ function renderRooms(){
     tr.innerHTML=`
     <td style="cursor:grab;color:var(--border);font-size:15px;text-align:center;padding:4px 8px" class="dh">⠿</td>
     <td><strong>${r.name}</strong></td>
-    <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)">${r.location||'—'}</td>
-    <td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--ink)">${dtStr}</td>
-    <td><span style="font-family:'DM Mono',monospace;background:var(--ink);color:var(--paper);padding:2px 7px;border-radius:var(--r);letter-spacing:2px">••••••</span>
+    <td style="font-family:DM Mono,monospace;font-size:11px;color:var(--muted)">${r.location||'—'}</td>
+    <td style="font-family:DM Mono,monospace;font-size:10px;color:var(--ink)">${dtStr}</td>
+    <td><span style="font-family:DM Mono,monospace;background:var(--ink);color:var(--paper);padding:2px 7px;border-radius:var(--r);letter-spacing:2px">••••••</span>
       <button class="btn btn-s btn-xs" style="margin-left:6px" onclick="revealCode('${r.id}',this)">顯示</button></td>
-    <td style="font-family:'DM Mono',monospace;font-size:10px;color:#546e7a">${r.invigCode||('I-'+r.code)}</td>
+    <td style="font-family:DM Mono,monospace;font-size:10px;color:#546e7a">${r.invigCode||('I-'+r.code)}</td>
     <td><div class="bg"><button class="btn btn-s btn-xs" onclick="editRoom('${r.id}')">編輯</button><button class="btn btn-d btn-xs" onclick="delRoom('${r.id}')">刪</button></div></td>`;
     tr.addEventListener('dragstart',e=>{_dragRoomIdx=idx;tr.style.opacity='.4';e.dataTransfer.effectAllowed='move';});
     tr.addEventListener('dragend',()=>{tr.style.opacity='1';});
@@ -5867,7 +5968,7 @@ function renderRooms(){
     tbody.appendChild(tr);
   });
 }
-function revealCode(id,btn){const r=DB.rooms.find(x=>x.id===id);if(!r)return;btn.parentNode.innerHTML=`<code style="font-family:'DM Mono',monospace;background:var(--cream);padding:3px 8px;border-radius:var(--r);letter-spacing:3px">${r.code}</code>`;}
+function revealCode(id,btn){const r=DB.rooms.find(x=>x.id===id);if(!r)return;btn.parentNode.innerHTML=`<code style="font-family:DM Mono,monospace;background:var(--cream);padding:3px 8px;border-radius:var(--r);letter-spacing:3px">${r.code}</code>`;}
 function addRoom(){
   document.getElementById('edit-modal-title').textContent='新增考場';
   const catCheckboxes=DB.instruments.categories.map(cat=>`
@@ -5886,7 +5987,7 @@ function addRoom(){
       <div class="fg"><label>考試日期時間（開始）</label><input type="datetime-local" id="rm-date-start"></div>
       <div class="fg"><label>考試日期時間（結束）</label><input type="datetime-local" id="rm-date-end"></div>
     </div>
-    <div style="padding:8px 10px;background:var(--cream);border-radius:var(--r);font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);line-height:1.7">
+    <div style="padding:8px 10px;background:var(--cream);border-radius:var(--r);font-family:DM Mono,monospace;font-size:9px;color:var(--muted);line-height:1.7">
       💡 樂器篩選請至「考試排程」頁面設定，無需在此勾選。
     </div>`;
   document.getElementById('edit-modal-save').onclick=()=>{
@@ -5922,7 +6023,7 @@ function editRoom(id){
       <div class="fg"><label>考試日期時間（開始）</label><input type="datetime-local" id="rm-date-start" value="${r.dateStart||''}" ></div>
       <div class="fg"><label>考試日期時間（結束）</label><input type="datetime-local" id="rm-date-end" value="${r.dateEnd||''}" ></div>
     </div>
-    <div style="padding:8px 10px;background:var(--cream);border-radius:var(--r);font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);line-height:1.7">
+    <div style="padding:8px 10px;background:var(--cream);border-radius:var(--r);font-family:DM Mono,monospace;font-size:9px;color:var(--muted);line-height:1.7">
       💡 樂器篩選請至「考試排程」頁面設定，無需在此勾選。
     </div>`;
   document.getElementById('edit-modal-save').onclick=()=>{
@@ -6077,7 +6178,7 @@ function renderRoomFields(){
       // 每條排除規則的 UI
       const rulesHtml=rules.length?rules.map((rule,ri)=>`
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:5px 8px;background:var(--cream);border-radius:var(--r);margin-bottom:4px" id="rf-rule-${r.id}-${fi}-${ri}">
-          <span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);white-space:nowrap">規則${ri+1}</span>
+          <span style="font-family:DM Mono,monospace;font-size:8px;color:var(--muted);white-space:nowrap">規則${ri+1}</span>
           <select data-rule-cat style="padding:3px 6px;border:1px solid var(--border);border-radius:var(--r);font-size:11px;outline:none;background:var(--white);max-width:100px">
             <option value="">全部大項</option>
             ${allCats.map(c=>`<option value="${c.id}" ${rule.catId===c.id?'selected':''}>${c.name}</option>`).join('')}
@@ -6106,7 +6207,7 @@ function renderRoomFields(){
           <button class="btn btn-d btn-xs" onclick="removeRoomField('${r.id}',${fi})">✕ 刪除欄位</button>
         </div>
         <div style="padding:8px 10px;background:var(--white)">
-          <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1px;color:var(--rust);margin-bottom:6px;text-transform:uppercase">
+          <div style="font-family:DM Mono,monospace;font-size:8px;letter-spacing:1px;color:var(--rust);margin-bottom:6px;text-transform:uppercase">
             ⊘ 此欄自動標 * 不計分的條件（多條件為 OR 關係；同一條件內大項、修別、班級為 AND）
           </div>
           <div id="rf-rules-${r.id}-${fi}">${rulesHtml}</div>
@@ -6115,7 +6216,7 @@ function renderRoomFields(){
       </div>`;
     }).join('');
     return `<div style="border:1px solid var(--border);border-radius:var(--r);margin-bottom:14px;overflow:hidden">
-      <div style="background:var(--ink);color:var(--gold);padding:8px 14px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;display:flex;align-items:center;justify-content:space-between">
+      <div style="background:var(--ink);color:var(--gold);padding:8px 14px;font-family:DM Mono,monospace;font-size:9px;letter-spacing:2px;display:flex;align-items:center;justify-content:space-between">
         <span>${r.name}</span>
         <span style="font-size:8px;opacity:.6">評語欄固定存在</span>
       </div>
@@ -6261,7 +6362,7 @@ function renderAccessControl(){
     const el=document.getElementById('access-teacher');
     if(el){
       const wrap=document.createElement('div');wrap.id='access-teacher-schedule-msg';wrap.style.cssText='margin-top:12px;padding-top:12px;border-top:1px solid var(--cream)';
-      wrap.innerHTML=`<div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);margin-bottom:6px">教師考試排程「尚未開放」時顯示的文字</div>
+      wrap.innerHTML=`<div style="font-family:DM Mono,monospace;font-size:9px;letter-spacing:1px;color:var(--muted);margin-bottom:6px">教師考試排程「尚未開放」時顯示的文字</div>
         <input type="text" id="tea-schedule-closed-msg" value="${DB.config.teacherScheduleClosedMsg||'考試排程尚未開放查看，請等候管理員公告。'}" style="width:100%;padding:8px 12px;border:1px solid var(--border);background:var(--paper);border-radius:var(--r);font-size:13px;outline:none" onchange="DB.config.teacherScheduleClosedMsg=this.value">
         <button class="btn btn-s btn-sm" style="margin-top:6px" onclick="saveTeaScheduleMsg()">儲存提示文字</button>`;
       el.appendChild(wrap);
@@ -6443,8 +6544,8 @@ function renderInstRestrictUI(){
       <div style="display:flex;flex-wrap:wrap;gap:6px">
         ${DB.instruments.items.map(i=>{
           const active=(DB.config.instRestrict[t.key]||[]).includes(i.id);
-          return `<label style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid ${active?'var(--gold)':'var(--border)'};border-radius:20px;cursor:pointer;font-family:'DM Mono',monospace;font-size:9px;background:${active?'var(--gold)':'var(--white)'};color:${active?'var(--ink)':'inherit'};transition:all .15s">
-            <input type="checkbox" data-type="${t.key}" value="${i.id}" ${active?'checked':''} style="display:none" onchange="this.parentElement.style.background=this.checked?'var(--gold)':'var(--white)';this.parentElement.style.borderColor=this.checked?'var(--gold)':'var(--border)'">
+          return `<label style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid ${active?'var(--gold)':'var(--border)'};border-radius:20px;cursor:pointer;font-family:DM Mono,monospace;font-size:9px;background:${active?'var(--gold)':'var(--white)'};color:${active?'var(--ink)':'inherit'};transition:all .15s">
+            <input type="checkbox" data-type="${t.key}" value="${i.id}" ${active?'checked':''} style="display:none" onchange="this.parentElement.style.background=this.checked?&apos;var(--gold)&apos;:&apos;var(--white)&apos;;this.parentElement.style.borderColor=this.checked?&apos;var(--gold)&apos;:&apos;var(--border)&apos;">
             ${i.name}
           </label>`;
         }).join('')}
@@ -6457,7 +6558,7 @@ function renderInstRestrictUI(){
     msgEl.innerHTML=types.map(t=>`
       <div style="margin-bottom:12px">
         <div style="font-family:\'DM Mono\',monospace;font-size:8px;color:var(--muted);margin-bottom:4px;text-transform:uppercase">${t.label} 附加訊息</div>
-        <textarea id="irm-${t.key}" style="width:100%;padding:8px 12px;border:1px solid var(--border);background:var(--paper);border-radius:var(--r);font-family:'Noto Serif TC',serif;font-size:13px;outline:none;resize:vertical;min-height:56px;line-height:1.7" placeholder="例：請點此確認準備資料 [查看說明](https://example.com)">${DB.config.instRestrictMsg?.[t.key]?.text||''}</textarea>
+        <textarea id="irm-${t.key}" style="width:100%;padding:8px 12px;border:1px solid var(--border);background:var(--paper);border-radius:var(--r);font-family:Noto Serif TC,serif;font-size:13px;outline:none;resize:vertical;min-height:56px;line-height:1.7" placeholder="例：請點此確認準備資料 [查看說明](https://example.com)">${DB.config.instRestrictMsg?.[t.key]?.text||''}</textarea>
         <div style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--muted);margin-top:3px">連結格式：[顯示文字](https://網址)　留空表示無附加訊息</div>
       </div>`).join('');
   }
@@ -6670,15 +6771,15 @@ function _renderResultsByClass(el,entries,getEntryRemarks){
     const g=classGroups[cls];
     html+=`<div style="margin-bottom:28px">
       <div style="background:var(--ink);color:var(--gold);padding:10px 18px;border-radius:var(--r);display:flex;align-items:center;gap:12px;margin-bottom:12px">
-        <span style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:300">${cls}</span>
-        <span style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;opacity:.6">${g.major.length+g.minor.length+g.elective.length} 筆</span>
+        <span style="font-family:Cormorant Garamond,serif;font-size:22px;font-weight:300">${cls}</span>
+        <span style="font-family:DM Mono,monospace;font-size:9px;letter-spacing:2px;opacity:.6">${g.major.length+g.minor.length+g.elective.length} 筆</span>
       </div>`;
     // 主修
     if(g.major.length){
       html+=`<div style="margin-bottom:14px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:6px 12px;background:#fff3e0;border-left:4px solid var(--gold);border-radius:0 var(--r) var(--r) 0">
           <span class="badge b-major">主修</span>
-          <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">${g.major.length} 人</span>
+          <span style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted)">${g.major.length} 人</span>
         </div>`;
       g.major.forEach((e,ei)=>{html+=_buildResultCard(e,ei,getEntryRemarks,true);});
       html+='</div>';
@@ -6688,7 +6789,7 @@ function _renderResultsByClass(el,entries,getEntryRemarks){
       html+=`<div style="margin-bottom:14px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:6px 12px;background:#e3f2fd;border-left:4px solid var(--steel);border-radius:0 var(--r) var(--r) 0">
           <span class="badge b-minor">副修</span>
-          <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">${g.minor.length} 人</span>
+          <span style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted)">${g.minor.length} 人</span>
         </div>`;
       g.minor.forEach((e,ei)=>{html+=_buildResultCard(e,ei,getEntryRemarks,true);});
       html+='</div>';
@@ -6698,7 +6799,7 @@ function _renderResultsByClass(el,entries,getEntryRemarks){
       html+=`<div style="margin-bottom:14px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:6px 12px;background:#e8f5e9;border-left:4px solid var(--sage);border-radius:0 var(--r) var(--r) 0">
           <span class="badge b-elective">選修</span>
-          <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">${g.elective.length} 人</span>
+          <span style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted)">${g.elective.length} 人</span>
         </div>`;
       g.elective.forEach((e,ei)=>{html+=_buildResultCard(e,ei,getEntryRemarks,true);});
       html+='</div>';
@@ -6748,15 +6849,15 @@ function _buildResultCard(e,ei,getEntryRemarks,showRoom){
       </div>
       <div style="color:var(--muted);font-size:12px">${e.instName}</div>
       ${typeBadge(e.type)}
-      ${showRoom||ST._remarkFilterOn?`<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:4px">${e.roomName}</span>`:''}
+      ${showRoom||ST._remarkFilterOn?`<span style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted);margin-left:4px">${e.roomName}</span>`:''}
       <div style="margin-left:auto;text-align:right">
-        ${result.finalScore!==null?`<div style="font-family:'Cormorant Garamond',serif;font-size:28px;color:var(--gold)" class="${finalWithDed<60?'red-score':''}">${finalWithDed!==null?finalWithDed.toFixed(2):'—'}</div><div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted)">最終成績</div>`:'<div style="font-family:\'DM Mono\',monospace;font-size:11px;color:var(--muted)">尚無評分</div>'}
+        ${result.finalScore!==null?`<div style="font-family:Cormorant Garamond,serif;font-size:28px;color:var(--gold)" class="${finalWithDed<60?'red-score':''}">${finalWithDed!==null?finalWithDed.toFixed(2):'—'}</div><div style="font-family:DM Mono,monospace;font-size:8px;color:var(--muted)">最終成績</div>`:'<div style="font-family:\'DM Mono\',monospace;font-size:11px;color:var(--muted)">尚無評分</div>'}
       </div>
     </div>
     ${hasRemarks?`<div class="remark-display">
       <div style="font-family:\'DM Mono\',monospace;font-size:8px;letter-spacing:2px;margin-bottom:6px;color:var(--red)">⚠ 評審備註（疑似需扣分）</div>
       ${remarksList.map((r,ri)=>`<div style="margin-bottom:${ri<remarksList.length-1?'6px':'0'}">
-        ${r.jurorName?`<span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted)">${r.jurorName}：</span>`:''}
+        ${r.jurorName?`<span style="font-family:DM Mono,monospace;font-size:8px;color:var(--muted)">${r.jurorName}：</span>`:''}
         <strong>${r.label}</strong>${r.text?`<span style="font-size:12px;color:var(--rust)"> — ${r.text}</span>`:''}
       </div>`).join('')}
     </div>`:''}
@@ -6777,7 +6878,7 @@ function _buildResultCard(e,ei,getEntryRemarks,showRoom){
         <div class="comment-folder-b">
           ${jurorIds.map((jid,ji)=>{const s=jurorData[jid];
             const nameTag=(ST.role==='admin'&&_showRealJurorNames&&s._jurorName)?'評審 '+(ji+1)+' ('+s._jurorName+')':'評審 '+(ji+1);
-            return s.comment?`<div style="margin-bottom:8px;padding:8px 10px;background:var(--cream);border-radius:var(--r)"><div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:4px">${nameTag}</div><div style="font-size:13px;line-height:1.8">${s.comment}</div></div>`:''}).join('')||'<div style="color:var(--muted);font-size:12px">尚無評語</div>'}
+            return s.comment?`<div style="margin-bottom:8px;padding:8px 10px;background:var(--cream);border-radius:var(--r)"><div style="font-family:DM Mono,monospace;font-size:8px;color:var(--muted);margin-bottom:4px">${nameTag}</div><div style="font-size:13px;line-height:1.8">${s.comment}</div></div>`:''}).join('')||'<div style="color:var(--muted);font-size:12px">尚無評語</div>'}
         </div>
       </div>
     </div>
@@ -7138,7 +7239,7 @@ function renderJurySignupPage(){
       if(chosenOptObj.isAttend){
         // 確認參加 → 填手機號
         expandHtml=`<div class="jsup-expand" id="jsup-expand-${r.id}">
-          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--sage);letter-spacing:1px;margin-bottom:8px">✓ 確認參加 — 請留下您的手機號碼</div>
+          <div style="font-family:DM Mono,monospace;font-size:9px;color:var(--sage);letter-spacing:1px;margin-bottom:8px">✓ 確認參加 — 請留下您的手機號碼</div>
           <div class="fr" style="margin:0">
             <div class="fg" style="max-width:240px">
               <label>手機號碼（必填）</label>
@@ -7150,7 +7251,7 @@ function renderJurySignupPage(){
         // 代評 → 填代評老師資訊
         const subRoomOpts=DB.rooms.map(rr=>`<option value="${rr.id}" ${rd.subRoomId===rr.id?'selected':''}>${rr.name}　${fmtRoomDt(rr)}</option>`).join('');
         expandHtml=`<div class="jsup-expand" id="jsup-expand-${r.id}">
-          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--rust);letter-spacing:1px;margin-bottom:10px">⚡ 請填寫代評老師資訊</div>
+          <div style="font-family:DM Mono,monospace;font-size:9px;color:var(--rust);letter-spacing:1px;margin-bottom:10px">⚡ 請填寫代評老師資訊</div>
           <div class="fr" style="margin:0;flex-wrap:wrap;gap:10px">
             <div class="fg" style="min-width:150px;flex:1">
               <label>代評老師姓名（必填）</label>
@@ -7244,7 +7345,7 @@ function jsupPickOpt(roomId,optId){
     const rd=DB.jurySignup[tid][roomId]||{};
     if(newOpt.isAttend){
       expandHtml=`<div class="jsup-expand" id="jsup-expand-${roomId}">
-        <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--sage);letter-spacing:1px;margin-bottom:8px">✓ 確認參加 — 請留下您的手機號碼</div>
+        <div style="font-family:DM Mono,monospace;font-size:9px;color:var(--sage);letter-spacing:1px;margin-bottom:8px">✓ 確認參加 — 請留下您的手機號碼</div>
         <div class="fr" style="margin:0">
           <div class="fg" style="max-width:240px">
             <label>手機號碼（必填）</label>
@@ -7255,7 +7356,7 @@ function jsupPickOpt(roomId,optId){
     }else if(newOpt.isSub){
       const subRoomOpts=DB.rooms.map(rr=>`<option value="${rr.id}" ${rd.subRoomId===rr.id?'selected':''}>${rr.name}　${fmtRoomDt(rr)}</option>`).join('');
       expandHtml=`<div class="jsup-expand" id="jsup-expand-${roomId}">
-        <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--rust);letter-spacing:1px;margin-bottom:10px">⚡ 請填寫代評老師資訊</div>
+        <div style="font-family:DM Mono,monospace;font-size:9px;color:var(--rust);letter-spacing:1px;margin-bottom:10px">⚡ 請填寫代評老師資訊</div>
         <div class="fr" style="margin:0;flex-wrap:wrap;gap:10px">
           <div class="fg" style="min-width:150px;flex:1">
             <label>代評老師姓名（必填）</label>
@@ -7387,13 +7488,13 @@ function renderJsupOptsList(){
       <div style="flex:1;min-width:120px">
         <input id="jsup-label-${i}" type="text" value="${opt.label}" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;outline:none;background:var(--paper)" oninput="jsupUpdateOptLabel(${i},this.value)">
       </div>
-      <label style="display:flex;align-items:center;gap:4px;font-family:'DM Mono',monospace;font-size:8px;color:var(--sage);cursor:pointer;white-space:nowrap">
+      <label style="display:flex;align-items:center;gap:4px;font-family:DM Mono,monospace;font-size:8px;color:var(--sage);cursor:pointer;white-space:nowrap">
         <input type="checkbox" ${opt.isAttend?'checked':''} onchange="jsupUpdateOptFlag(${i},'isAttend',this.checked)" style="accent-color:var(--sage)">確認參加類型
       </label>
-      <label style="display:flex;align-items:center;gap:4px;font-family:'DM Mono',monospace;font-size:8px;color:var(--rust);cursor:pointer;white-space:nowrap">
+      <label style="display:flex;align-items:center;gap:4px;font-family:DM Mono,monospace;font-size:8px;color:var(--rust);cursor:pointer;white-space:nowrap">
         <input type="checkbox" ${opt.isSub?'checked':''} onchange="jsupUpdateOptFlag(${i},'isSub',this.checked)" style="accent-color:var(--rust)">代評類型
       </label>
-      <label style="display:flex;align-items:center;gap:4px;font-family:'DM Mono',monospace;font-size:8px;color:var(--blue);cursor:pointer;white-space:nowrap">
+      <label style="display:flex;align-items:center;gap:4px;font-family:DM Mono,monospace;font-size:8px;color:var(--blue);cursor:pointer;white-space:nowrap">
         <input type="checkbox" ${opt.hasText?'checked':''} onchange="jsupUpdateOptFlag(${i},'hasText',this.checked)" style="accent-color:var(--blue)">附加說明欄
       </label>
       <button class="btn btn-d btn-xs" onclick="jsupDelOption(${i})">刪除</button>
@@ -7477,24 +7578,24 @@ function renderJsupAdminTable(){
         const s=roomStats[r.id];
         return `<div style="border:1px solid var(--border);border-radius:var(--r);overflow:hidden;min-width:240px;flex:1">
           <div style="background:var(--ink);padding:9px 14px">
-            <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--gold)">${r.name}</div>
-            <div style="font-family:'DM Mono',monospace;font-size:8px;color:rgba(255,255,255,.4);margin-top:2px">🗓 ${s.dt}</div>
+            <div style="font-family:DM Mono,monospace;font-size:9px;letter-spacing:2px;color:var(--gold)">${r.name}</div>
+            <div style="font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.4);margin-top:2px">🗓 ${s.dt}</div>
           </div>
           <div style="padding:12px 14px;background:var(--white);display:flex;flex-direction:column;gap:8px">
             <div>
-              <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--sage);letter-spacing:1px;margin-bottom:3px">✓ 確認參加（${s.attend.length} 人）</div>
+              <div style="font-family:DM Mono,monospace;font-size:8px;color:var(--sage);letter-spacing:1px;margin-bottom:3px">✓ 確認參加（${s.attend.length} 人）</div>
               <div style="font-size:12px;color:var(--ink);line-height:1.8">${s.attend.length?s.attend.join('、'):'—'}</div>
             </div>
             <div>
-              <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--rust);letter-spacing:1px;margin-bottom:3px">⚡ 代評（${s.sub.length} 人）</div>
+              <div style="font-family:DM Mono,monospace;font-size:8px;color:var(--rust);letter-spacing:1px;margin-bottom:3px">⚡ 代評（${s.sub.length} 人）</div>
               <div style="font-size:12px;color:var(--ink);line-height:1.8">${s.sub.length?s.sub.join('、'):'—'}</div>
             </div>
             ${s.other.length?`<div>
-              <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px;margin-bottom:3px">○ 其他（${s.other.length} 人）</div>
+              <div style="font-family:DM Mono,monospace;font-size:8px;color:var(--muted);letter-spacing:1px;margin-bottom:3px">○ 其他（${s.other.length} 人）</div>
               <div style="font-size:12px;color:var(--muted);line-height:1.8">${s.other.join('、')}</div>
             </div>`:''}
             <div>
-              <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--border);letter-spacing:1px;margin-bottom:3px">□ 尚未填報（${s.none.length} 人）</div>
+              <div style="font-family:DM Mono,monospace;font-size:8px;color:var(--border);letter-spacing:1px;margin-bottom:3px">□ 尚未填報（${s.none.length} 人）</div>
               <div style="font-size:12px;color:var(--muted);line-height:1.8">${s.none.length?s.none.join('、'):'—'}</div>
             </div>
           </div>
@@ -7519,16 +7620,16 @@ function renderJsupAdminTable(){
         `${rd.subName||'—'} ${rd.subPhone||''} ${rd.subRoomId?'→'+DB.rooms.find(rr=>rr.id===rd.subRoomId)?.name:''}`.trim():'—';
       rows.push(`<tr>
         <td><strong>${t.name}</strong> ${submitted?'<span style="font-family:\'DM Mono\',monospace;font-size:7px;color:var(--sage);border:1px solid var(--sage);border-radius:10px;padding:1px 5px">✓送出</span>':''}</td>
-        <td style="text-align:center;font-family:'DM Mono',monospace;font-size:12px">${stuCount}</td>
+        <td style="text-align:center;font-family:DM Mono,monospace;font-size:12px">${stuCount}</td>
         <td style="font-size:12px">${r.name}</td>
         <td><span class="jsup-status-badge ${statusCls}">${statusLabel}</span></td>
         <td style="font-size:11px;color:var(--muted)">${contactInfo}</td>
         <td style="font-size:11px;color:var(--muted);max-width:160px">${su._globalNote||'—'}</td>
-        <td style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">${su._submittedAt?new Date(su._submittedAt).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'—'}</td>
+        <td style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted)">${su._submittedAt?new Date(su._submittedAt).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'—'}</td>
       </tr>`);
     });
   });
-  tbody.innerHTML=rows.join('')||`<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px">尚無教師填報資料</td></tr>`;
+  tbody.innerHTML=rows.join('')||`<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted);font-family:DM Mono,monospace;font-size:11px">尚無教師填報資料</td></tr>`;
 }
 window.renderJsupAdminTable=renderJsupAdminTable;
 
