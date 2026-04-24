@@ -2348,10 +2348,13 @@ function preloadUsersForLogin(){
 }
 
 // ════ 啟動時從 Firebase 讀回所有資料 ════
-function loadAllFromFirebase(done){
+function loadAllFromFirebase(done, lightMode){
   if(!window._FB){done();return;}
   let pending=0;
   function tick(){pending--;if(pending<=0)done();}
+
+  // ★ 效能修正③：lightMode = 非管理員角色，只讀最必要的集合（users/config/rooms/instruments/scheduleState）
+  // 跳過 juryScores（巢狀讀取最慢）、teacherStudents、teacherComments 等
 
   // — users —
   pending++;
@@ -2523,40 +2526,36 @@ function loadAllFromFirebase(done){
   });
 
   // — juryScores (即時監聽，非一次性讀取) —
-  // 由 Firebase SDK 初始化區塊的 onSnapshot 處理
-  // 但啟動時先做一次完整讀取確保資料同步
-  pending++;
-  (function(){
-    if(!window._FB){tick();return;}
-    const db=window._FB.db;
-    // ★ 修正：加入整體 15 秒 timeout 防止卡住
-    let done=false;
-    const safeTick=()=>{if(!done){done=true;tick();}};
-    setTimeout(()=>{console.warn('[juryScores] 讀取超時，略過');safeTick();},15000);
-    // ★ 等 Auth 就緒後再讀取 juryScores
-    (window._fbAuthReady||Promise.resolve()).then(()=>{
-    db.collection('juryScores').get().then(roomSnap=>{
-      let roomCount=roomSnap.size;
-      if(roomCount===0){safeTick();return;}
-      roomSnap.forEach(roomDoc=>{
-        db.collection('juryScores').doc(roomDoc.id)
-          .collection('entries').get().then(entrySnap=>{
-            entrySnap.forEach(entryDoc=>{
-              const roomId=roomDoc.id;
-              const entryKey=entryDoc.id;
-              if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
-              const raw=entryDoc.data();
-              const jurors={};
-              Object.keys(raw).forEach(k=>{if(!k.startsWith('_'))jurors[k]=raw[k];});
-              DB.juryScores[roomId][entryKey]=jurors;
-            });
-            roomCount--;
-            if(roomCount<=0)safeTick();
-          }).catch(()=>{roomCount--;if(roomCount<=0)safeTick();});
+  // ★ 效能修正③：lightMode 時（學生/監考）不讀 juryScores（最慢的巢狀讀取），改由輪詢處理
+  if(!lightMode){
+    pending++;
+    (function(){
+      if(!window._FB){tick();return;}
+      const db=window._FB.db;
+      let _jsDone=false;
+      const safeTick=()=>{if(!_jsDone){_jsDone=true;tick();}};
+      setTimeout(()=>{console.warn('[juryScores] 讀取超時，略過');safeTick();},12000);
+      (window._fbAuthReady||Promise.resolve()).then(()=>{
+        db.collection('juryScores').get().then(roomSnap=>{
+          let roomCount=roomSnap.size;
+          if(roomCount===0){safeTick();return;}
+          roomSnap.forEach(roomDoc=>{
+            db.collection('juryScores').doc(roomDoc.id)
+              .collection('entries').get().then(entrySnap=>{
+                entrySnap.forEach(entryDoc=>{
+                  const roomId=roomDoc.id;const entryKey=entryDoc.id;
+                  if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
+                  const raw=entryDoc.data();const jurors={};
+                  Object.keys(raw).forEach(k=>{if(!k.startsWith('_'))jurors[k]=raw[k];});
+                  DB.juryScores[roomId][entryKey]=jurors;
+                });
+                roomCount--;if(roomCount<=0)safeTick();
+              }).catch(()=>{roomCount--;if(roomCount<=0)safeTick();});
+          });
+        }).catch(()=>safeTick());
       });
-    }).catch(()=>safeTick());
-    }); // end authReady.then
-  })();
+    })();
+  }
 }
 
 function launchApp(){
@@ -2568,13 +2567,22 @@ function launchApp(){
   const loadEl=document.createElement('div');
   loadEl.id='fb-loading';
   loadEl.style.cssText='position:fixed;inset:0;background:rgba(24,21,15,.55);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px';
-  loadEl.innerHTML='<div style="font-family:\'DM Mono\',monospace;font-size:13px;color:var(--gold);letter-spacing:3px">載入資料中...</div><div style="width:120px;height:3px;background:var(--border);border-radius:3px"><div id="fb-bar" style="height:100%;width:0%;background:var(--gold);border-radius:3px;transition:width .4s"></div></div>';
+  loadEl.innerHTML='<div style="font-family:\'DM Mono\',monospace;font-size:13px;color:var(--gold);letter-spacing:3px" id="fb-load-msg">連線中...</div><div style="width:160px;height:3px;background:var(--border);border-radius:3px"><div id="fb-bar" style="height:100%;width:0%;background:var(--gold);border-radius:3px;transition:width .3s"></div></div>';
   document.body.appendChild(loadEl);
   const bar=document.getElementById('fb-bar');
-  let prog=0;const progTimer=setInterval(()=>{prog=Math.min(prog+8,88);if(bar)bar.style.width=prog+'%';},120);
-  // ★ 等匿名 Auth 完成後再讀 Firestore，確保安全規則 request.auth != null 成立
+  const loadMsg=document.getElementById('fb-load-msg');
+  // ★ 效能修正③：更快的進度動畫，讓使用者感覺更流暢
+  let prog=0;
+  const progTimer=setInterval(()=>{
+    prog=Math.min(prog+(prog<30?12:prog<70?6:2),92);
+    if(bar)bar.style.width=prog+'%';
+  },100);
+  // ★ 等匿名 Auth 完成後再讀 Firestore
   const authWait = window._fbAuthReady || Promise.resolve(null);
   authWait.then(()=>{
+    if(loadMsg)loadMsg.textContent='載入資料中...';
+    // ★ 效能修正③：非管理員角色（學生/評審/監考）只需要最少資料集，快速完成
+    const isLightRole=ST.role==='student'||ST.role==='jury'||ST.role==='invigilator';
     loadAllFromFirebase(()=>{
       clearInterval(progTimer);if(bar)bar.style.width='100%';
       setTimeout(()=>{
@@ -2590,10 +2598,15 @@ function launchApp(){
             document.getElementById('tb-uname').textContent=u.name;
           }
         }
-        buildNav();initDropdowns();renderAll();setTimeout(navFirst,80);if(window._startJuryListener)window._startJuryListener();if(window._startLiveExamListener)window._startLiveExamListener();
+        buildNav();initDropdowns();renderAll();setTimeout(navFirst,80);
+        // ★ 延遲啟動輪詢監聽（不阻塞首屏渲染）
+        setTimeout(()=>{
+          if(window._startJuryListener)window._startJuryListener();
+          if(window._startLiveExamListener)window._startLiveExamListener();
+        },500);
         if(ST.role==='admin')setTimeout(schLoadSchedule,200);
-      },300);
-    });
+      },200);
+    },isLightRole);
   });
 }
 
@@ -3169,22 +3182,53 @@ function getScheduleEntries(){
 
 function renderStuSchedule(filter){
   const tbody=document.getElementById('stu-sched-tbody');if(!tbody)return;
-  const entries=getScheduleEntries();
   const nameQ=(filter?.name||'').toLowerCase();
   const instQ=filter?.inst||'';
   const roomQ=filter?.room||'';
-  const shown=entries.filter(e=>(!nameQ||e.name.toLowerCase().includes(nameQ))&&(!instQ||e.instId===instQ)&&(!roomQ||e.roomId===roomQ));
+
+  // ★ 修正③：優先從 savedScheduleSnapshot 讀取（排程存檔後才有正確考場/順序）
+  // 若快照為空，fallback 到 getScheduleEntries（未存檔時的即時預覽）
+  const snap=DB.savedScheduleSnapshot||{};
+  const hasSnap=Object.values(snap).some(arr=>arr&&arr.length>0);
+
+  let shown=[];
+  if(hasSnap){
+    const allEntries=[];
+    Object.entries(snap).forEach(([roomId,snaps])=>{
+      const room=DB.rooms.find(r=>r.id===roomId);
+      (snaps||[]).forEach(e=>{
+        allEntries.push({
+          order:e.order,roomId,
+          roomName:e.roomName||(room?.name||roomId),
+          roomLocation:e.roomLocation||(room?.location||''),
+          class:e.class,name:e.name,seat:e.seat,studentId:e.studentId,
+          instId:e.instId,instName:e.instName,type:e.type,
+          ac:e.ac||'',at:e.at||'',fc:e.fc||'',ft:e.ft||'',
+        });
+      });
+    });
+    const roomOrder=DB.rooms.map(r=>r.id);
+    allEntries.sort((a,b)=>{
+      const ri=(roomOrder.indexOf(a.roomId)||0)-(roomOrder.indexOf(b.roomId)||0);
+      return ri!==0?ri:(a.order||0)-(b.order||0);
+    });
+    shown=allEntries.filter(e=>(!nameQ||e.name.toLowerCase().includes(nameQ))&&(!instQ||e.instId===instQ)&&(!roomQ||e.roomId===roomQ));
+  } else {
+    const entries=getScheduleEntries();
+    shown=entries.filter(e=>(!nameQ||e.name.toLowerCase().includes(nameQ))&&(!instQ||e.instId===instQ)&&(!roomQ||e.roomId===roomQ));
+  }
+
   tbody.innerHTML=shown.map(e=>`<tr>
-    <td style="font-family:\'DM Mono\',monospace;color:var(--ink);font-weight:600">${e.order}</td>
+    <td style="font-family:'DM Mono',monospace;color:var(--ink);font-weight:600">${e.order}</td>
     <td style="color:var(--ink)">${e.roomName}</td>
-    <td style="color:var(--ink);font-family:\'DM Mono\',monospace;font-size:11px">${e.roomLocation||'—'}</td>
+    <td style="color:var(--ink);font-family:'DM Mono',monospace;font-size:11px">${e.roomLocation||'—'}</td>
     <td style="color:var(--ink)">${e.class}</td>
     <td style="color:var(--ink);font-weight:600">${e.name}</td>
     <td style="color:var(--ink)">${e.instName}</td>
     <td>${typeBadge(e.type)}</td>
     <td style="font-size:12px;color:var(--ink)">${e.ac?e.ac+' — <em>'+e.at+'</em>':'—'}</td>
     <td style="font-size:12px;color:var(--ink)">${e.fc?e.fc+' — <em>'+e.ft+'</em>':'—'}</td>
-  </tr>`).join('')||'<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px;font-family:\'DM Mono\',monospace;font-size:12px">查無資料</td></tr>';
+  </tr>`).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;font-family:\'DM Mono\',monospace;font-size:12px">查無資料</td></tr>';
 }
 function doLookup(){renderStuSchedule({name:document.getElementById('lookup-name').value,inst:document.getElementById('lookup-inst').value,room:document.getElementById('lookup-room').value});}
 function clearLookup(){['lookup-name'].forEach(id=>document.getElementById(id).value='');['lookup-inst','lookup-room'].forEach(id=>document.getElementById(id).value='');renderStuSchedule();}
@@ -4946,9 +4990,10 @@ function schSaveSchedule(){
   // ★ 同時產生「排程快照」供評審/監考使用
   // 快照 = 各考場依目前排序/篩選後的完整 entry 清單（含 order）
   const snapshot={};
+  // ★ 修正：先完整備份目前 SCH_STATE，loop 後正確還原
+  const _origRoomId=SCH_STATE.roomId;
+  _saveRoomState(_origRoomId);
   DB.rooms.forEach(room=>{
-    // 暫時切換 SCH_STATE.roomId 到此考場（讓 getScheduleEntries 產生正確 roomId）
-    const prevRoomId=SCH_STATE.roomId;
     SCH_STATE.roomId=room.id;
     _loadRoomState(room.id);
     const prevEntries=_buildFilteredEntries(room.id);
@@ -4960,8 +5005,10 @@ function schSaveSchedule(){
       ac:e.ac,at:e.at,fc:e.fc,ft:e.ft,
       roomId:e.roomId,roomName:e.roomName,roomLocation:e.roomLocation,
     }));
-    _loadRoomState(prevRoomId);
   });
+  // ★ 還原到操作前的考場狀態
+  SCH_STATE.roomId=_origRoomId;
+  _loadRoomState(_origRoomId);
   DB.savedScheduleSnapshot=snapshot;
 
   // 統一用 fbSet（REST 和 SDK 模式皆相容）
@@ -4971,7 +5018,10 @@ function schSaveSchedule(){
     localStorage.setItem('scheduleState',JSON.stringify(data));
     localStorage.setItem('scheduleSnapshot',JSON.stringify(snapshot));
   }catch(e){}
-  showToast('排程已儲存 ✓（評審/監考名單已同步）','ok');
+  // ★ 修正②：存檔後立即同步——重新渲染學生名單分配考場欄位 & 學生查詢頁
+  renderAdminStudents();
+  renderStuSchedule();
+  showToast('排程已儲存 ✓（學生考場分配已同步）','ok');
 }
 
 // ★ 依目前 SCH_STATE 篩選/排序，回傳此考場的 entry 陣列（不修改 DOM）
@@ -5958,9 +6008,45 @@ function renderRooms(){
   const tbody=document.getElementById('rooms-tbody');if(!tbody)return;
   tbody.innerHTML='';
   let _dragRoomIdx=null;
+  const _WD=['日','一','二','三','四','五','六'];
   DB.rooms.forEach((r,idx)=>{
-    const fmtDt=dt=>{if(!dt)return '—';const d=new Date(dt);return isNaN(d)?dt:d.toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});};
-    const dtStr=(r.dateStart||r.dateEnd)?`${fmtDt(r.dateStart)}${r.dateEnd?' — '+fmtDt(r.dateEnd):''}` :'—';
+    // ★ 修正①：日期格式加入星期顯示
+    const fmtDt=dt=>{
+      if(!dt)return '—';
+      const d=new Date(dt);if(isNaN(d))return dt;
+      const wd=_WD[d.getDay()];
+      const mm=String(d.getMonth()+1).padStart(2,'0');
+      const dd2=String(d.getDate()).padStart(2,'0');
+      const hh=String(d.getHours()).padStart(2,'0');
+      const mi=String(d.getMinutes()).padStart(2,'0');
+      return `${mm}/${dd2}（${wd}）${hh}:${mi}`;
+    };
+    const fmtDtDateOnly=dt=>{
+      if(!dt)return '';
+      const d=new Date(dt);if(isNaN(d))return dt;
+      const wd=_WD[d.getDay()];
+      const mm=String(d.getMonth()+1).padStart(2,'0');
+      const dd2=String(d.getDate()).padStart(2,'0');
+      return `${mm}/${dd2}（${wd}）`;
+    };
+    // 若開始與結束是同一天，只在開始顯示日期+星期，結束只顯示時間
+    let dtStr='—';
+    if(r.dateStart||r.dateEnd){
+      if(r.dateStart&&r.dateEnd){
+        const ds=new Date(r.dateStart),de=new Date(r.dateEnd);
+        const sameDay=ds.getFullYear()===de.getFullYear()&&ds.getMonth()===de.getMonth()&&ds.getDate()===de.getDate();
+        if(sameDay){
+          const dateLabel=fmtDtDateOnly(r.dateStart);
+          const hhs=String(ds.getHours()).padStart(2,'0'),mis=String(ds.getMinutes()).padStart(2,'0');
+          const hhe=String(de.getHours()).padStart(2,'0'),mie=String(de.getMinutes()).padStart(2,'0');
+          dtStr=`${dateLabel} ${hhs}:${mis} ～ ${hhe}:${mie}`;
+        } else {
+          dtStr=`${fmtDt(r.dateStart)} ～ ${fmtDt(r.dateEnd)}`;
+        }
+      } else {
+        dtStr=fmtDt(r.dateStart||r.dateEnd);
+      }
+    }
     const tr=document.createElement('tr');
     tr.draggable=true;tr.dataset.idx=idx;
     tr.innerHTML=`
@@ -7280,13 +7366,29 @@ window.updateJurySignupTabVisibility=updateJurySignupTabVisibility;
 // ════════════════════════════════════════════════
 
 function fmtRoomDt(r){
+  const _WD=['日','一','二','三','四','五','六'];
   const fmt=dt=>{
     if(!dt)return '';
-    const d=new Date(dt);
-    if(isNaN(d))return dt;
-    return d.toLocaleString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',weekday:'short'});
+    const d=new Date(dt);if(isNaN(d))return dt;
+    const wd=_WD[d.getDay()];
+    const y=d.getFullYear();
+    const mm=String(d.getMonth()+1).padStart(2,'0');
+    const dd2=String(d.getDate()).padStart(2,'0');
+    const hh=String(d.getHours()).padStart(2,'0');
+    const mi=String(d.getMinutes()).padStart(2,'0');
+    return `${y}/${mm}/${dd2}（${wd}）${hh}:${mi}`;
   };
-  if(r.dateStart&&r.dateEnd)return fmt(r.dateStart)+' ～ '+fmt(r.dateEnd);
+  const fmtTimeOnly=dt=>{
+    if(!dt)return '';
+    const d=new Date(dt);if(isNaN(d))return dt;
+    return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  };
+  if(r.dateStart&&r.dateEnd){
+    const ds=new Date(r.dateStart),de=new Date(r.dateEnd);
+    const sameDay=!isNaN(ds)&&!isNaN(de)&&ds.getFullYear()===de.getFullYear()&&ds.getMonth()===de.getMonth()&&ds.getDate()===de.getDate();
+    if(sameDay)return fmt(r.dateStart)+' ～ '+fmtTimeOnly(r.dateEnd);
+    return fmt(r.dateStart)+' ～ '+fmt(r.dateEnd);
+  }
   if(r.dateStart)return fmt(r.dateStart);
   return '日期待定';
 }
