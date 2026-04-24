@@ -4425,19 +4425,66 @@ function trimmedAvg(scores,field){
   return{avg:kept.reduce((s,v)=>s+v,0)/kept.length,kept,removed:sorted.filter(v=>!kept.includes(v)),rule,skipped:scores.length-n};
 }
 
-function calcFinal(scoreArr,roomId){
+function calcFinal(scoreArr,roomId,entry){
   const active=scoreArr.filter(s=>!s.absent);
   if(!active.length)return{finalScore:0,fS:0,fA:0,fF:0,fieldAvgs:{},detail:{}};
   const fields=getRoomFields(roomId||'r1');
   const fieldRes={};
+
+  // ★ 修正：對每個 entry 個別計算哪些欄被 skipRules 命中（autoSkip），
+  //    被排除的欄不計分，其比重按「redistribution 設定」重分配給其他欄；
+  //    若無設定 redistribution，則按其他欄各自的 pct 比例均攤。
   let finalScore=0;
-  fields.forEach(f=>{
-    const res=trimmedAvg(active,f.id);
-    fieldRes[f.id]=res;
-    finalScore+=res.avg*(f.pct/100);
-  });
+  if(entry){
+    // 計算各欄是否被 autoSkip
+    const skipped=new Set(fields.filter(f=>isFieldSkipped(f,entry)).map(f=>f.id));
+    const activeFields=fields.filter(f=>!skipped.has(f.id));
+    const skippedFields=fields.filter(f=>skipped.has(f.id));
+
+    // 計算各欄最終有效 pct（重分配後）
+    const effectivePct={};
+    activeFields.forEach(f=>effectivePct[f.id]=f.pct);
+
+    // 處理 skipped 欄的 redistribution
+    skippedFields.forEach(sf=>{
+      const redist=sf.redistribution||[];
+      if(redist.length){
+        // 有明確的重分配設定：按設定把 sf.pct 分給指定欄
+        const total=redist.reduce((s,r)=>s+(r.pct||0),0);
+        redist.forEach(r=>{
+          if(effectivePct[r.fieldId]!==undefined&&total>0){
+            effectivePct[r.fieldId]+=(r.pct/total)*sf.pct;
+          }
+        });
+      } else {
+        // 無設定：按其他 active 欄的 pct 比例均攤
+        const activePctSum=activeFields.reduce((s,f)=>s+(f.pct||0),0);
+        if(activePctSum>0){
+          activeFields.forEach(f=>{
+            effectivePct[f.id]+=(f.pct/activePctSum)*sf.pct;
+          });
+        }
+      }
+    });
+
+    // 計算最終分數
+    fields.forEach(f=>{
+      const res=trimmedAvg(active,f.id);
+      fieldRes[f.id]=res;
+      if(!skipped.has(f.id)){
+        finalScore+=res.avg*((effectivePct[f.id]||0)/100);
+      }
+    });
+  } else {
+    // 無 entry 資訊時（舊相容模式）：直接用 pct 計算
+    fields.forEach(f=>{
+      const res=trimmedAvg(active,f.id);
+      fieldRes[f.id]=res;
+      finalScore+=res.avg*(f.pct/100);
+    });
+  }
+
   finalScore=Math.round(finalScore*100)/100;
-  // backward-compat fields
   const fS=fieldRes['scale']?.avg??fieldRes[fields[0]?.id]?.avg??0;
   const fA=fieldRes['assigned']?.avg??fieldRes[fields[1]?.id]?.avg??0;
   const fF=fieldRes['free']?.avg??fieldRes[fields[2]?.id]?.avg??0;
@@ -5423,79 +5470,104 @@ function openStuRoomModal(stuId){
   const s=DB.users.find(u=>u.id===stuId);if(!s)return;
   // 找該生目前在各考場快照中的狀態
   const snap=DB.savedScheduleSnapshot||{};
-  // {type: Set<roomId>}
   const inRooms={major:new Set(),minor:new Set(),elective:new Set()};
   Object.entries(snap).forEach(([roomId,entries])=>{
     (entries||[]).forEach(e=>{if(e.studentId===stuId)inRooms[e.type]?.add(roomId);});
   });
+  // ★ 同步查 SCH_STATE extraEntries（排程頁的手動加入）
+  Object.entries(_SCH_ROOM_STATES).forEach(([roomId,st])=>{
+    (st.extraEntries||[]).forEach(ex=>{
+      if(ex.studentId===stuId&&inRooms[ex.type])inRooms[ex.type].add(roomId);
+    });
+  });
+  (SCH_STATE.extraEntries||[]).forEach(ex=>{
+    if(ex.studentId===stuId&&inRooms[ex.type])inRooms[ex.type].add(ex.roomId||SCH_STATE.roomId||'');
+  });
 
-  // 同步查 SCH_STATE 各考場的 extraEntries / removedEntries
-  const getRoomState=roomId=>{
-    return _SCH_ROOM_STATES[roomId]||{extraEntries:[],removedEntries:new Set()};
-  };
-
-  const types=[{t:'major',l:'主修',inst:s.major},{t:'minor',l:'副修',inst:s.minor},{t:'elective',l:'選修',inst:s.elective}].filter(x=>x.inst);
-  if(!types.length){showToast('此學生無任何修別樂器','warn');return;}
+  // ★ 修正：顯示全部三個修別（含無樂器的），不篩掉無樂器的修別
+  const ALL_TYPES=[
+    {t:'major', l:'主修', inst:s.major},
+    {t:'minor', l:'副修', inst:s.minor},
+    {t:'elective',l:'選修',inst:s.elective},
+  ];
 
   let modal=document.getElementById('stu-room-modal');
   if(!modal){
     modal=document.createElement('div');modal.id='stu-room-modal';modal.className='overlay';
-    modal.innerHTML=`<div class="modal" style="width:520px;max-width:98vw"><h2 class="modal-t" id="srm-title"></h2><div id="srm-body"></div><div class="modal-ft"><button class="btn btn-s" onclick="closeOverlay('stu-room-modal')">關閉</button><button class="btn btn-p" onclick="saveStuRoomModal('${stuId}')">💾 儲存並同步排程</button></div></div>`;
+    modal.innerHTML=`<div class="modal" style="width:560px;max-width:98vw">
+      <h2 class="modal-t" id="srm-title"></h2>
+      <div id="srm-body"></div>
+      <div class="modal-ft">
+        <button class="btn btn-s" onclick="closeOverlay('stu-room-modal')">關閉</button>
+        <button class="btn btn-p" id="srm-save-btn">💾 儲存並強制加入排程</button>
+      </div>
+    </div>`;
     document.body.appendChild(modal);
     modal.addEventListener('click',e=>{if(e.target===modal)modal.classList.remove('on');});
   }
-  // 動態更新儲存按鈕的 stuId
-  modal.querySelector('[onclick^="saveStuRoomModal"]').setAttribute('onclick',`saveStuRoomModal('${stuId}')`);
+  document.getElementById('srm-save-btn').onclick=()=>saveStuRoomModal(stuId);
   document.getElementById('srm-title').textContent=`調整考場 — ${s.name}（${s.class}·座${s.seat}）`;
 
   const roomOpts=DB.rooms.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
   document.getElementById('srm-body').innerHTML=`
-    <p style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted);margin-bottom:14px;line-height:1.8">
-      為每個修別選擇考場（可複選多個考場）。儲存後會直接寫入排程快照，並在排程出場名單中生效。
+    <p style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted);margin-bottom:14px;line-height:1.9;background:var(--cream);padding:8px 12px;border-radius:var(--r);border-left:3px solid var(--gold)">
+      勾選後儲存：該修別將<strong style="color:var(--ink)">強制加入</strong>指定考場的出場名單，<br>
+      不受考場篩選條件、排除規則或樂器資料限制。<br>
+      取消勾選儲存：從該考場名單中移除。
     </p>
-    ${types.map(({t,l,inst})=>{
+    ${ALL_TYPES.map(({t,l,inst})=>{
       const assigned=[...inRooms[t]];
+      const instLabel=inst?`<span style="color:var(--steel);font-size:10px;margin-left:4px">${iname(inst)}</span>`
+                         :`<span style="color:var(--border);font-size:9px;margin-left:4px">（未填樂器）</span>`;
       const checkboxes=DB.rooms.map(r=>`
-        <label style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid var(--border);border-radius:var(--r);cursor:pointer;font-size:12px;background:var(--white);margin:3px">
-          <input type="checkbox" data-srm-type="${t}" data-srm-room="${r.id}" ${assigned.includes(r.id)?'checked':''} style="accent-color:var(--gold);width:14px;height:14px">
+        <label style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border:1px solid ${assigned.includes(r.id)?'var(--gold)':'var(--border)'};border-radius:var(--r);cursor:pointer;font-size:12px;background:${assigned.includes(r.id)?'var(--gold-bg)':'var(--white)'};margin:3px;transition:all .15s" onmousedown="this.style.background='var(--gold-bg)'">
+          <input type="checkbox" data-srm-type="${t}" data-srm-room="${r.id}" ${assigned.includes(r.id)?'checked':''}
+            style="accent-color:var(--gold);width:14px;height:14px"
+            onchange="this.closest('label').style.borderColor=this.checked?'var(--gold)':'var(--border)';this.closest('label').style.background=this.checked?'var(--gold-bg)':'var(--white)'">
           ${r.name}
         </label>`).join('');
       return `<div style="border:1px solid var(--border);border-radius:var(--r);margin-bottom:10px;overflow:hidden">
-        <div style="background:var(--cream);padding:7px 12px;font-family:DM Mono,monospace;font-size:9px;letter-spacing:1.5px;font-weight:600">
-          ${l}・${iname(inst)}
+        <div style="background:var(--cream);padding:7px 12px;display:flex;align-items:center;gap:6px">
+          <span style="font-family:DM Mono,monospace;font-size:9px;letter-spacing:1.5px;font-weight:600">${l}</span>
+          ${instLabel}
+          ${!inst?`<span style="font-family:DM Mono,monospace;font-size:8px;color:var(--orange);background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:1px 7px;margin-left:auto">無樂器仍可強制加入</span>`:''}
         </div>
-        <div style="padding:10px 12px;display:flex;flex-wrap:wrap;gap:4px">${checkboxes}</div>
+        <div style="padding:10px 12px;display:flex;flex-wrap:wrap;gap:4px">${checkboxes||'<span style="font-size:11px;color:var(--muted);font-family:DM Mono,monospace">尚未設定任何考場</span>'}</div>
       </div>`;
     }).join('')}`;
   openOverlay('stu-room-modal');
 }
 window.openStuRoomModal=openStuRoomModal;
 
-// ★ 儲存學生考場調整，寫入快照並更新排程
+// ★ 儲存學生考場調整，強制寫入排程快照 + SCH_STATE extraEntries 雙軌同步
 function saveStuRoomModal(stuId){
   const modal=document.getElementById('stu-room-modal');if(!modal)return;
   const s=DB.users.find(u=>u.id===stuId);if(!s)return;
 
   // 讀取所有勾選的 type → roomId 配對
   const checks=[...modal.querySelectorAll('[data-srm-type]')];
-  // {type: [roomId,...]}
   const assignments={major:[],minor:[],elective:[]};
   checks.filter(cb=>cb.checked).forEach(cb=>{
     const t=cb.dataset.srmType, r=cb.dataset.srmRoom;
     if(assignments[t]&&!assignments[t].includes(r))assignments[t].push(r);
   });
+  // 取消勾選的（原本有、現在沒有）
+  const removedAssignments={major:[],minor:[],elective:[]};
+  checks.filter(cb=>!cb.checked).forEach(cb=>{
+    const t=cb.dataset.srmType, r=cb.dataset.srmRoom;
+    if(removedAssignments[t]&&!removedAssignments[t].includes(r))removedAssignments[t].push(r);
+  });
 
-  // 更新 DB.savedScheduleSnapshot：先移除此學生所有舊紀錄，再依 assignments 加回
+  // ── 1. 更新 DB.savedScheduleSnapshot ──
   const snap=DB.savedScheduleSnapshot||{};
-  // 移除舊紀錄
+  // 移除此學生所有舊紀錄
   Object.keys(snap).forEach(roomId=>{
     snap[roomId]=(snap[roomId]||[]).filter(e=>e.studentId!==stuId);
   });
-  // 加入新紀錄
-  const inst=(t)=>DB.instruments.items.find(i=>i.id===s[t]);
-  const cat=(t)=>{const i=inst(t);return i?DB.instruments.categories.find(c=>c.id===i.cat):null;};
+  // 加入新紀錄（強制，不受樂器/篩選限制）
+  const getInst=(t)=>s[t]?DB.instruments.items.find(i=>i.id===s[t]):null;
+  const getCat=(t)=>{const i=getInst(t);return i?DB.instruments.categories.find(c=>c.id===i.cat):null;};
   ['major','minor','elective'].forEach(t=>{
-    if(!s[t])return;
     (assignments[t]||[]).forEach(roomId=>{
       if(!snap[roomId])snap[roomId]=[];
       const room=DB.rooms.find(r=>r.id===roomId)||{name:'—',location:''};
@@ -5505,28 +5577,84 @@ function saveStuRoomModal(stuId){
       const ftKey=t==='elective'?'elec_ft':t+'_ft';
       const existingOrders=snap[roomId].map(e=>e.order||0);
       const nextOrder=existingOrders.length?Math.max(...existingOrders)+1:1;
+      const instObj=getInst(t);
       snap[roomId].push({
         entryKey:stuId+'_'+t,studentId:stuId,name:s.name,class:s.class,seat:s.seat,
-        instId:s[t],instName:iname(s[t]),catId:inst(t)?.cat||'',
+        instId:s[t]||'',instName:instObj?iname(instObj.id):'（無樂器）',
+        catId:getCat(t)?.id||'',
         type:t,order:nextOrder,
         ac:s[acKey]||'',at:s[atKey]||'',fc:s[fcKey]||'',ft:s[ftKey]||'',
         roomId,roomName:room.name,roomLocation:room.location||'',
+        _forceInclude:true,
       });
     });
   });
   DB.savedScheduleSnapshot=snap;
 
-  // 同步存入 Firebase
+  // ── 2. 同步更新 SCH_STATE extraEntries / removedEntries（雙軌同步）──
+  // 先清除此學生在所有考場的 extraEntries
+  DB.rooms.forEach(room=>{
+    const st=_SCH_ROOM_STATES[room.id];
+    if(st){
+      st.extraEntries=(st.extraEntries||[]).filter(ex=>ex.studentId!==stuId);
+    }
+  });
+  SCH_STATE.extraEntries=(SCH_STATE.extraEntries||[]).filter(ex=>ex.studentId!==stuId);
+
+  // 依新 assignments 加入 extraEntries（強制加入，不受排除規則影響）
+  ['major','minor','elective'].forEach(t=>{
+    (assignments[t]||[]).forEach(roomId=>{
+      const entry={studentId:stuId,type:t,roomId,_forceInclude:true};
+      // 寫入對應 _SCH_ROOM_STATES
+      if(!_SCH_ROOM_STATES[roomId]){
+        _SCH_ROOM_STATES[roomId]={
+          catOrder:[],instOrder:[],
+          typeOrder:[{key:'major',label:'主修',active:true},{key:'minor',label:'副修',active:true},{key:'elective',label:'選修',active:true}],
+          classOrder:[],seatDir:1,extraEntries:[],removedEntries:new Set(),excludeRules:[],
+        };
+      }
+      const st=_SCH_ROOM_STATES[roomId];
+      // 清除 removedEntries 中的舊記錄
+      st.removedEntries.delete(stuId+'_'+t);
+      if(!st.extraEntries.some(ex=>ex.studentId===stuId&&ex.type===t)){
+        st.extraEntries.push(entry);
+      }
+      // 若目前考場就是這個 room，也更新 SCH_STATE
+      if(SCH_STATE.roomId===roomId||!SCH_STATE.roomId){
+        SCH_STATE.removedEntries.delete(stuId+'_'+t);
+        if(!SCH_STATE.extraEntries.some(ex=>ex.studentId===stuId&&ex.type===t)){
+          SCH_STATE.extraEntries.push(entry);
+        }
+      }
+    });
+    // 取消勾選的考場：加入 removedEntries
+    (removedAssignments[t]||[]).forEach(roomId=>{
+      const st=_SCH_ROOM_STATES[roomId];
+      if(st){
+        st.extraEntries=(st.extraEntries||[]).filter(ex=>!(ex.studentId===stuId&&ex.type===t));
+        st.removedEntries.add(stuId+'_'+t);
+      }
+      if(SCH_STATE.roomId===roomId){
+        SCH_STATE.extraEntries=(SCH_STATE.extraEntries||[]).filter(ex=>!(ex.studentId===stuId&&ex.type===t));
+        SCH_STATE.removedEntries.add(stuId+'_'+t);
+      }
+    });
+  });
+
+  // ── 3. 存入 Firebase ──
   if(window._FB){
     fbSet('scheduleState','snapshot',{data:JSON.stringify(snap)});
-    showToast(`${s.name} 考場已更新並同步 ✓`,'ok');
+    showToast(`${s.name} 考場已強制更新並同步 ✓`,'ok');
   } else {
     try{localStorage.setItem('scheduleSnapshot',JSON.stringify(snap));}catch(e){}
     showToast(`${s.name} 考場已更新（本機）✓`,'ok');
   }
   closeOverlay('stu-room-modal');
-  // 重新渲染學生名單以更新考場欄
+
+  // ── 4. 立即重新渲染所有相關頁面 ──
+  renderSchedule();
   if(typeof renderAdminStudents==='function')renderAdminStudents();
+  renderStuSchedule();
 }
 window.saveStuRoomModal=saveStuRoomModal;
 
@@ -6270,6 +6398,33 @@ function renderRoomFields(){
           <button onclick="rfRemoveRule('${r.id}',${fi},${ri})" style="background:none;border:none;cursor:pointer;color:var(--rust);font-size:13px;padding:0 2px;line-height:1" title="刪除此規則">✕</button>
         </div>`).join('')
         :'<div style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--border);padding:4px 2px">尚無排除條件，此欄對所有人計分</div>';
+
+      // ★ 新增：重分配 UI（只有在有排除規則時才顯示）
+      const otherFields=fields.filter((_,oi)=>oi!==fi);
+      const redistData=f.redistribution||[];
+      const redistHtml=rules.length&&otherFields.length?`
+        <div style="margin-top:10px;padding:8px 10px;background:#f0f8ff;border:1px solid #bee3f8;border-radius:var(--r)">
+          <div style="font-family:DM Mono,monospace;font-size:8px;letter-spacing:1px;color:var(--steel);margin-bottom:6px;text-transform:uppercase">
+            ↩ 被排除時，此欄 <strong style="color:var(--ink)">${f.pct}%</strong> 如何重分配給其他欄（留空 = 自動按比例均攤）
+          </div>
+          <div id="rf-redist-${r.id}-${fi}" style="display:flex;flex-direction:column;gap:4px">
+            ${otherFields.map((of,oi)=>{
+              const existing=redistData.find(rd=>rd.fieldId===of.id);
+              return `<div style="display:flex;align-items:center;gap:8px">
+                <span style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted);min-width:70px;white-space:nowrap">${of.label}</span>
+                <input type="number" data-redist-field="${of.id}" value="${existing?existing.pct:''}" min="0" max="100" placeholder="留空=自動"
+                  style="width:68px;padding:3px 6px;border:1px solid var(--border);border-radius:var(--r);font-size:11px;font-family:DM Mono,monospace;outline:none;text-align:center"
+                  title="此欄被排除時，多少%分給「${of.label}」（留空表示自動按比例均攤）">
+                <span style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted)">%</span>
+              </div>`;
+            }).join('')}
+          </div>
+          <div style="font-family:DM Mono,monospace;font-size:8px;color:var(--muted);margin-top:5px">
+            💡 填寫加總應等於 ${f.pct}%。若總和不足或留空，系統自動按其餘欄位比重補足。
+          </div>
+        </div>`:
+        (rules.length&&!otherFields.length?'':'');
+
       return `<div style="border:1px solid var(--cream);border-radius:var(--r);margin-bottom:10px;overflow:hidden" id="rf-row-${r.id}-${fi}">
         <div style="background:var(--cream);padding:7px 10px;display:flex;gap:7px;align-items:flex-end;flex-wrap:wrap">
           <div class="fg" style="min-width:110px;margin-bottom:0"><label>欄位名稱</label>
@@ -6286,6 +6441,7 @@ function renderRoomFields(){
           </div>
           <div id="rf-rules-${r.id}-${fi}">${rulesHtml}</div>
           <button class="btn btn-s btn-xs" style="margin-top:4px" onclick="rfAddRule('${r.id}',${fi})">＋ 新增排除條件</button>
+          ${redistHtml}
         </div>
       </div>`;
     }).join('');
@@ -6381,7 +6537,19 @@ function saveRoomFields(roomId){
         skipRules.push({catId,type,cls});
       });
     }
-    r.scoreFields.push({id:existingId,label:lbl,pct,skipRules});
+    // ★ 從 DOM 讀取重分配設定
+    const redistEl=document.getElementById('rf-redist-'+roomId+'-'+fi);
+    const redistribution=[];
+    if(redistEl){
+      redistEl.querySelectorAll('[data-redist-field]').forEach(inp=>{
+        const fieldId=inp.dataset.redistField;
+        const val=inp.value.trim();
+        if(val!==''&&!isNaN(parseInt(val))&&parseInt(val)>0){
+          redistribution.push({fieldId,pct:parseInt(val)});
+        }
+      });
+    }
+    r.scoreFields.push({id:existingId,label:lbl,pct,skipRules,redistribution});
   });
   fbSet('rooms',r.id,{...r,_order:DB.rooms.indexOf(r)});
   renderRoomFields();
@@ -6800,8 +6968,30 @@ function renderResults(){
     return remarks;
   };
 
-  // ── 取得 entries，依排程序號排列 ──
-  let allSched=getScheduleEntries(); // 已含 order 欄位
+  // ★ 修正：改從 savedScheduleSnapshot 取得 entries（含正確 roomId/order），
+  //    fallback 到 getScheduleEntries（未存檔時）
+  const snap=DB.savedScheduleSnapshot||{};
+  const hasSnap=Object.values(snap).some(arr=>arr&&arr.length>0);
+  let allSched=[];
+  if(hasSnap){
+    Object.entries(snap).forEach(([snapRoomId,snaps])=>{
+      const room=DB.rooms.find(r=>r.id===snapRoomId);
+      (snaps||[]).forEach(e=>{
+        allSched.push({
+          order:e.order,roomId:snapRoomId,
+          roomName:e.roomName||(room?.name||snapRoomId),
+          roomLocation:e.roomLocation||(room?.location||''),
+          class:e.class,name:e.name,seat:e.seat,studentId:e.studentId,
+          instId:e.instId,instName:e.instName,type:e.type,
+          ac:e.ac||'',at:e.at||'',fc:e.fc||'',ft:e.ft||'',
+          catId:e.catId||'',
+        });
+      });
+    });
+  } else {
+    allSched=getScheduleEntries();
+  }
+
   let entries=[];
   if(ST._remarkFilterOn){
     if(roomId)allSched=allSched.filter(e=>e.roomId===roomId);
@@ -6809,7 +6999,6 @@ function renderResults(){
     entries=allSched.filter(e=>getEntryRemarks(e.roomId,e.studentId+'_'+e.type).length>0);
     if(!entries.length){el.innerHTML='<div style="padding:24px;text-align:center;font-family:\'DM Mono\',monospace;font-size:12px;color:var(--sage)">✓ 目前無任何備註記錄</div>';return;}
   } else if(_resultViewMode==='class'){
-    // 班級彙整：全部考場（或指定考場），依班級→座號排序
     if(roomId)allSched=allSched.filter(e=>e.roomId===roomId);
     if(classF)allSched=allSched.filter(e=>e.class===classF);
     entries=allSched.slice().sort((a,b)=>{
@@ -6819,12 +7008,14 @@ function renderResults(){
       return {major:0,minor:1,elective:2}[a.type]-{major:0,minor:1,elective:2}[b.type];
     });
     if(!entries.length){el.innerHTML='<p style="color:var(--muted);font-family:\'DM Mono\',monospace;font-size:12px;padding:14px">無符合資料</p>';return;}
-    // 班級彙整模式渲染
     _renderResultsByClass(el,entries,getEntryRemarks);return;
   } else {
-    // 考場順序模式：用與排程一致的排序邏輯，確保和排程頁面名單相同
-    entries=_getEntriesForRoom(roomId,allSched);
+    // 考場順序模式：從快照取得此考場的 entries，依 order 排序
+    if(!roomId){el.innerHTML='<p style="color:var(--muted);font-family:\'DM Mono\',monospace;font-size:11px;padding:14px">請選擇考場</p>';return;}
+    entries=allSched.filter(e=>e.roomId===roomId);
     if(classF)entries=entries.filter(e=>e.class===classF);
+    entries=entries.slice().sort((a,b)=>(a.order||0)-(b.order||0));
+    entries.forEach((e,i)=>e._resultOrder=i+1);
     if(!entries.length){el.innerHTML='<p style="color:var(--muted);font-family:\'DM Mono\',monospace;font-size:12px;padding:14px">此考場尚無符合資料</p>';return;}
   }
 
@@ -6889,7 +7080,7 @@ function _buildResultCard(e,ei,getEntryRemarks,showRoom){
   const entryKey=e.studentId+'_'+e.type;
   const jurorData=DB.juryScores[useRoomId]?.[entryKey]||{};
   const scoreArr=Object.values(jurorData);
-  const result=scoreArr.length?calcFinal(scoreArr,useRoomId):{finalScore:null,fS:null,fA:null,fF:null,fieldAvgs:{},detail:{}};
+  const result=scoreArr.length?calcFinal(scoreArr,useRoomId,e):{finalScore:null,fS:null,fA:null,fF:null,fieldAvgs:{},detail:{}};
   const ded=DB.deductions[entryKey]||{amount:0,reason:''};
   const finalWithDed=result.finalScore!==null?Math.max(0,result.finalScore-(ded.amount||0)):null;
   const isBlack=!!(DB.blackSign[useRoomId]?.[entryKey]);
