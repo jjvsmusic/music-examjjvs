@@ -461,16 +461,21 @@ tbody td{color:var(--ink)!important}
 
   async function _getToken(){
     if(_idToken && Date.now() < _tokenExpiry - 60000) return _idToken;
+    // ★ 效能修正：加入 8 秒 timeout，避免網路問題導致頁面永久卡住
+    const withTimeout = (promise, ms) => Promise.race([
+      promise,
+      new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),ms))
+    ]);
     try {
       // 嘗試從 localStorage 取已有的 refresh token
       let refreshToken = null;
       try { refreshToken = localStorage.getItem('_fbRefreshToken'); } catch(e){}
 
       if(refreshToken){
-        const r = await fetch(`${AUTH_BASE}/token?key=${API_KEY}`, {
+        const r = await withTimeout(fetch(`${AUTH_BASE}/token?key=${API_KEY}`, {
           method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({grant_type:'refresh_token', refresh_token: refreshToken})
-        });
+        }), 8000);
         if(r.ok){
           const d = await r.json();
           _idToken = d.id_token;
@@ -480,10 +485,10 @@ tbody td{color:var(--ink)!important}
         }
       }
       // 匿名登入取新 token
-      const r2 = await fetch(`${AUTH_BASE}/accounts:signUp?key=${API_KEY}`, {
+      const r2 = await withTimeout(fetch(`${AUTH_BASE}/accounts:signUp?key=${API_KEY}`, {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({returnSecureToken:true})
-      });
+      }), 8000);
       if(r2.ok){
         const d2 = await r2.json();
         _idToken = d2.idToken;
@@ -2524,11 +2529,15 @@ function loadAllFromFirebase(done){
   (function(){
     if(!window._FB){tick();return;}
     const db=window._FB.db;
+    // ★ 修正：加入整體 15 秒 timeout 防止卡住
+    let done=false;
+    const safeTick=()=>{if(!done){done=true;tick();}};
+    setTimeout(()=>{console.warn('[juryScores] 讀取超時，略過');safeTick();},15000);
     // ★ 等 Auth 就緒後再讀取 juryScores
     (window._fbAuthReady||Promise.resolve()).then(()=>{
     db.collection('juryScores').get().then(roomSnap=>{
       let roomCount=roomSnap.size;
-      if(roomCount===0){tick();return;}
+      if(roomCount===0){safeTick();return;}
       roomSnap.forEach(roomDoc=>{
         db.collection('juryScores').doc(roomDoc.id)
           .collection('entries').get().then(entrySnap=>{
@@ -2542,10 +2551,10 @@ function loadAllFromFirebase(done){
               DB.juryScores[roomId][entryKey]=jurors;
             });
             roomCount--;
-            if(roomCount<=0)tick();
-          }).catch(()=>{roomCount--;if(roomCount<=0)tick();});
+            if(roomCount<=0)safeTick();
+          }).catch(()=>{roomCount--;if(roomCount<=0)safeTick();});
       });
-    }).catch(()=>tick());
+    }).catch(()=>safeTick());
     }); // end authReady.then
   })();
 }
@@ -2673,9 +2682,14 @@ function showPage(id){
   }
   document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));
   document.getElementById('pg-'+id)?.classList.add('on');
-  if(id==='jury'){if(ST.role==='admin')initJuryAdminRoomBar();renderJuryTable();} // ★ 切換到評分頁時立即重新讀取 liveExam 狀態
+  if(id==='jury'){if(ST.role==='admin')initJuryAdminRoomBar();renderJuryTable();}
   if(id==='tea-schedule')renderTeaSchedulePage();
   if(id==='invigilator')renderInvigPage();
+  // ★ 效能優化：切換到排程/成績頁時才 render（避免 renderAll 重複渲染）
+  if(id==='schedule')renderSchedule();
+  if(id==='results')renderResults();
+  // ★ 切換到管理後台時重新診斷連動警告
+  if(id==='admin'&&ST.role==='admin')_renderAdminLinkageWarnings();
 }
 
 // ════════════════════════════════════════════════
@@ -2788,12 +2802,18 @@ function renderAll(){
     tsub.querySelectorAll('.tab').forEach((t,i)=>{t.classList.toggle('on',i===0);});
     tsub.dataset.initialized='1';
   }
+  // ★ 效能優化：始終渲染核心資料，但大型列表（排程、成績等）只在對應頁面可見時才渲染
+  const pgVisible=id=>!!document.getElementById(id)?.classList.contains('on');
   renderRepPage();renderRepHint();renderTeaTable();renderAdminStudents();renderAdminTeachers();renderAdminAdmins();
   renderCatList();renderInstDropdown();renderRooms();renderClassList();renderTiming();
-  renderTrimRules();renderRoomFields();schInitRoomTabs();schInitSortUI();renderSchedule();renderDisqList();renderResults();renderScoresPage();renderStuSchedule();
+  renderTrimRules();renderRoomFields();schInitRoomTabs();schInitSortUI();
+  if(pgVisible('pg-schedule'))renderSchedule();
+  renderDisqList();
+  if(pgVisible('pg-results'))renderResults();
+  renderScoresPage();renderStuSchedule();
   renderJuryTable();renderAccessControl();updateStats();renderInstRestrictUI();
   if(ST.role==='teacher'||ST.role==='admin')renderTeaSchedulePage();
-  if(ST.role==='admin')adminCommentInit();
+  if(ST.role==='admin'){adminCommentInit();_renderAdminLinkageWarnings();}
   if(ST.role==='invigilator'||ST.role==='admin')renderInvigPage();
   updateJurySignupTabVisibility();
   renderBulletin();
@@ -4760,21 +4780,21 @@ function renderSchedule(){
     const alreadyIn=entries.some(e=>e.studentId===ex.studentId&&e.type===ex.type);
     if(alreadyIn)return;
     const stu=DB.users.find(u=>u.id===ex.studentId);if(!stu)return;
-    const inst=DB.instruments.items.find(i=>i.id===stu[ex.type]);
+    // ★ 修正：即使無樂器資料也能加入（inst 可能為 null）
+    const inst=stu[ex.type]?DB.instruments.items.find(i=>i.id===stu[ex.type]):null;
     const cat=inst?DB.instruments.categories.find(c=>c.id===inst.cat):null;
-    const room=DB.rooms.find(r=>r.id===ex.roomId)||_findRoomForCat(inst?.cat);
-    if(!stu||!inst)return;
+    const room=DB.rooms.find(r=>r.id===ex.roomId)||_findRoomForCat(inst?.cat)||DB.rooms[0];
     const acKey=ex.type==='elective'?'elec_ac':(ex.type+'_ac');
     const atKey=ex.type==='elective'?'elec_at':(ex.type+'_at');
     const fcKey=ex.type==='elective'?'elec_fc':(ex.type+'_fc');
     const ftKey=ex.type==='elective'?'elec_ft':(ex.type+'_ft');
     entries.push({
       studentId:stu.id,name:stu.name,class:stu.class,seat:stu.seat,
-      instId:inst.id,instName:iname(inst.id),catId:inst?.cat,catOrder:cat?.order??99,
+      instId:inst?.id||'',instName:inst?iname(inst.id):'（無樂器）',catId:inst?.cat||'',catOrder:cat?.order??99,
       type:ex.type,typeOrder:{major:0,minor:1,elective:2}[ex.type],
       ac:stu[acKey]||'',at:stu[atKey]||'',fc:stu[fcKey]||'',ft:stu[ftKey]||'',
       roomId:room?.id||'r1',roomName:room?.name||'—',roomLocation:room?.location||'',order:0,
-      _extra:true,
+      _extra:true,_forceInclude:true,
     });
   });
 
@@ -4964,21 +4984,21 @@ function _buildFilteredEntries(roomId){
     const alreadyIn=entries.some(e=>e.studentId===ex.studentId&&e.type===ex.type);
     if(alreadyIn)return;
     const stu=DB.users.find(u=>u.id===ex.studentId);if(!stu)return;
-    const inst=DB.instruments.items.find(i=>i.id===stu[ex.type]);
+    // ★ 修正：無樂器的強制加入學生也要包含進去（inst 可能為 null）
+    const inst=stu[ex.type]?DB.instruments.items.find(i=>i.id===stu[ex.type]):null;
     const cat=inst?DB.instruments.categories.find(c=>c.id===inst.cat):null;
-    const room=DB.rooms.find(r=>r.id===ex.roomId)||_findRoomForCat(inst?.cat);
-    if(!inst)return;
+    const room=DB.rooms.find(r=>r.id===ex.roomId)||_findRoomForCat(inst?.cat)||DB.rooms[0];
     const acKey=ex.type==='elective'?'elec_ac':(ex.type+'_ac');
     const atKey=ex.type==='elective'?'elec_at':(ex.type+'_at');
     const fcKey=ex.type==='elective'?'elec_fc':(ex.type+'_fc');
     const ftKey=ex.type==='elective'?'elec_ft':(ex.type+'_ft');
     entries.push({
       studentId:stu.id,name:stu.name,class:stu.class,seat:stu.seat,
-      instId:inst.id,instName:iname(inst.id),catId:inst?.cat,
+      instId:inst?.id||'',instName:inst?iname(inst.id):'（無樂器）',catId:inst?.cat||'',
       type:ex.type,typeOrder:{major:0,minor:1,elective:2}[ex.type],
       ac:stu[acKey]||'',at:stu[atKey]||'',fc:stu[fcKey]||'',ft:stu[ftKey]||'',
       roomId:room?.id||'',roomName:room?.name||'—',roomLocation:room?.location||'',order:0,
-      _extra:true,
+      _extra:true,_forceInclude:true,
     });
   });
   // roomId 已由 getScheduleEntries 設定，不再過濾
@@ -5087,8 +5107,9 @@ function openSchAddModal(){
     modal.innerHTML=`<div class="modal" style="width:620px;max-width:98vw">
       <h2 class="modal-t">＋ 手動加入出場名單</h2>
       <p style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.8">
-        搜尋學生，可強制加入（即使已被排除規則過濾）。點「移出」可從目前考場名單移除。<br>
-        選擇考場後加入，會把該學生/修別排入指定考場。
+        可搜尋<strong style="color:var(--ink)">任意學生</strong>，強制加入（覆蓋排除規則、篩選條件），<br>
+        包含未填樂器資料的學生，所有修別（主修／副修／選修）均可加入。<br>
+        點「移出」可從目前考場名單移除。
       </p>
       <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
         <input type="text" id="sch-add-search" placeholder="搜尋姓名或帳號…" style="flex:1;min-width:120px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:14px;outline:none" oninput="schAddSearch()">
@@ -5121,73 +5142,62 @@ window.openSchAddModal=openSchAddModal;
 function schAddSearch(){
   const q=(document.getElementById('sch-add-search')?.value||'').trim();
   const res=document.getElementById('sch-add-results');if(!res)return;
-  const stus=students().filter(s=>!q||s.name.includes(q)||(s.account||'').includes(q)).slice(0,40);
+  // ★ 修正①：搜尋範圍擴大——無論是否有樂器、任何修別都可搜尋並強制加入
+  const allStus=students();
+  const stus=allStus.filter(s=>!q||s.name.includes(q)||(s.account||'').includes(q)||(s.class||'').includes(q)).slice(0,60);
   if(!stus.length){res.innerHTML=`<div style="padding:14px;color:var(--muted);font-family:DM Mono,monospace;font-size:11px;text-align:center">查無學生</div>`;return;}
 
-  // 取得目前排程中實際在名單的 entryKeys（已通過篩選且未被移除的）
+  // 取得目前排程中實際在名單的 entryKeys（不受排除規則影響，只看 extra+正常通過的）
   const currentKeys=new Set();
   {
     let tmp=getScheduleEntries();
-    // 套用目前篩選
-    const activeCats=new Set(SCH_STATE.catOrder.filter(c=>c.active).map(c=>c.id));
-    if(activeCats.size)tmp=tmp.filter(e=>activeCats.has(e.catId));
-    const activeInsts=new Set(SCH_STATE.instOrder.filter(i=>i.active).map(i=>i.id));
-    if(activeInsts.size)tmp=tmp.filter(e=>activeInsts.has(e.instId));
-    const activeTypes=new Set(SCH_STATE.typeOrder.filter(t=>t.active).map(t=>t.key));
-    tmp=tmp.filter(e=>activeTypes.has(e.type));
-    const activeClasses=new Set(SCH_STATE.classOrder.filter(c=>c.active).map(c=>c.cls));
-    if(activeClasses.size)tmp=tmp.filter(e=>activeClasses.has(e.class));
-    // 套用排除規則
-    const rules=SCH_STATE.excludeRules||[];
-    if(rules.length)tmp=tmp.filter(e=>{
-      const stu=DB.users.find(u=>u.id===e.studentId)||{};
-      return !rules.some(r=>{
-        if(r.cls&&r.cls!==e.class)return false;
-        if(!r.catId&&!r.type)return true;
-        if(r.type&&!r.catId)return !!stu[r.type];
-        const ch=r.type?[r.type]:['major','minor','elective'];
-        return ch.some(t=>{const i=DB.instruments.items.find(x=>x.id===stu[t]);return i&&i.cat===r.catId;});
-      });
-    });
+    // 僅過濾 removedEntries，不再套用排除規則（手動加入模式應顯示完整狀態）
     tmp.filter(e=>!SCH_STATE.removedEntries.has(e.studentId+'_'+e.type)).forEach(e=>currentKeys.add(e.studentId+'_'+e.type));
-    SCH_STATE.extraEntries.forEach(ex=>currentKeys.add(ex.studentId+'_'+ex.type));
+    SCH_STATE.extraEntries.filter(ex=>!SCH_STATE.removedEntries.has(ex.studentId+'_'+ex.type)).forEach(ex=>currentKeys.add(ex.studentId+'_'+ex.type));
   }
 
+  // ★ 修正②：所有修別（major/minor/elective）都顯示，不再因為 s[t] 為空就跳過
+  const ALL_TYPES=['major','minor','elective'];
+  const typeLabels={major:'主修',minor:'副修',elective:'選修'};
+
   res.innerHTML=stus.map(s=>{
-    const types=['major','minor','elective'].filter(t=>s[t]);
-    if(!types.length)return '';
-    const rows=types.map(t=>{
+    const rows=ALL_TYPES.map(t=>{
       const key=s.id+'_'+t;
       const inList=currentKeys.has(key);
       const isRemoved=SCH_STATE.removedEntries.has(key);
       const isExtra=SCH_STATE.extraEntries.some(ex=>ex.studentId===s.id&&ex.type===t);
-      // 判斷被排除規則過濾
-      const stu=s;
+      const hasInst=!!s[t]; // 是否已設定樂器
+      // ★ 判斷被排除規則過濾（僅用於顯示標記，不阻止加入）
       const rules=SCH_STATE.excludeRules||[];
-      const isExcluded=rules.length&&rules.some(r=>{
-        if(r.cls&&r.cls!==stu.class)return false;
+      const isExcluded=!isExtra&&rules.length&&rules.some(r=>{
+        if(r.cls&&r.cls!==s.class)return false;
         if(!r.catId&&!r.type)return true;
-        if(r.type&&!r.catId)return !!stu[r.type];
+        if(r.type&&!r.catId)return !!s[r.type];
         const ch=r.type?[r.type]:['major','minor','elective'];
-        return ch.some(tt=>{const inst=DB.instruments.items.find(x=>x.id===stu[tt]);return inst&&inst.cat===r.catId;});
+        return ch.some(tt=>{const inst=DB.instruments.items.find(x=>x.id===s[tt]);return inst&&inst.cat===r.catId;});
       });
+
       let statusBadge='';
-      if(inList&&!isRemoved)statusBadge=`<span style="font-family:DM Mono,monospace;font-size:8px;color:var(--sage);background:#d4edda;border:1px solid #c3e6cb;border-radius:10px;padding:1px 7px">✓ 已在名單</span>`;
+      if(isExtra||inList)statusBadge=`<span style="font-family:DM Mono,monospace;font-size:8px;color:var(--sage);background:#d4edda;border:1px solid #c3e6cb;border-radius:10px;padding:1px 7px">✓ 已在名單${isExtra?' (手動)':''}</span>`;
       else if(isRemoved)statusBadge=`<span style="font-family:DM Mono,monospace;font-size:8px;color:var(--rust);background:#f8d7da;border:1px solid #f5c6cb;border-radius:10px;padding:1px 7px">已移出</span>`;
       else if(isExcluded)statusBadge=`<span style="font-family:DM Mono,monospace;font-size:8px;color:var(--orange);background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:1px 7px">排除規則</span>`;
+      else if(!hasInst)statusBadge=`<span style="font-family:DM Mono,monospace;font-size:8px;color:var(--muted);background:var(--cream);border:1px solid var(--border);border-radius:10px;padding:1px 7px">無樂器資料</span>`;
 
-      const addBtn=`<button class="btn btn-g btn-xs" onclick="schAddEntry('${s.id}','${t}')" title="強制加入（忽略排除規則）">＋ 加入</button>`;
-      const removeBtn=inList&&!isRemoved?`<button class="btn btn-d btn-xs" onclick="schRemoveEntry('${key}')">移出</button>`:'';
+      // ★ 修正③：任何狀態都能加入（強制覆蓋），包含無樂器、排除規則、不同修別
+      const addBtn=`<button class="btn btn-g btn-xs" onclick="schAddEntry('${s.id}','${t}')" title="強制加入（忽略排除規則和篩選條件）" style="${isExtra||inList?'opacity:.55':''}">＋ 強制加入</button>`;
+      const removeBtn=(inList||isExtra)&&!isRemoved?`<button class="btn btn-d btn-xs" onclick="schRemoveEntry('${key}')">移出</button>`:'';
       const restoreBtn=isRemoved?`<button class="btn btn-b btn-xs" onclick="schRestoreEntry('${key}')">恢復</button>`:'';
 
-      return `<div style="display:flex;align-items:center;gap:8px;padding:7px 14px;border-bottom:1px solid var(--cream);flex-wrap:wrap">
+      const instDisplay=hasInst?`<span style="font-family:DM Mono,monospace;font-size:10px;color:var(--steel);margin-left:3px">${iname(s[t])}</span>`:`<span style="font-family:DM Mono,monospace;font-size:9px;color:var(--border);margin-left:3px">（未設定樂器）</span>`;
+
+      return `<div style="display:flex;align-items:center;gap:8px;padding:7px 14px;border-bottom:1px solid var(--cream);flex-wrap:wrap${!hasInst?';opacity:.8':''}">
         <div style="flex:1;min-width:0">
           <span style="font-size:12px;font-weight:600">${s.name}</span>
-          <span style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted);margin-left:5px">${s.class}·座${s.seat}</span>
-          <span style="margin-left:6px">${typeBadge(t)}</span>
-          <span style="font-family:DM Mono,monospace;font-size:10px;color:var(--steel);margin-left:3px">${iname(s[t])}</span>
+          <span style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted);margin-left:5px">${s.class||'—'}·座${s.seat||'?'}</span>
+          ${typeBadge(t)}
+          ${instDisplay}
         </div>
-        <div style="display:flex;gap:5px;align-items:center;flex-shrink:0">
+        <div style="display:flex;gap:5px;align-items:center;flex-shrink:0;flex-wrap:wrap">
           ${statusBadge}
           ${restoreBtn}
           ${removeBtn}
@@ -5195,19 +5205,29 @@ function schAddSearch(){
         </div>
       </div>`;
     }).join('');
-    return rows;
+    // 學生標題行
+    return `<div style="background:var(--ink);color:var(--paper);padding:5px 14px;font-family:DM Mono,monospace;font-size:9px;letter-spacing:1.5px">
+      ${s.name} <span style="opacity:.6">${s.class||'（無班級）'}・${s.account||''}</span>
+    </div>${rows}`;
   }).join('')||'<div style="padding:14px;color:var(--muted);font-family:DM Mono,monospace;font-size:11px;text-align:center">查無學生</div>';
 }
 window.schAddSearch=schAddSearch;
 
 function schAddEntry(studentId,type){
   const roomSel=document.getElementById('sch-add-room-sel')?.value||SCH_STATE.roomId||'';
+  // ★ 修正：先清除 removedEntries，再更新或新增 extraEntries（確保 _forceInclude 正確）
   SCH_STATE.removedEntries.delete(studentId+'_'+type);
   const existing=SCH_STATE.extraEntries.findIndex(e=>e.studentId===studentId&&e.type===type);
-  if(existing>-1)SCH_STATE.extraEntries.splice(existing,1);
-  SCH_STATE.extraEntries.push({studentId,type,roomId:roomSel,_forceInclude:true});
+  if(existing>-1){
+    // ★ 更新已存在的 entry（覆蓋 roomId 和 _forceInclude）
+    SCH_STATE.extraEntries[existing]={studentId,type,roomId:roomSel,_forceInclude:true};
+  } else {
+    SCH_STATE.extraEntries.push({studentId,type,roomId:roomSel,_forceInclude:true});
+  }
   schAddSearch();renderSchedule();
-  showToast('已強制加入名單 ✓','ok');
+  const stu=DB.users.find(u=>u.id===studentId);
+  const hasInst=stu&&stu[type];
+  showToast(`已強制加入：${stu?.name||studentId}（${type==='major'?'主修':type==='minor'?'副修':'選修'}）${hasInst?'':'⚠️ 無樂器資料，請確認'}`,'ok');
 }
 window.schAddEntry=schAddEntry;
 
@@ -7066,6 +7086,106 @@ function updateStats(){
   document.getElementById('stat-s').textContent=stus.length;
   document.getElementById('stat-r').textContent=done;
   document.getElementById('stat-t').textContent=teachers().length;
+  // ★ 每次更新統計時同步更新連動警告
+  if(ST.role==='admin')_renderAdminLinkageWarnings();
+}
+
+// ════════════════════════════════════════════════
+// ★ 管理員連動診斷系統：主動偵測資料異常並警告
+// ════════════════════════════════════════════════
+function _renderAdminLinkageWarnings(){
+  // 找或建立警告面板（掛在管理後台頁面頂部）
+  let panel=document.getElementById('admin-linkage-warn-panel');
+  if(!panel){
+    const adminPg=document.getElementById('pg-admin');
+    if(!adminPg)return;
+    panel=document.createElement('div');
+    panel.id='admin-linkage-warn-panel';
+    panel.style.cssText='margin-bottom:16px';
+    // 插在 pg-admin 的第一個子元素前
+    adminPg.insertBefore(panel,adminPg.firstChild);
+  }
+
+  const warnings=[];
+  const stus=students();
+  const allClasses=DB.classes;
+  const allInsts=DB.instruments.items;
+  const allCats=DB.instruments.categories;
+
+  // ① 學生班級不在班級列表中
+  const badClass=stus.filter(s=>s.class&&!allClasses.includes(s.class));
+  if(badClass.length){
+    warnings.push({lvl:'err',msg:`⚠️ 有 ${badClass.length} 名學生的班級（${[...new Set(badClass.map(s=>s.class))].join('、')}）不在班級列表中，可能導致排程/篩選異常`,list:badClass.map(s=>s.name).slice(0,5)});
+  }
+
+  // ② 學生樂器 ID 不在樂器列表中
+  const badInst=[];
+  stus.forEach(s=>{
+    ['major','minor','elective'].forEach(t=>{
+      if(s[t]&&!allInsts.find(i=>i.id===s[t])){
+        badInst.push({name:s.name,type:t,instId:s[t]});
+      }
+    });
+  });
+  if(badInst.length){
+    warnings.push({lvl:'err',msg:`⚠️ 有 ${badInst.length} 筆學生樂器 ID 已失效（樂器可能已被刪除），將影響排程出場`,list:badInst.map(x=>`${x.name}(${x.type})`).slice(0,5)});
+  }
+
+  // ③ 樂器沒有對應大項（cat 失效）
+  const badCatInst=allInsts.filter(i=>i.cat&&!allCats.find(c=>c.id===i.cat));
+  if(badCatInst.length){
+    warnings.push({lvl:'warn',msg:`⚠️ 有 ${badCatInst.length} 個樂器的大項類別已失效：${badCatInst.map(i=>i.name).join('、')}`,list:[]});
+  }
+
+  // ④ 考場沒有分配到任何學生
+  if(DB.rooms.length>1){
+    DB.rooms.forEach(room=>{
+      const hasStu=stus.some(s=>{
+        const rc=room.catMap||room.allowedCats||[];
+        if(!rc.length)return true; // 無限制
+        return ['major','minor','elective'].some(t=>{
+          if(!s[t])return false;
+          const inst=allInsts.find(i=>i.id===s[t]);
+          return inst&&rc.includes(inst.cat);
+        });
+      });
+      if(!hasStu&&room.allowedCats?.length){
+        warnings.push({lvl:'info',msg:`ℹ️ 考場「${room.name}」目前無任何符合條件的學生（請確認樂器大項設定）`,list:[]});
+      }
+    });
+  }
+
+  // ⑤ 有學生已填曲目但樂器失效
+  const repDoneNoInst=stus.filter(s=>s.repDone&&['major','minor','elective'].some(t=>s[t]&&!allInsts.find(i=>i.id===s[t])));
+  if(repDoneNoInst.length){
+    warnings.push({lvl:'err',msg:`⚠️ ${repDoneNoInst.length} 名學生已完成曲目填寫，但其樂器資料失效，成績與排程可能錯誤`,list:repDoneNoInst.map(s=>s.name).slice(0,5)});
+  }
+
+  // ⑥ 手動加入名單中有學生已不存在於系統
+  const missingExtra=SCH_STATE.extraEntries.filter(ex=>!DB.users.find(u=>u.id===ex.studentId));
+  if(missingExtra.length){
+    warnings.push({lvl:'err',msg:`⚠️ 排程中有 ${missingExtra.length} 筆手動加入的學生已不存在（帳號可能已刪除），建議重新產生排程`,list:[]});
+  }
+
+  // 渲染
+  if(!warnings.length){
+    panel.innerHTML='';
+    return;
+  }
+
+  panel.innerHTML=`<div style="margin-bottom:12px">
+    <div style="font-family:DM Mono,monospace;font-size:9px;letter-spacing:2px;color:var(--rust);text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+      <span>⚑</span> 系統連動警告（${warnings.length} 項）
+      <button onclick="this.closest('#admin-linkage-warn-panel').querySelectorAll('.warn-item').forEach(e=>e.style.display=e.style.display==='none'?'':'none')" style="margin-left:auto;font-family:DM Mono,monospace;font-size:8px;padding:2px 8px;border:1px solid var(--rust);background:none;border-radius:3px;cursor:pointer;color:var(--rust)">展開/收合</button>
+    </div>
+    ${warnings.map(w=>`
+      <div class="warn-item" style="display:flex;align-items:flex-start;gap:8px;padding:8px 12px;margin-bottom:6px;border-radius:3px;border-left:3px solid ${w.lvl==='err'?'var(--rust)':w.lvl==='warn'?'var(--orange)':'var(--steel)'};background:${w.lvl==='err'?'#fff5f5':w.lvl==='warn'?'#fffbf0':'#f0f5ff'}">
+        <div style="flex:1;font-family:DM Mono,monospace;font-size:10px;color:var(--ink);line-height:1.7">
+          ${w.msg}
+          ${w.list.length?`<span style="color:var(--muted)">（${w.list.join('、')}${w.list.length>=5?' …等':''}）</span>`:''}
+        </div>
+      </div>`).join('')}
+  </div>`;
 }
 
 // ════════════════════════════════════════════════
