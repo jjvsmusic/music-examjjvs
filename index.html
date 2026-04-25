@@ -6643,6 +6643,8 @@ function renderExamRulesPage(){
   else{document.querySelectorAll('.er-panel').forEach(p=>p.style.display='none');const e=document.getElementById('er-empty');if(e)e.style.display='block';}
 }
 window.renderExamRulesPage=renderExamRulesPage;
+
+function renderBulletin(){
   // 學生公布欄
   const sb=document.getElementById('bulletin-display-student');
   if(sb){
@@ -6666,124 +6668,20 @@ window.renderExamRulesPage=renderExamRulesPage;
 window.renderBulletin=renderBulletin;
 
 // ════════════════════════════════════════════════
-// EXAM RULES & ASSIGNED PIECES
-// ════════════════════════════════════════════════
-
-// ── 前台：三個分頁切換 ──
-function erShowTab(key, btn){
-  ['classical','popular','assigned'].forEach(k=>{
-    const panel=document.getElementById('er-panel-'+k);
-    const b=document.getElementById('er-btn-'+k);
-    if(panel)panel.style.display=(k===key)?'block':'none';
-    if(b){b.className='btn '+(k===key?'btn-p':'btn-s');b.style.cssText='font-size:15px;padding:14px 28px;border-radius:6px;font-family:Cormorant Garamond,serif;letter-spacing:1px';}
-  });
-  document.getElementById('er-panel-empty').style.display='none';
-  // 載入內容
-  const content=DB.config.examRules?.[key]||'';
-  const el=document.getElementById('er-content-'+key);
-  if(el){
-    if(content){el.innerHTML=content;}
-    else{el.innerHTML='<div style="color:var(--muted);font-family:DM Mono,monospace;font-size:11px;padding:20px 0;text-align:center">管理員尚未設定此項目的內容</div>';}
-  }
-}
-window.erShowTab=erShowTab;
-
-// ── 後台：編輯分頁切換 ──
-function erAdminTab(key, btn){
-  ['classical','popular','assigned'].forEach(k=>{
-    const panel=document.getElementById('er-admin-'+k);
-    if(panel)panel.style.display=(k===key)?'block':'none';
-  });
-  document.querySelectorAll('#er-admin-tabs .tab').forEach(t=>t.classList.remove('on'));
-  if(btn)btn.classList.add('on');
-  // 如果編輯器是空的，從 DB 載入
-  const ed=document.getElementById('er-editor-'+key);
-  if(ed&&!ed.dataset.loaded){
-    ed.innerHTML=DB.config.examRules?.[key]||'';
-    ed.dataset.loaded='1';
-  }
-}
-window.erAdminTab=erAdminTab;
-
-// ── 後台：套用格式指令 ──
-function erCmd(key, cmd, val){
-  const ed=document.getElementById('er-editor-'+key);
-  if(!ed)return;
-  ed.focus();
-  if(val!==undefined&&val!==null&&val!==''){
-    document.execCommand(cmd,false,val);
-  } else {
-    document.execCommand(cmd,false,null);
-  }
-}
-window.erCmd=erCmd;
-
-// ── 後台：插入表格 ──
-function erInsertTable(key){
-  const rows=parseInt(prompt('幾列？（不含標題列）','3'))||3;
-  const cols=parseInt(prompt('幾欄？','4'))||4;
-  const th=Array.from({length:cols},(_,i)=>`<th>欄${i+1}</th>`).join('');
-  const td=Array.from({length:cols},()=>`<td></td>`).join('');
-  const trs=Array.from({length:rows},()=>`<tr>${td}</tr>`).join('');
-  const table=`<table><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table><p><br></p>`;
-  const ed=document.getElementById('er-editor-'+key);
-  if(!ed)return;
-  ed.focus();
-  document.execCommand('insertHTML',false,table);
-}
-window.erInsertTable=erInsertTable;
-
-// ── 後台：插入圖片（上傳 → base64 嵌入） ──
-function erInsertImage(key){
-  const input=document.createElement('input');
-  input.type='file';input.accept='image/*';
-  input.onchange=e=>{
-    const file=e.target.files[0];if(!file)return;
-    if(file.size>2*1024*1024){showToast('圖片請小於 2MB（建議壓縮後再上傳）','err');return;}
-    const reader=new FileReader();
-    reader.onload=ev=>{
-      const ed=document.getElementById('er-editor-'+key);
-      if(!ed)return;
-      ed.focus();
-      document.execCommand('insertHTML',false,`<img src="${ev.target.result}" alt="圖片" style="max-width:100%"><p><br></p>`);
-      showToast('圖片已插入 ✓（base64 嵌入）','ok');
-    };
-    reader.readAsDataURL(file);
-  };
-  input.click();
-}
-window.erInsertImage=erInsertImage;
-
-// ── 後台：儲存 ──
-function erSave(key){
-  const ed=document.getElementById('er-editor-'+key);
-  if(!ed)return;
-  const html=ed.innerHTML;
-  if(!DB.config.examRules)DB.config.examRules={classical:'',popular:'',assigned:''};
-  DB.config.examRules[key]=html;
-  // 存入 Firebase（附在 config/main）
-  if(window._FB){
-    fbSet('config','main',{examRules:DB.config.examRules});
-    showToast('已儲存 ✓（'+(key==='classical'?'古典音樂':key==='popular'?'流行音樂':'指定曲目')+'）','ok');
-  } else {
-    try{localStorage.setItem('examRules',JSON.stringify(DB.config.examRules));}catch(e){}
-    showToast('已儲存（本機）✓','ok');
-  }
-}
-window.erSave=erSave;
-
-// ── 初始化後台編輯器（進入內容設定 tab 時呼叫） ──
-function erInitAdminEditors(){
-  // ★ 更新：使用新的單一編輯器（依 tab 切換內容）
-  initExamRulesEditor();
-  // 確保 content tab 顯示後初始化 classical tab
-  setTimeout(()=>switchErAdminTab('classical'),30);
-}
-window.erInitAdminEditors=erInitAdminEditors;
-
-// ════════════════════════════════════════════════
 // ADMIN - SCORING
 // ════════════════════════════════════════════════
+
+// ── 舊版 er 函式 stub（向下相容，_fnMap 引用） ──
+function erShowTab(key,btn){switchExamRulesTab(key,btn);}
+window.erShowTab=erShowTab;
+function erAdminTab(key,btn){switchErAdminTab(key);}
+window.erAdminTab=erAdminTab;
+function erCmd(key,cmd,val){erExec(cmd,val);}
+window.erCmd=erCmd;
+function erSave(key){saveExamRules();}
+window.erSave=erSave;
+function erInitAdminEditors(){initExamRulesEditor();setTimeout(()=>switchErAdminTab('classical'),30);}
+window.erInitAdminEditors=erInitAdminEditors;
 function renderTrimRules(){
   const c=document.getElementById('trim-list');if(!c)return;
   c.innerHTML=DB.config.trimRules.map((r,i)=>`
@@ -8538,7 +8436,7 @@ const _expose = [
   'saveTiming','saveAnnounce','saveBulletin','renderBulletin','saveWeights','addTrim','saveTrimRules','fbSaveConfig',
   'setAccess','saveRepHint','saveTyText','clearData','saveTeaScheduleMsg',
   'erShowTab','erAdminTab','erCmd','erInsertTable','erInsertImage','erSave','erInitAdminEditors',
-  'switchExamRulesTab','switchErAdminTab','saveExamRules','renderExamRulesPage','initExamRulesEditor','erExec','erMarkDirty','erHandleTab',
+  'switchExamRulesTab','switchErAdminTab','saveExamRules','renderExamRulesPage','initExamRulesEditor','erExec','erMarkDirty','erHandleTab','erInsertTable','erInsertImage',
   'npKey','npDel','npConfirm','npBg','npStar',
   'openNP',
   'schSelectRoom','schSeatDir','schApplySort','schInitRoomTabs','schInitSortUI',
