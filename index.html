@@ -458,49 +458,51 @@ tbody td{color:var(--ink)!important}
   // ── token 管理 ──
   let _idToken = null;
   let _tokenExpiry = 0;
-
+  let _tokenPromise = null; // ★ 修正 #A4：並發鎖
   async function _getToken(){
     if(_idToken && Date.now() < _tokenExpiry - 60000) return _idToken;
-    // ★ 效能修正：加入 8 秒 timeout，避免網路問題導致頁面永久卡住
-    const withTimeout = (promise, ms) => Promise.race([
-      promise,
-      new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),ms))
-    ]);
-    try {
-      // 嘗試從 localStorage 取已有的 refresh token
-      let refreshToken = null;
-      try { refreshToken = localStorage.getItem('_fbRefreshToken'); } catch(e){}
+    // ★ 修正 #A4：若已有正在進行的 token request，直接 await 同一個
+    if(_tokenPromise) return _tokenPromise;
+    _tokenPromise = (async()=>{
+      const withTimeout = (promise, ms) => Promise.race([
+        promise,
+        new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),ms))
+      ]);
+      try {
+        let refreshToken = null;
+        try { refreshToken = localStorage.getItem('_fbRefreshToken'); } catch(e){}
 
-      if(refreshToken){
-        const r = await withTimeout(fetch(`${AUTH_BASE}/token?key=${API_KEY}`, {
+        if(refreshToken){
+          const r = await withTimeout(fetch(`${AUTH_BASE}/token?key=${API_KEY}`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({grant_type:'refresh_token', refresh_token: refreshToken})
+          }), 8000);
+          if(r.ok){
+            const d = await r.json();
+            _idToken = d.id_token;
+            _tokenExpiry = Date.now() + (parseInt(d.expires_in)||3600)*1000;
+            try { localStorage.setItem('_fbRefreshToken', d.refresh_token); } catch(e){}
+            return _idToken;
+          }
+        }
+        const r2 = await withTimeout(fetch(`${AUTH_BASE}/accounts:signUp?key=${API_KEY}`, {
           method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({grant_type:'refresh_token', refresh_token: refreshToken})
+          body: JSON.stringify({returnSecureToken:true})
         }), 8000);
-        if(r.ok){
-          const d = await r.json();
-          _idToken = d.id_token;
-          _tokenExpiry = Date.now() + (parseInt(d.expires_in)||3600)*1000;
-          try { localStorage.setItem('_fbRefreshToken', d.refresh_token); } catch(e){}
+        if(r2.ok){
+          const d2 = await r2.json();
+          _idToken = d2.idToken;
+          _tokenExpiry = Date.now() + (parseInt(d2.expiresIn)||3600)*1000;
+          try { localStorage.setItem('_fbRefreshToken', d2.refreshToken); } catch(e){}
+          window._fbUid = d2.localId;
           return _idToken;
         }
+      } catch(e){
+        console.warn('[FB-REST] token 取得失敗:', e.message);
       }
-      // 匿名登入取新 token
-      const r2 = await withTimeout(fetch(`${AUTH_BASE}/accounts:signUp?key=${API_KEY}`, {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({returnSecureToken:true})
-      }), 8000);
-      if(r2.ok){
-        const d2 = await r2.json();
-        _idToken = d2.idToken;
-        _tokenExpiry = Date.now() + (parseInt(d2.expiresIn)||3600)*1000;
-        try { localStorage.setItem('_fbRefreshToken', d2.refreshToken); } catch(e){}
-        window._fbUid = d2.localId;
-        return _idToken;
-      }
-    } catch(e){
-      console.warn('[FB-REST] token 取得失敗:', e.message);
-    }
-    return null;
+      return null;
+    })().finally(()=>{_tokenPromise=null;});
+    return _tokenPromise;
   }
 
   // ── Firestore 值轉換：JS → Firestore 格式 ──
@@ -618,8 +620,12 @@ tbody td{color:var(--ink)!important}
           };},
           onSnapshot: function(cb){
             // REST 模式不支援即時監聽，改為輪詢（每 8 秒）
+            // ★ 修正 #F2：用全域 timer 管理，避免重複註冊
+            const pollKey='_subSnap_'+col+'_'+docId+'_'+subCol;
+            // 清除舊 timer
+            if(window[pollKey])clearInterval(window[pollKey]);
             async function poll(){
-              if(document.hidden)return; // ★ 費用優化：頁面隱藏時跳過
+              if(document.hidden)return;
               try {
                 const docs = await _fsList(col+'/'+docId+'/'+subCol);
                 const fakeSnap = {forEach: fn => docs.forEach(d => fn({id:d.id, data:()=>d}))};
@@ -627,14 +633,8 @@ tbody td{color:var(--ink)!important}
               } catch(e){}
             }
             poll();
-            const t = setInterval(poll, 8000);
-            // ★ 頁面隱藏時暫停
-            let _snapTimer=t;
-            document.addEventListener('visibilitychange',()=>{
-              if(document.hidden){clearInterval(_snapTimer);_snapTimer=null;}
-              else if(!_snapTimer){_snapTimer=setInterval(poll,8000);poll();}
-            });
-            return () => clearInterval(_snapTimer); // unsubscribe
+            window[pollKey]=setInterval(poll,8000);
+            return ()=>{if(window[pollKey]){clearInterval(window[pollKey]);delete window[pollKey];}};
           }
         };}
       };}
@@ -646,14 +646,29 @@ tbody td{color:var(--ink)!important}
     _delete: _fsDelete,
   };
 
+  // ★ 修正 #F2：全域 timer registry，避免重複註冊與洩漏
+  window._pollTimers = window._pollTimers || {};
+  // 單一 visibilitychange listener 管理所有 polls
+  if(!window._visListenerInstalled){
+    window._visListenerInstalled = true;
+    document.addEventListener('visibilitychange',()=>{
+      Object.values(window._pollTimers||{}).forEach(t=>{
+        if(document.hidden){
+          if(t.id){clearInterval(t.id);t.id=null;}
+        } else {
+          if(!t.id&&t.fn){t.id=setInterval(t.fn,t.interval);t.fn();}
+        }
+      });
+    });
+  }
+
   // liveExam 輪詢
   window._startLiveExamListener = function(){
     if(!window._FB)return;
-    // ★ 費用優化：只有評審、監考、管理員才需要 liveExam 輪詢
     if(ST.role==='student')return;
-    let _liveTimer=null;
+    if(window._pollTimers.live){return;} // 已啟動，不重複
     async function pollLive(){
-      if(document.hidden)return; // ★ 頁面隱藏時跳過，節省讀取費用
+      if(document.hidden)return;
       try{
         const docs = await _fsList('liveExam');
         let changed = false;
@@ -669,28 +684,20 @@ tbody td{color:var(--ink)!important}
         }
       }catch(e){}
     }
-    pollLive();
-    // ★ 費用優化：管理員拉長到 15s（管理員不需要即時看 liveExam）；評審/監考維持 6s
     const interval = (ST.role==='admin') ? 15000 : 6000;
-    _liveTimer = setInterval(pollLive, interval);
-    // ★ 頁面隱藏/顯示時暫停/恢復輪詢
-    document.addEventListener('visibilitychange',()=>{
-      if(document.hidden){clearInterval(_liveTimer);_liveTimer=null;}
-      else if(!_liveTimer){_liveTimer=setInterval(pollLive,interval);pollLive();}
-    });
+    pollLive();
+    window._pollTimers.live = {fn:pollLive, interval, id:setInterval(pollLive,interval)};
   };
 
   window._startJuryListener = function(){
     if(!window._FB)return;
-    // ★ 費用優化：只有管理員才需要背景輪詢 juryScores（評審靠評分時自己寫；學生不需要）
     if(ST.role==='student'||ST.role==='invigilator')return;
-    let _juryTimer=null;
+    if(window._pollTimers.jury){return;}
     async function pollJury(){
-      if(document.hidden)return; // ★ 頁面隱藏時跳過
-      // ★ 費用優化：只在成績頁或評審頁可見時才更新
+      if(document.hidden)return;
       const resultsOn=document.getElementById('pg-results')?.classList.contains('on');
       const juryOn=document.getElementById('pg-jury')?.classList.contains('on');
-      if(!resultsOn&&!juryOn&&ST.role!=='jury')return; // 沒在看就不拉
+      if(!resultsOn&&!juryOn&&ST.role!=='jury')return;
       try{
         for(const room of DB.rooms){
           const docs = await _fsList('juryScores/'+room.id+'/entries');
@@ -704,14 +711,9 @@ tbody td{color:var(--ink)!important}
         if(juryOn&&ST.role==='admin')renderJuryTable();
       }catch(e){}
     }
-    // ★ 費用優化：評審用 10s（需要即時看別人分數），管理員用 30s（看彙整結果不需要那麼快）
     const interval=(ST.role==='jury')?10000:30000;
     pollJury();
-    _juryTimer=setInterval(pollJury,interval);
-    document.addEventListener('visibilitychange',()=>{
-      if(document.hidden){clearInterval(_juryTimer);_juryTimer=null;}
-      else if(!_juryTimer){_juryTimer=setInterval(pollJury,interval);pollJury();}
-    });
+    window._pollTimers.jury = {fn:pollJury, interval, id:setInterval(pollJury,interval)};
   };
 
   // ★ 局部更新監考表格
@@ -2055,20 +2057,7 @@ const ST = {user:null,role:null,juryRoom:null,juryName:'',juryId:'',
   }catch(e){}
 })();
 
-// Seed some jury scores for demo
-DB.juryScores['r1'] = {
-  's001_major': {
-    'J001':{scale:88,assigned:90,free:87,comment:'音色圓潤，音準穩定。',absent:false},
-    'J002':{scale:85,assigned:86,free:88,comment:'指定曲詮釋細膩。',absent:false},
-    'J003':{scale:92,assigned:91,free:93,comment:'自選曲展現良好的掌控力。',absent:false},
-    'J004':{scale:78,assigned:82,free:80,comment:'換氣需更自然。',absent:false},
-  },
-  's002_major': {
-    'J001':{scale:82,assigned:85,free:83,comment:'音色溫暖，指法清晰。',absent:false},
-    'J002':{scale:80,assigned:83,free:81,comment:'音色清晰，節奏穩定。',absent:false},
-    'J003':{scale:88,assigned:87,free:89,comment:'整體表現優秀。',absent:false},
-  },
-};
+// ★ 移除 demo seed（避免污染真實資料）；若需測試請以管理員身分手動評分
 
 // ════════════════════════════════════════════════
 // HELPERS
@@ -2153,7 +2142,8 @@ function doLogin(){
   errEl.textContent='';
 
   function _tryLogin(){
-    const u=DB.users.find(u=>u.account===acc&&u.pass===pass);
+    // ★ 修正 #F3：用 _passVerify（向下相容明文）
+    const u=DB.users.find(u=>u.account===acc&&_passVerify(pass,u.pass,u.id));
     if(!u){
       const accExists=DB.users.find(u=>u.account===acc);
       if(accExists){errEl.textContent='密碼錯誤';return;}
@@ -2230,6 +2220,20 @@ function doJuryDirectLogin(){
     const room=DB.rooms.find(r=>(r.code||'').toUpperCase()===code);
     if(!room){errEl.textContent='代碼錯誤，請重新輸入';return;}
     ST.juryRoom=room;
+    // ★ 嘗試從 localStorage 還原此考場的評審身分（避免重整後變新身分）
+    try{
+      const savedJury=localStorage.getItem('_jurySession_'+room.id);
+      if(savedJury){
+        const sess=JSON.parse(savedJury);
+        if(sess.juryId&&sess.name){
+          if(confirm(`偵測到先前在此考場登入過：「${sess.name}」\n\n要繼續使用此身分嗎？\n（取消 = 重新輸入姓名）`)){
+            ST.juryId=sess.juryId;ST.juryName=sess.name;ST.role='jury';
+            ST.user={id:ST.juryId,name:sess.name,role:'jury'};
+            launchApp();return;
+          }
+        }
+      }
+    }catch(e){}
     document.getElementById('jn-name').value='';
     document.getElementById('jn-err').textContent='';
     const nameEl=document.getElementById('jn-room-name');
@@ -2258,10 +2262,38 @@ function doJuryLogin(){
   if(!name){if(errEl)errEl.textContent='請填入您的姓名';else showToast('請填入姓名','err');return;}
   if(errEl)errEl.textContent='';
   ST.juryName=name;
-  ST.juryId='J_'+Date.now();
+  // ★ 修正：使用 timestamp + 加密強隨機數確保唯一性，避免 ms 級碰撞
+  const rand=(crypto?.getRandomValues?.(new Uint32Array(2))||[Math.random()*1e9|0,Math.random()*1e9|0]);
+  ST.juryId='J_'+Date.now()+'_'+(rand[0]||0).toString(36)+(rand[1]||0).toString(36);
   ST.role='jury';
   ST.user={id:ST.juryId,name,role:'jury'};
+  // ★ 同名評審警告：避免同一評審在不同裝置重複登入
+  try{
+    const roomId=ST.juryRoom?.id;
+    if(roomId&&DB.juryScores[roomId]){
+      const existingNames=new Set();
+      Object.values(DB.juryScores[roomId]).forEach(entry=>{
+        Object.values(entry||{}).forEach(j=>{if(j&&j._jurorName)existingNames.add(j._jurorName);});
+      });
+      if(existingNames.has(name)){
+        const ok=confirm(`「${name}」已在此考場評過分。\n\n若你是同一位評審重新登入，請點「取消」並改用相同姓名繼續（系統會以新身分記錄，舊分數仍保留）。\n若你是不同位評審但同名，請點「確定」繼續。`);
+        if(!ok){
+          // 改建議：要求加註區別（如「王老師A」「王老師B」）
+          const distinguish=prompt('請加上區別字（如：A、B、1、2）：');
+          if(distinguish){ST.juryName=name+distinguish;ST.user.name=ST.juryName;}
+          else{return;} // 使用者取消
+        }
+      }
+    }
+  }catch(e){}
   closeOverlay('jury-name-modal');
+  // ★ 持久化評審身分到 localStorage（重整後可還原同一身分）
+  try{
+    const roomId=ST.juryRoom?.id;
+    if(roomId){
+      localStorage.setItem('_jurySession_'+roomId,JSON.stringify({juryId:ST.juryId,name:ST.juryName,savedAt:Date.now()}));
+    }
+  }catch(e){}
   launchApp();
 }
 window.doJuryLogin=doJuryLogin;
@@ -2304,7 +2336,14 @@ function doInvigLogin(){
 window.doInvigLogin=doInvigLogin;
 
 function doLogout(){
-  ST.user=null;ST.role=null;ST.juryRoom=null;ST.juryName='';ST.invigRoom=null;ST.invigName='';
+  // ★ 修正 #E5：清理輪詢 timer 防止登出後仍持續讀 Firebase
+  try{
+    if(window._pollTimers){
+      Object.values(window._pollTimers).forEach(t=>{if(t.id)clearInterval(t.id);});
+      window._pollTimers={};
+    }
+  }catch(e){}
+  ST.user=null;ST.role=null;ST.juryRoom=null;ST.juryName='';ST.juryId='';ST.invigRoom=null;ST.invigName='';
   try{sessionStorage.removeItem('_adminSession');}catch(e){}
   document.getElementById('app').classList.remove('on');
   document.getElementById('login-screen').classList.remove('gone');
@@ -2334,9 +2373,11 @@ function saveFirstPassword(){
   const errEl=document.getElementById('fl-err');
   if(!newVal||newVal.length<1){errEl.textContent='請輸入新密碼';return;}
   if(newVal==='000'){errEl.textContent='新密碼不可與預設密碼相同';return;}
-  if(newVal!==cfmVal){errEl.textContent='兩次輸入不一致';return;}
-  ST.user.pass=newVal;
-  fbSet('users',ST.user.id,{pass:newVal});
+  if(newVal===cfmVal){}else{errEl.textContent='兩次輸入不一致';return;}
+  // ★ 修正 #F3：混淆儲存
+  const encoded=_passEncode(newVal,ST.user.id);
+  ST.user.pass=encoded;
+  fbSet('users',ST.user.id,{pass:encoded});
   closeOverlay('first-login-modal');
   showToast('密碼已設定完成 ✓','ok');
 }
@@ -2348,11 +2389,13 @@ function doChangePassword(){
   const cfmVal=document.getElementById('chpwd-confirm').value;
   const errEl=document.getElementById('chpwd-err');
   if(!ST.user){errEl.textContent='請先登入';return;}
-  if(oldVal!==ST.user.pass){errEl.textContent='舊密碼錯誤';return;}
+  // ★ 修正 #F3：用 _passVerify 比對舊密碼
+  if(!_passVerify(oldVal,ST.user.pass,ST.user.id)){errEl.textContent='舊密碼錯誤';return;}
   if(!newVal){errEl.textContent='新密碼不可為空';return;}
   if(newVal!==cfmVal){errEl.textContent='兩次密碼不一致';return;}
-  ST.user.pass=newVal;
-  fbSet('users',ST.user.id,{pass:newVal});
+  const encoded=_passEncode(newVal,ST.user.id);
+  ST.user.pass=encoded;
+  fbSet('users',ST.user.id,{pass:encoded});
   closeOverlay('chpwd-modal');
   showToast('密碼已更新 ✓','ok');
 }
@@ -2410,6 +2453,31 @@ function fbLoad(col, cb){
 }
 
 // ════ 頁面一載入就預先從 Firebase 讀取 users，確保登入時帳密已同步 ════
+// ════════════════════════════════════════════════
+// ★ 修正 #F3：密碼混淆（不是強加密，但避免明文存於 Firestore）
+// ════════════════════════════════════════════════
+function _passEncode(plainPass, userId){
+  if(plainPass===undefined||plainPass===null)return '';
+  if(plainPass==='')return '';
+  // 已混淆的不再重複處理
+  if(typeof plainPass==='string'&&plainPass.startsWith('$X$'))return plainPass;
+  try{
+    const salt='mep_'+(userId||'').slice(-4);
+    const raw=String(plainPass)+'|'+salt;
+    return '$X$'+btoa(unescape(encodeURIComponent(raw)));
+  }catch(e){return plainPass;}
+}
+function _passVerify(input,stored,userId){
+  if(stored===undefined||stored===null||stored==='')return input===''||input===undefined;
+  // 向下相容：若是明文（沒有 $X$ 前綴）直接比對
+  if(typeof stored!=='string'||!stored.startsWith('$X$'))return input===stored;
+  try{
+    return _passEncode(input,userId)===stored;
+  }catch(e){return false;}
+}
+window._passEncode=_passEncode;
+window._passVerify=_passVerify;
+
 function preloadUsersForLogin(){
   if(!window._FB){return;}
   fbLoad('users',docs=>{
@@ -2454,6 +2522,7 @@ function loadAllFromFirebase(done, lightMode){
     jurySignup: load('jurySignup'),
     jurySignupConfig: load('jurySignupConfig'),
     scheduleState: load('scheduleState'),
+    scheduleSnapshots: load('scheduleSnapshots'),
     // lightMode 跳過的慢速集合
     teacherComments: lightMode ? Promise.resolve([]) : load('teacherComments'),
     deductions: lightMode ? Promise.resolve([]) : load('deductions'),
@@ -2461,9 +2530,13 @@ function loadAllFromFirebase(done, lightMode){
     users: load('users'),  // 每次都讀確保最新（含 repDone/teaDone）
   };
 
-  Promise.all(Object.values(tasks)).then(results=>{
+  // ★ 修正 #A3：用 allSettled 確保單一集合失敗不影響其他集合
+  Promise.allSettled(Object.entries(tasks).map(([k,p])=>p.then(v=>({k,v})).catch(e=>({k,v:[],err:e})))).then(settled=>{
     const r={};
-    Object.keys(tasks).forEach((k,i)=>r[k]=results[i]);
+    Object.keys(tasks).forEach(k=>r[k]=[]);
+    settled.forEach(res=>{
+      if(res.status==='fulfilled'&&res.value){r[res.value.k]=res.value.v||[];}
+    });
 
     // — users —
     if(r.users.length){
@@ -2555,7 +2628,17 @@ function loadAllFromFirebase(done, lightMode){
     const stateDoc=r.scheduleState.find(d=>d.id==='main');
     const snapDoc=r.scheduleState.find(d=>d.id==='snapshot');
     if(stateDoc&&stateDoc.data){try{_applyScheduleState(JSON.parse(stateDoc.data));}catch(e){}}
-    if(snapDoc&&snapDoc.data){try{DB.savedScheduleSnapshot=JSON.parse(snapDoc.data);}catch(e){}}
+    // ★ 修正 #F1：優先讀取分拆的 scheduleSnapshots collection
+    if(r.scheduleSnapshots&&r.scheduleSnapshots.length){
+      DB.savedScheduleSnapshot={};
+      r.scheduleSnapshots.forEach(d=>{
+        const{id,_updatedAt,_savedAt,entries,...rest}=d;
+        DB.savedScheduleSnapshot[id]=entries||rest.data||[];
+      });
+    } else if(snapDoc&&snapDoc.data){
+      // 向下相容舊版 snapshot
+      try{DB.savedScheduleSnapshot=JSON.parse(snapDoc.data);}catch(e){}
+    }
 
     // — juryScores（非 lightMode 才讀，且用 REST 模式直接並行） —
     if(!lightMode && window._FB){
@@ -2640,6 +2723,12 @@ function launchApp(){
           if(window._startJuryListener)window._startJuryListener();
           if(window._startLiveExamListener)window._startLiveExamListener();
         },500);
+        // ★ 修正 #O2：進入頁面時若已連線且有 pending，主動 sync 一次
+        setTimeout(()=>{
+          if(navigator.onLine&&window._FB&&typeof syncPendingToFirebase==='function'){
+            syncPendingToFirebase();
+          }
+        },2000);
       },200);
     },isLightRole);
   });
@@ -2853,21 +2942,38 @@ function renderAll(){
     tsub.querySelectorAll('.tab').forEach((t,i)=>{t.classList.toggle('on',i===0);});
     tsub.dataset.initialized='1';
   }
-  // ★ 效能優化：始終渲染核心資料，但大型列表（排程、成績等）只在對應頁面可見時才渲染
+  // ★ 修正 #L3：依角色分流，避免不必要的 DOM 查詢和渲染
+  const role=ST.role;
   const pgVisible=id=>!!document.getElementById(id)?.classList.contains('on');
-  renderRepPage();renderRepHint();renderTeaTable();renderAdminStudents();renderAdminTeachers();renderAdminAdmins();
-  renderCatList();renderInstDropdown();renderRooms();renderClassList();renderTiming();
-  renderTrimRules();renderRoomFields();schInitRoomTabs();schInitSortUI();
-  if(pgVisible('pg-schedule'))renderSchedule();
-  renderDisqList();
-  if(pgVisible('pg-results'))renderResults();
-  renderScoresPage();renderStuSchedule();
-  renderJuryTable();renderAccessControl();updateStats();renderInstRestrictUI();
-  if(ST.role==='teacher'||ST.role==='admin')renderTeaSchedulePage();
-  if(ST.role==='admin'){adminCommentInit();_renderAdminLinkageWarnings();}
-  if(ST.role==='invigilator'||ST.role==='admin')renderInvigPage();
+
+  // 公用：所有角色都需要
+  renderBulletin();updateStats();
+
+  if(role==='admin'){
+    renderRepPage();renderRepHint();renderTeaTable();
+    renderAdminStudents();renderAdminTeachers();renderAdminAdmins();
+    renderCatList();renderInstDropdown();renderRooms();renderClassList();renderTiming();
+    renderTrimRules();renderRoomFields();schInitRoomTabs();schInitSortUI();
+    if(pgVisible('pg-schedule'))renderSchedule();
+    renderDisqList();
+    if(pgVisible('pg-results'))renderResults();
+    renderJuryTable();renderAccessControl();renderInstRestrictUI();
+    renderTeaSchedulePage();renderInvigPage();
+    adminCommentInit();_renderAdminLinkageWarnings();
+  }
+  else if(role==='teacher'){
+    renderTeaTable();renderTeaSchedulePage();
+  }
+  else if(role==='student'){
+    renderRepPage();renderRepHint();renderScoresPage();renderStuSchedule();
+  }
+  else if(role==='jury'){
+    renderJuryTable();
+  }
+  else if(role==='invigilator'){
+    renderInvigPage();
+  }
   updateJurySignupTabVisibility();
-  renderBulletin();
 }
 
 // ════════════════════════════════════════════════
@@ -3014,9 +3120,23 @@ function editRep(){
   }
 }
 function submitRep(){
+  // ★ 修正 #E2：防重複送出
+  if(window._submittingRep)return;
+  window._submittingRep=true;
+  setTimeout(()=>{window._submittingRep=false;},2000);
   const u=ST.user;if(!u)return;
   const majorInst=document.getElementById('r-major-inst').value;
-  if(!majorInst){showToast('請選擇主修樂器','err');return;}
+  if(!majorInst){showToast('請選擇主修樂器','err');window._submittingRep=false;return;}
+  // ★ 修正 #E4：長度檢查（避免單一文件超過 1MB 上限）
+  const tooLong=(s)=>s&&typeof s==='string'&&s.length>500;
+  const checkFields=['r-major-ac','r-major-at','r-major-fc','r-major-ft','r-minor-ac','r-minor-at','r-minor-fc','r-minor-ft','r-elec-ac','r-elec-at','r-elec-fc','r-elec-ft'];
+  for(const id of checkFields){
+    const el=document.getElementById(id);
+    if(el&&tooLong(el.value)){
+      showToast('某欄位文字過長（請控制在 500 字以內）','err');
+      window._submittingRep=false;return;
+    }
+  }
   // Save ALL rep fields in one atomic write
   u.major=majorInst;
   u.major_ac=document.getElementById('r-major-ac').value;
@@ -3716,7 +3836,7 @@ function teaWizSaveAndNext(){
     TWZ.cls=nextPending.class;
     teaWizPickStu();
   } else {
-    teaWizSave();
+    // ★ 修正 #L5：line 3698 已 teaWizSave 過，此處不再重複呼叫
     document.getElementById('tea-wizard').style.display='none';
     renderTeaTable();
     teaCheckAllDone();
@@ -4052,7 +4172,7 @@ function renderJuryTable(){
     // 列2（評語行）：colspan = 評分欄數 + 1（延伸至曲目欄下方）
     let _row2=`<tr class="${rowClass}" style="border-bottom:2px solid var(--border)">`;
     _row2+=`<td colspan="${scoreColCount+1}" style="padding:2px 4px;border-top:1px dashed var(--border);border-left:1px solid var(--border)">
-      <textarea class="comment-inp" id="jco-${i}" ${locked?'disabled':''} placeholder="${dq?'扣考，無需評語':'請填寫評語，如音色、音準、詮釋、技巧等...'}" onblur="saveJCell(${i},'${roomId}','${entryKey}','comment',this.value)" style="height:72px;font-size:12px;width:100%">${dq?'':(my.comment||'')}</textarea>
+      <textarea class="comment-inp" id="jco-${i}" ${locked?'disabled':''} placeholder="${dq?'扣考，無需評語':'請填寫評語，如音色、音準、詮釋、技巧等...'}" onblur="saveJCell(${i},'${roomId}','${entryKey}','comment',this.value)" data-jc-i="${i}" data-jc-room="${roomId}" data-jc-key="${entryKey}" style="height:72px;font-size:12px;width:100%">${dq?'':(my.comment||'')}</textarea>
     </td>`;
     _row2+='</tr>';
 
@@ -4091,10 +4211,10 @@ function saveJCell(i,roomId,entryKey,field,val){
   DB.juryScores[roomId][entryKey][myId][field]=v;
   if(isSkip)DB.juryScores[roomId][entryKey][myId][field+'_skip']=true;
   else if(field!=='comment')delete DB.juryScores[roomId][entryKey][myId][field+'_skip'];
-  // ★ #9 記錄評審真實姓名
   if(ST.juryName)DB.juryScores[roomId][entryKey][myId]._jurorName=ST.juryName;
+  // ★ 修正 #A1+#O1：附加本地時間戳，用於衝突偵測
+  DB.juryScores[roomId][entryKey][myId]._localUpdatedAt=Date.now();
 
-  // Update input styling
   const inp=document.getElementById(`js-${field}-${i}`);
   if(inp&&field!=='comment'){
     inp.classList.remove('empty-warn','red-score');
@@ -4102,9 +4222,10 @@ function saveJCell(i,roomId,entryKey,field,val){
     else{inp.style.color='';inp.classList.toggle('red-score',parseFloat(v)<60);}
   }
 
-  // ── 1. 永遠先存 localStorage（離線保護）──
+  // ── 1. 永遠先存 localStorage ──
   const lsKey=`jury_${roomId}_${entryKey}_${myId}`;
-  try{localStorage.setItem(lsKey,JSON.stringify(DB.juryScores[roomId][entryKey][myId]));}catch(e){}
+  const snapshot=JSON.stringify(DB.juryScores[roomId][entryKey][myId]);
+  try{localStorage.setItem(lsKey,snapshot);}catch(e){}
 
   // ── 2. 標記 pending ──
   markPending(lsKey);
@@ -4117,12 +4238,16 @@ function saveJCell(i,roomId,entryKey,field,val){
       .collection('entries').doc(entryKey);
     const patch={};
     const jurorData={...DB.juryScores[roomId][entryKey][myId]};
-    // ★ #9 附加評審真實姓名（僅管理員可見）
     if(ST.juryName)jurorData._jurorName=ST.juryName;
     patch[myId]=jurorData;
     patch['_updatedAt']=serverTimestamp();
     entryRef.set(patch,{merge:true})
-      .then(()=>{unmarkPending(lsKey);showSyncStatus('ok','已同步 ✓');})
+      .then(()=>{
+        // ★ 修正 #A1：只在 LS 內容仍為當前快照時才 unmarkPending
+        const cur=localStorage.getItem(lsKey);
+        if(cur===snapshot){unmarkPending(lsKey);showSyncStatus('ok','已同步 ✓');}
+        else{showSyncStatus('sync','...');} // 已有更新版本，等下一次寫入完成
+      })
       .catch(()=>showSyncStatus('pend','離線暫存'));
   } else {
     showSyncStatus('pend','離線暫存 — 連線後自動同步');
@@ -4320,23 +4445,34 @@ function unmarkPending(lsKey){
 // ── 重新連線後批次同步所有 pending ──
 async function syncPendingToFirebase(){
   if(!window._FB)return;
-  if(window._fbAuthReady)await window._fbAuthReady; // ★ 等 Auth 就緒
+  if(window._fbAuthReady)await window._fbAuthReady;
   const pending=JSON.parse(localStorage.getItem(PENDING_KEY)||'[]');
   if(!pending.length)return;
   showSyncStatus('sync',`同步 ${pending.length} 筆離線資料...`);
   const {db,serverTimestamp}=window._FB;
-  let ok=0;
+  let ok=0,conflict=0;
   for(const lsKey of pending){
     try{
       const data=JSON.parse(localStorage.getItem(lsKey)||'null');
       if(!data)continue;
-      // lsKey 格式：jury_{roomId}_{studentId}_{type}_{jurorId}
       const parts=lsKey.replace(/^jury_/,'').split('_');
       const roomId=parts[0];
       const jurorId=parts[parts.length-1];
       const entryKey=parts.slice(1,parts.length-1).join('_');
       const entryRef=db.collection('juryScores').doc(roomId)
         .collection('entries').doc(entryKey);
+      // ★ 修正 #O1：先讀伺服器版本，比對 _localUpdatedAt 防止覆蓋較新的
+      try{
+        const snap=await entryRef.get();
+        const remote=snap.data()?.[jurorId];
+        const remoteTs=remote?._localUpdatedAt||0;
+        const localTs=data._localUpdatedAt||0;
+        if(remoteTs>localTs+1000){ // 伺服器較新（容許 1 秒誤差）
+          conflict++;
+          unmarkPending(lsKey); // 放棄本地版本
+          continue;
+        }
+      }catch(e){/* 讀取失敗則直接寫入 */}
       const patch={};
       patch[jurorId]={...data};
       patch['_syncedAt']=serverTimestamp();
@@ -4344,7 +4480,8 @@ async function syncPendingToFirebase(){
       unmarkPending(lsKey);ok++;
     }catch(e){console.warn('sync error',lsKey,e);}
   }
-  showSyncStatus('ok',`已同步 ${ok} 筆 ✓`);
+  if(conflict>0)showSyncStatus('pend',`已同步 ${ok} 筆 ✓ (${conflict} 筆有衝突已略過)`);
+  else showSyncStatus('ok',`已同步 ${ok} 筆 ✓`);
 }
 
 window.addEventListener('online',()=>{
@@ -4424,12 +4561,13 @@ function _updateJuryRoomDisplay(r){
 // Check before submit
 // ★ 強制儲存所有尚未 blur 的評語（防止直接按送出/確認時評語遺漏）
 function flushAllComments(){
+  // ★ 修正 #FE1：用 dataset 而非 regex 解析 onblur 字串
   document.querySelectorAll('.comment-inp[id^="jco-"]').forEach(ta=>{
-    const onblurAttr=ta.getAttribute('onblur')||'';
-    const match=onblurAttr.match(/saveJCell\((\d+),'([^']+)','([^']+)','comment'/);
-    if(match){
-      const [,idx,roomId,entryKey]=match;
-      saveJCell(parseInt(idx),roomId,entryKey,'comment',ta.value);
+    const i=ta.dataset.jcI;
+    const roomId=ta.dataset.jcRoom;
+    const entryKey=ta.dataset.jcKey;
+    if(i!==undefined&&roomId&&entryKey){
+      saveJCell(parseInt(i),roomId,entryKey,'comment',ta.value);
     }
   });
 }
@@ -4439,14 +4577,17 @@ function checkJuryBeforeSubmit(){
   const entries=getJuryEntries();
   const roomId=ST.juryRoom?.id||'r1';
   const myId=ST.juryId||ST.user?.id||'admin';
+  // ★ 修正 #L1：用動態欄位（getRoomFields）而非硬編碼三欄位
+  const allFields=getRoomFields(roomId);
   const missing=[];
   entries.forEach((e,i)=>{
     const entryKey=e.studentId+'_'+e.type;
     const my=DB.juryScores[roomId]?.[entryKey]?.[myId]||{};
     const isDQ=DB.disqualified?.[entryKey];if(my.absent||isDQ)return;
-    const fields=['scale','assigned','free'];
-    const emptyFields=fields.filter(f=>my[f]===undefined||my[f]===''||my[f]===null);
-    if(emptyFields.length)missing.push({name:e.name,inst:e.instName,type:typeName(e.type),fields:emptyFields});
+    // ★ 排除被 skipRules 命中的欄位（autoSkip 不需評）
+    const activeFields=allFields.filter(f=>!isFieldSkipped(f,e));
+    const emptyFields=activeFields.filter(f=>my[f.id]===undefined||my[f.id]===''||my[f.id]===null);
+    if(emptyFields.length)missing.push({name:e.name,inst:e.instName,type:typeName(e.type),fields:emptyFields.map(f=>f.label||f.id)});
   });
   const body=document.getElementById('check-modal-body');
   const confirmBtn=document.getElementById('check-confirm-btn');
@@ -4454,7 +4595,7 @@ function checkJuryBeforeSubmit(){
     body.innerHTML=`<div style="color:var(--rust);font-family:DM Mono,monospace;font-size:11px;margin-bottom:14px">⚠ 以下學生尚有未填分數</div>`+
       missing.map(m=>`<div style="padding:8px 12px;background:var(--cream);border-radius:var(--r);margin-bottom:6px;font-size:13px">
         <strong>${m.name}</strong> <span style="color:var(--muted);font-size:11px">${m.inst}·${m.type}</span>
-        <div style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--rust);margin-top:4px">未填：${m.fields.map(f=>({scale:'音階',assigned:'指定曲',free:'自選曲'})[f]).join('、')}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--rust);margin-top:4px">未填：${m.fields.join('、')}</div>
       </div>`).join('');
     confirmBtn.style.display='none';
   }else{
@@ -4466,12 +4607,38 @@ function checkJuryBeforeSubmit(){
 
 function confirmSubmitJury(){closeOverlay('check-modal');submitJuryAll();}
 
-function submitJuryAll(){
-  flushAllComments(); // ★ 強制儲存所有尚未 blur 的評語
-  document.getElementById('ty-title-el').textContent=DB.config.tyTitle||'感謝您的評分';
-  document.getElementById('ty-text-el').textContent=DB.config.tyText||'';
+async function submitJuryAll(){
+  // ★ 修正 #A2：真實等待 pending queue 同步完成
+  flushAllComments();
   showSyncStatus('sync','正在送出...');
-  setTimeout(()=>{showSyncStatus('ok','全部已同步 ✓');openOverlay('ty-modal');},900);
+  // 防重複點擊
+  if(window._submittingJury){return;}
+  window._submittingJury=true;
+  try{
+    if(window._FB&&navigator.onLine){
+      await syncPendingToFirebase();
+      const stillPending=JSON.parse(localStorage.getItem(PENDING_KEY)||'[]');
+      if(stillPending.length){
+        showSyncStatus('pend',`${stillPending.length} 筆未同步，請保持連線後重試`);
+        if(!confirm(`目前還有 ${stillPending.length} 筆評分等待上傳，是否仍要送出？\n（建議：點「取消」並等待網路恢復後再送出）`)){
+          window._submittingJury=false;
+          return;
+        }
+      }
+    } else if(!navigator.onLine){
+      const pending=JSON.parse(localStorage.getItem(PENDING_KEY)||'[]');
+      if(!confirm(`目前離線，有 ${pending.length} 筆評分尚未上傳。\n離線送出後仍需等網路恢復才會同步至伺服器。確定送出？`)){
+        window._submittingJury=false;
+        return;
+      }
+    }
+    document.getElementById('ty-title-el').textContent=DB.config.tyTitle||'感謝您的評分';
+    document.getElementById('ty-text-el').textContent=DB.config.tyText||'';
+    showSyncStatus('ok','全部已同步 ✓');
+    openOverlay('ty-modal');
+  }finally{
+    setTimeout(()=>{window._submittingJury=false;},2000);
+  }
 }
 
 // ════════════════════════════════════════════════
@@ -5046,66 +5213,97 @@ window.schResetToRoomDefaults=schResetToRoomDefaults;
 
 // ★ 儲存排程（所有考場的篩選/排序狀態 + removed/extra entries）
 function schSaveSchedule(){
-  _saveRoomState(SCH_STATE.roomId); // 先存目前考場狀態
-  const data={};
-  Object.entries(_SCH_ROOM_STATES).forEach(([roomId,st])=>{
-    data[roomId]={
-      catOrder:st.catOrder,instOrder:st.instOrder,
-      typeOrder:st.typeOrder,classOrder:st.classOrder,
-      seatDir:st.seatDir,
-      extraEntries:st.extraEntries,
-      removedEntries:[...st.removedEntries],
-    };
-  });
-  // 也存目前考場（若未儲存進 _SCH_ROOM_STATES）
-  const curId=SCH_STATE.roomId;
-  if(curId){
-    data[curId]={
-      catOrder:SCH_STATE.catOrder.map(c=>({...c})),
-      instOrder:SCH_STATE.instOrder.map(i=>({...i})),
-      typeOrder:SCH_STATE.typeOrder.map(t=>({...t})),
-      classOrder:SCH_STATE.classOrder.map(c=>({...c})),
-      seatDir:SCH_STATE.seatDir,
-      extraEntries:[...SCH_STATE.extraEntries],
-      removedEntries:[...SCH_STATE.removedEntries],
-    };
+  // ★ 修正 #E1：先檢查伺服器版本，防止多管理員同時編輯互相覆蓋
+  if(window._schSaving){showToast('儲存中，請稍候...','warn');return;}
+  window._schSaving=true;
+  const _doSave=()=>{
+    _saveRoomState(SCH_STATE.roomId);
+    const data={};
+    Object.entries(_SCH_ROOM_STATES).forEach(([roomId,st])=>{
+      data[roomId]={
+        catOrder:st.catOrder,instOrder:st.instOrder,
+        typeOrder:st.typeOrder,classOrder:st.classOrder,
+        seatDir:st.seatDir,
+        extraEntries:st.extraEntries,
+        removedEntries:[...st.removedEntries],
+      };
+    });
+    const curId=SCH_STATE.roomId;
+    if(curId){
+      data[curId]={
+        catOrder:SCH_STATE.catOrder.map(c=>({...c})),
+        instOrder:SCH_STATE.instOrder.map(i=>({...i})),
+        typeOrder:SCH_STATE.typeOrder.map(t=>({...t})),
+        classOrder:SCH_STATE.classOrder.map(c=>({...c})),
+        seatDir:SCH_STATE.seatDir,
+        extraEntries:[...SCH_STATE.extraEntries],
+        removedEntries:[...SCH_STATE.removedEntries],
+      };
+    }
+    const snapshot={};
+    const _origRoomId=SCH_STATE.roomId;
+    _saveRoomState(_origRoomId);
+    DB.rooms.forEach(room=>{
+      SCH_STATE.roomId=room.id;
+      _loadRoomState(room.id);
+      const prevEntries=_buildFilteredEntries(room.id);
+      snapshot[room.id]=prevEntries.map((e,idx)=>({
+        entryKey:e.studentId+'_'+e.type,
+        studentId:e.studentId,name:e.name,class:e.class,seat:e.seat,
+        instId:e.instId,instName:e.instName,catId:e.catId,
+        type:e.type,order:idx+1,
+        ac:e.ac,at:e.at,fc:e.fc,ft:e.ft,
+        roomId:e.roomId,roomName:e.roomName,roomLocation:e.roomLocation,
+      }));
+    });
+    SCH_STATE.roomId=_origRoomId;
+    _loadRoomState(_origRoomId);
+    DB.savedScheduleSnapshot=snapshot;
+
+    // ★ 修正 #E3：空排程警告
+    const totalEntries=Object.values(snapshot).reduce((s,arr)=>s+(arr?.length||0),0);
+    if(totalEntries===0){
+      if(!confirm('目前排程沒有任何學生（可能尚未填曲目或被排除規則過濾）。確定要儲存空排程？')){
+        window._schSaving=false;return;
+      }
+    }
+
+    // 寫入版本號
+    const newVer=(DB.savedScheduleSnapshot._ver||0)+1;
+    fbSet('scheduleState','main',{data:JSON.stringify(data),_ver:newVer});
+    Object.entries(snapshot).forEach(([roomId,entries])=>{
+      fbSet('scheduleSnapshots',roomId,{entries:entries||[],_savedAt:new Date().toISOString(),_ver:newVer});
+    });
+    try{
+      const snapStr=JSON.stringify(snapshot);
+      if(snapStr.length<800000)fbSet('scheduleState','snapshot',{data:snapStr,_ver:newVer});
+    }catch(e){}
+    try{
+      localStorage.setItem('scheduleState',JSON.stringify(data));
+      localStorage.setItem('scheduleSnapshot',JSON.stringify(snapshot));
+    }catch(e){}
+    renderAdminStudents();
+    renderStuSchedule();
+    showToast('排程已儲存 ✓（學生考場分配已同步）','ok');
+    window._schSaving=false;
+  };
+
+  // 先讀取伺服器版本比對
+  if(window._FB){
+    fbLoad('scheduleState',docs=>{
+      const cur=docs.find(d=>d.id==='main');
+      const curVer=cur?._ver||0;
+      const myVer=DB.savedScheduleSnapshot?._ver||0;
+      if(curVer>myVer&&myVer>0){
+        if(!confirm(`偵測到其他管理員已修改排程（伺服器版本 ${curVer} > 你的版本 ${myVer}）\n\n你存檔會覆蓋對方的修改。\n\n確定繼續？\n（建議：先重新整理頁面看最新版本，再決定是否覆蓋）`)){
+          window._schSaving=false;return;
+        }
+      }
+      _doSave();
+    });
+  } else {
+    _doSave();
   }
-
-  // ★ 同時產生「排程快照」供評審/監考使用
-  // 快照 = 各考場依目前排序/篩選後的完整 entry 清單（含 order）
-  const snapshot={};
-  // ★ 修正：先完整備份目前 SCH_STATE，loop 後正確還原
-  const _origRoomId=SCH_STATE.roomId;
-  _saveRoomState(_origRoomId);
-  DB.rooms.forEach(room=>{
-    SCH_STATE.roomId=room.id;
-    _loadRoomState(room.id);
-    const prevEntries=_buildFilteredEntries(room.id);
-    snapshot[room.id]=prevEntries.map((e,idx)=>({
-      entryKey:e.studentId+'_'+e.type,
-      studentId:e.studentId,name:e.name,class:e.class,seat:e.seat,
-      instId:e.instId,instName:e.instName,catId:e.catId,
-      type:e.type,order:idx+1,
-      ac:e.ac,at:e.at,fc:e.fc,ft:e.ft,
-      roomId:e.roomId,roomName:e.roomName,roomLocation:e.roomLocation,
-    }));
-  });
-  // ★ 還原到操作前的考場狀態
-  SCH_STATE.roomId=_origRoomId;
-  _loadRoomState(_origRoomId);
-  DB.savedScheduleSnapshot=snapshot;
-
-  // 統一用 fbSet（REST 和 SDK 模式皆相容）
-  fbSet('scheduleState','main',{data:JSON.stringify(data)});
-  fbSet('scheduleState','snapshot',{data:JSON.stringify(snapshot)});
-  try{
-    localStorage.setItem('scheduleState',JSON.stringify(data));
-    localStorage.setItem('scheduleSnapshot',JSON.stringify(snapshot));
-  }catch(e){}
-  // ★ 修正②：存檔後立即同步——重新渲染學生名單分配考場欄位 & 學生查詢頁
-  renderAdminStudents();
-  renderStuSchedule();
-  showToast('排程已儲存 ✓（學生考場分配已同步）','ok');
 }
 
 // ★ 依目前 SCH_STATE 篩選/排序，回傳此考場的 entry 陣列（不修改 DOM）
@@ -6033,37 +6231,45 @@ window.bulkDeleteUsers=bulkDeleteUsers;
 
 // CSV Import/Export
 function importCSV(role){
+  // ★ 修正 #F6：防重複匯入
+  if(window._csvImporting){showToast('匯入中，請稍候...','warn');return;}
+  window._csvImporting=true;
   const input=document.createElement('input');input.type='file';input.accept='.csv,.txt';
   input.onchange=e=>{
-    const f=e.target.files[0];if(!f)return;
+    const f=e.target.files[0];
+    if(!f){window._csvImporting=false;return;}
     const reader=new FileReader();
     reader.onload=ev=>{
-      const lines=ev.target.result.split('\n').slice(1).filter(l=>l.trim());
-      let count=0;
-      lines.forEach(line=>{
-        const cols=line.split(',').map(s=>s.trim().replace(/^"|"$/g,''));
-        if(role==='student'){
-          const [cls,seat,name,account,...rest]=cols;
-          if(!name||!account)return;
-          if(DB.users.find(u=>u.account===account))return;
-          const nu2={id:'s'+Date.now()+Math.random(),name,account,pass:'000',role:'student',class:cls||'甲班',seat:+seat||1,repDone:false,teaDone:false};
-          DB.users.push(nu2);fbSet('users',nu2.id,nu2);
-        }else if(role==='teacher'){
-          const [name,account,stuAccounts]=cols;
-          if(!name||!account)return;
-          if(DB.users.find(u=>u.account===account))return;
-          const nt={id:'t'+Date.now()+Math.random(),name,account,pass:'000',role:'teacher'};
-          DB.users.push(nt);fbSet('users',nt.id,nt);
-          // ★ 第三欄：指導學生帳號（以「;」或「|」分隔，允許空白）
-          if(stuAccounts&&stuAccounts.trim()){
-            const ids=stuAccounts.split(/[;|]/).map(s=>s.trim()).filter(Boolean).map(acc=>{const u=DB.users.find(x=>x.account===acc&&x.role==='student');return u?.id;}).filter(Boolean);
-            if(ids.length){DB.teacherStudents[nt.id]=ids;fbSet('teacherStudents',nt.id,{list:ids});}
+      try{
+        const lines=ev.target.result.split('\n').slice(1).filter(l=>l.trim());
+        let count=0,skipped=0;
+        lines.forEach((line,idx)=>{
+          const cols=line.split(',').map(s=>s.trim().replace(/^"|"$/g,''));
+          if(role==='student'){
+            const [cls,seat,name,account,...rest]=cols;
+            if(!name||!account){skipped++;return;}
+            if(DB.users.find(u=>u.account===account)){skipped++;return;} // ★ 重複帳號跳過
+            // ★ 用 idx 確保同毫秒匯入時 ID 不衝突
+            const nu2={id:'s'+Date.now()+'_'+idx,name,account,pass:_passEncode('000','s'+Date.now()+'_'+idx),role:'student',class:cls||'甲班',seat:+seat||1,repDone:false,teaDone:false};
+            DB.users.push(nu2);fbSet('users',nu2.id,nu2);
+          }else if(role==='teacher'){
+            const [name,account,stuAccounts]=cols;
+            if(!name||!account){skipped++;return;}
+            if(DB.users.find(u=>u.account===account)){skipped++;return;}
+            const nt={id:'t'+Date.now()+'_'+idx,name,account,pass:_passEncode('000','t'+Date.now()+'_'+idx),role:'teacher'};
+            DB.users.push(nt);fbSet('users',nt.id,nt);
+            if(stuAccounts&&stuAccounts.trim()){
+              const ids=stuAccounts.split(/[;|]/).map(s=>s.trim()).filter(Boolean).map(acc=>{const u=DB.users.find(x=>x.account===acc&&x.role==='student');return u?.id;}).filter(Boolean);
+              if(ids.length){DB.teacherStudents[nt.id]=ids;fbSet('teacherStudents',nt.id,{list:ids});}
+            }
           }
-        }
-        count++;
-      });
-      renderAll();updateStats();showToast(`已匯入 ${count} 筆 ✓`,'ok');
+          count++;
+        });
+        renderAll();updateStats();
+        showToast(`已匯入 ${count} 筆${skipped?`（${skipped} 筆重複/錯誤已跳過）`:''} ✓`,'ok');
+      }finally{window._csvImporting=false;}
     };
+    reader.onerror=()=>{window._csvImporting=false;showToast('檔案讀取失敗','err');};
     reader.readAsText(f,'UTF-8');
   };
   input.click();
@@ -6195,19 +6401,20 @@ function renderInstList(){
   });
 }
 function renderInstDropdown(){renderCatList();}
-function fbSaveInstruments(){
-  fbSet('instruments','categories',{list:DB.instruments.categories});
-  fbSet('instruments','items',{list:DB.instruments.items});
-}
+// ★ 修正 #F4：分開儲存樂器和大項，避免單一操作觸發雙寫
+function fbSaveInstrumentsItems(){fbSet('instruments','items',{list:DB.instruments.items});}
+function fbSaveInstrumentsCats(){fbSet('instruments','categories',{list:DB.instruments.categories});}
+function fbSaveInstruments(){fbSaveInstrumentsItems();fbSaveInstrumentsCats();}
+window.fbSaveInstruments=fbSaveInstruments;
 function addCategory(){
   const n=prompt('新增大項名稱：');if(!n)return;
   DB.instruments.categories.push({id:'cat_'+Date.now(),name:n,order:DB.instruments.categories.length});
-  fbSaveInstruments();renderCatList();initDropdowns();showToast('已新增 '+n,'ok');
+  fbSaveInstrumentsCats();renderCatList();initDropdowns();showToast('已新增 '+n,'ok');
 }
 function renameCategory(id){
   const c=DB.instruments.categories.find(x=>x.id===id);
   const n=prompt('新名稱：',c?.name);
-  if(n&&c){c.name=n;fbSaveInstruments();renderCatList();initDropdowns();showToast('已更新','ok');}
+  if(n&&c){c.name=n;fbSaveInstrumentsCats();renderCatList();initDropdowns();showToast('已更新','ok');}
 }
 function delCategory(id){
   const idx=DB.instruments.categories.findIndex(c=>c.id===id);
@@ -6221,7 +6428,7 @@ function delCategory(id){
     if(!confirm(`警告：刪除大項「${cat.name}」會影響 ${affectedStus.length} 名學生的樂器引用（${names}），\n建議先更新學生樂器設定。確定仍要刪除？`))return;
   }
   DB.instruments.categories.splice(idx,1);
-  fbSaveInstruments();renderCatList();
+  fbSaveInstrumentsCats();renderCatList();
   if(affectedStus.length)showToast(`已刪除大項（${affectedStus.length} 名學生樂器引用失效，請更新）`,'warn');
   else showToast('已刪除','err');
 }
@@ -6236,17 +6443,19 @@ function delInst(id){
     if(!confirm(`警告：刪除樂器「${inst.name}」會影響 ${affectedStus.length} 名學生（${names}），\n建議先更新學生樂器設定。確定仍要刪除？`))return;
   }
   DB.instruments.items.splice(idx,1);
-  fbSaveInstruments();renderInstList();
+  fbSaveInstrumentsItems();renderInstList();
   if(affectedStus.length)showToast(`已刪除樂器（${affectedStus.length} 名學生樂器引用失效，請更新）`,'warn');
   else showToast('已刪除','err');
 }
+window.delInst=delInst;
+function addInstrument(){
   const catId=document.getElementById('inst-cat-sel')?.value;
   if(!catId){showToast('請先選擇大項','err');return;}
   const n=prompt('新增樂器名稱：');if(!n)return;
   DB.instruments.items.push({id:'inst_'+Date.now(),cat:catId,name:n,order:DB.instruments.items.filter(i=>i.cat===catId).length});
-  fbSaveInstruments();renderInstList();showToast('已新增 '+n,'ok');
+  fbSaveInstrumentsItems();renderInstList();showToast('已新增 '+n,'ok');
 }
-function renameInst(id){const inst=DB.instruments.items.find(i=>i.id===id);const n=prompt('新名稱：',inst?.name);if(n&&inst){inst.name=n;fbSaveInstruments();renderInstList();showToast('已更新','ok');}}
+function renameInst(id){const inst=DB.instruments.items.find(i=>i.id===id);const n=prompt('新名稱：',inst?.name);if(n&&inst){inst.name=n;fbSaveInstrumentsItems();renderInstList();showToast('已更新','ok');}}
 
 // ════════════════════════════════════════════════
 // ADMIN - ROOMS & CLASSES
@@ -7182,10 +7391,20 @@ function clearData(type){
     students().forEach(s=>{s.teaDone=false;fbSet('users',s.id,s);});
   }
   if(type==='jury'||type==='all'){
-    Object.keys(DB.juryScores).forEach(k=>delete DB.juryScores[k]);
-    Object.keys(DB.deductions).forEach(k=>delete DB.deductions[k]);
-    // juryScores 結構較複雜，需逐層刪除
-    if(window._FB){const {db}=window._FB;db.collection('juryScores').get().then(snap=>snap.forEach(d=>d.ref.delete()));}
+    // ★ 修正 #F5：完整清理 entries 子集合（REST 模式相容）
+    Object.keys(DB.juryScores).forEach(roomId=>{
+      Object.keys(DB.juryScores[roomId]||{}).forEach(entryKey=>{
+        fbDelete('juryScores/'+roomId+'/entries',entryKey);
+      });
+      delete DB.juryScores[roomId];
+    });
+    Object.keys(DB.deductions).forEach(k=>{fbDelete('deductions',k);delete DB.deductions[k];});
+    // 清理 localStorage 的 pending queue
+    try{
+      const p=JSON.parse(localStorage.getItem(PENDING_KEY)||'[]');
+      p.forEach(k=>localStorage.removeItem(k));
+      localStorage.removeItem(PENDING_KEY);
+    }catch(e){}
   }
   renderAll();showToast(`已清除「${labels[type]}」✓`,'ok');
 }
@@ -7788,12 +8007,15 @@ function renumberItems(container){container.querySelectorAll('.ei-num').forEach(
 // NUMPAD
 // ════════════════════════════════════════════════
 function openNP(targetId,label,callback){
+  // ★ 修正 #FE2：防止重複開啟
+  const overlay=document.getElementById('np-overlay');
+  if(overlay?.classList.contains('on'))return;
   ST.npTarget=targetId;
   ST.npVal=document.getElementById(targetId)?.value||'';
   ST.npCallback=callback;
   document.getElementById('np-lbl').textContent=label;
   document.getElementById('np-disp').textContent=ST.npVal||'—';
-  document.getElementById('np-overlay').classList.add('on');
+  overlay?.classList.add('on');
 }
 function npBg(e){if(e.target===document.getElementById('np-overlay'))document.getElementById('np-overlay').classList.remove('on');}
 function npKey(k){if(k==='.'&&ST.npVal.includes('.'))return;if(ST.npVal.length>=5)return;ST.npVal+=k;document.getElementById('np-disp').textContent=ST.npVal;}
@@ -8126,19 +8348,28 @@ function jsupCollectRoom(roomId){
   return d;
 }
 
-// 自動暫存（oninput 觸發）
+// 自動暫存（oninput 觸發）— ★ 修正 #F7：加 debounce 避免每按鍵都跑 forEach
+let _jsupDebounce=null;
 function jsupDraftSave(){
-  const tid=ST.user?.id;if(!tid)return;
-  if(!DB.jurySignup[tid])DB.jurySignup[tid]={};
-  DB.rooms.forEach(r=>{DB.jurySignup[tid][r.id]=jsupCollectRoom(r.id);});
-  DB.jurySignup[tid]._globalNote=document.getElementById('jsup-global-note')?.value||'';
+  if(_jsupDebounce)clearTimeout(_jsupDebounce);
+  _jsupDebounce=setTimeout(()=>{
+    const tid=ST.user?.id;if(!tid)return;
+    if(!DB.jurySignup[tid])DB.jurySignup[tid]={};
+    DB.rooms.forEach(r=>{DB.jurySignup[tid][r.id]=jsupCollectRoom(r.id);});
+    DB.jurySignup[tid]._globalNote=document.getElementById('jsup-global-note')?.value||'';
+  },300);
 }
 window.jsupDraftSave=jsupDraftSave;
 
 // 暫時儲存（手動）
 function saveJurySignupDraft(){
+  // ★ 修正 #E2：防重複
+  if(window._savingJsupDraft)return;
+  window._savingJsupDraft=true;
+  setTimeout(()=>{window._savingJsupDraft=false;},1500);
   const tid=ST.user?.id;if(!tid)return;
   jsupDraftSave();
+  if(!DB.jurySignup[tid])DB.jurySignup[tid]={};
   DB.jurySignup[tid]._draft=true;
   DB.jurySignup[tid]._submitted=false;
   fbSet('jurySignup',tid,DB.jurySignup[tid]);
@@ -8150,6 +8381,10 @@ window.saveJurySignupDraft=saveJurySignupDraft;
 
 // 送出報名
 function submitJurySignup(){
+  // ★ 修正 #E2：防重複送出
+  if(window._submittingJurySignup)return;
+  window._submittingJurySignup=true;
+  setTimeout(()=>{window._submittingJurySignup=false;},3000);
   const tid=ST.user?.id;if(!tid)return;
   jsupDraftSave();
   const opts=DB.config.jurySignupOptions||[];
@@ -8165,7 +8400,7 @@ function submitJurySignup(){
       if(!rd.subRoomId) errors.push(`「${r.name}」請選擇代評老師負責的考場`);
     }
   });
-  if(errors.length){showToast(errors[0],'err');return;}
+  if(errors.length){window._submittingJurySignup=false;showToast(errors[0],'err');return;}
   DB.jurySignup[tid]._submitted=true;
   DB.jurySignup[tid]._draft=false;
   DB.jurySignup[tid]._submittedAt=new Date().toISOString();
@@ -8455,13 +8690,12 @@ Object.keys(_fnMap).forEach(function(name){ window[name] = _fnMap[name]; });
 // ★ 頁面載入後立即從 Firebase 同步 users，讓登入時帳密是最新狀態
 (window._fbAuthReady||Promise.resolve()).then(function(){
   preloadUsersForLogin();
-  // ★ #8 若有 pendingAdminRestore，直接 launchApp（跳過登入畫面）
+  // ★ 修正 #L4：管理員 session 恢復統一在 launchApp 內處理（line ~2625），此處只觸發 launchApp
   if(window._pendingAdminRestore){
-    // 暫時顯示 loading 狀態，等 Firebase 完成後恢復
     document.getElementById('login-screen').classList.add('gone');
     document.getElementById('app').classList.add('on');
-    // 建立虛擬 user 讓 launchApp 可以正常執行
     const sess=window._pendingAdminRestore;
+    // 不在這裡清空，由 launchApp 內的 done callback 統一清空並還原 ST.user
     ST.user={id:sess.id,name:'...',role:'admin'};ST.role='admin';
     document.getElementById('role-pill').textContent='管理員・教師';
     document.getElementById('tb-uname').textContent='載入中...';
