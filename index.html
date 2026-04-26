@@ -2870,44 +2870,50 @@ function loadAllFromFirebase(done, lightMode){
     // ★ 修正：載入後自動去重（清理「同一學生同一修別在多考場」的歷史殘留資料）
     try{
       if(DB.savedScheduleSnapshot){
-        // 第一輪：先收集「手動指定」(_forceInclude=true) 的紀錄佔位
-        const claimed=new Set();  // 'studentId_type' 已被分配
-        const dirtyRooms=new Set();
-        let dupCount=0;
-        // 用 DB.rooms 的順序遍歷（_order 排序）；snapshot 中可能有 rooms 沒記錄的考場，最後處理
+        // ★ 先深拷貝原始資料（避免邊讀邊改造成 race）
+        const original={};
+        Object.keys(DB.savedScheduleSnapshot).forEach(roomId=>{
+          original[roomId]=(DB.savedScheduleSnapshot[roomId]||[]).slice();
+        });
         const orderedRoomIds=[
           ...DB.rooms.map(r=>r.id),
-          ...Object.keys(DB.savedScheduleSnapshot).filter(id=>!DB.rooms.some(r=>r.id===id))
+          ...Object.keys(original).filter(id=>!DB.rooms.some(r=>r.id===id))
         ];
-        // 第一輪：保留 _forceInclude 的（管理員手動指派的優先）
+        const cleaned={};
+        const claimed=new Set();
+        const dirtyRooms=new Set();
+        let dupCount=0;
+        // 第一輪：保留 _forceInclude=true（管理員手動指派優先佔位）
         orderedRoomIds.forEach(roomId=>{
-          const arr=DB.savedScheduleSnapshot[roomId]||[];
-          const kept=[];
-          arr.forEach(e=>{
-            if(!e._forceInclude)return; // 第二輪處理
-            const key=e.studentId+'_'+e.type;
-            if(claimed.has(key)){dupCount++;dirtyRooms.add(roomId);return;}
-            claimed.add(key);kept.push(e);
-          });
-          DB.savedScheduleSnapshot[roomId]=kept; // 暫存只有 _forceInclude 的
-        });
-        // 第二輪：依 room 順序，補進其他自動分配的
-        orderedRoomIds.forEach(roomId=>{
-          const original=(r.scheduleSnapshots?.find(d=>d.id===roomId)?.entries)||
-                         (snapDoc?JSON.parse(snapDoc.data||'{}')[roomId]:[])||
-                         [];
-          original.forEach(e=>{
-            if(e._forceInclude)return; // 已在第一輪處理
+          (original[roomId]||[]).forEach(e=>{
+            if(!e._forceInclude)return;
             const key=e.studentId+'_'+e.type;
             if(claimed.has(key)){dupCount++;dirtyRooms.add(roomId);return;}
             claimed.add(key);
-            if(!DB.savedScheduleSnapshot[roomId])DB.savedScheduleSnapshot[roomId]=[];
-            DB.savedScheduleSnapshot[roomId].push(e);
+            if(!cleaned[roomId])cleaned[roomId]=[];
+            cleaned[roomId].push(e);
           });
         });
+        // 第二輪：自動篩選分配的，依考場順序取「第一個匹配」
+        orderedRoomIds.forEach(roomId=>{
+          (original[roomId]||[]).forEach(e=>{
+            if(e._forceInclude)return; // 已處理
+            const key=e.studentId+'_'+e.type;
+            if(claimed.has(key)){dupCount++;dirtyRooms.add(roomId);return;}
+            claimed.add(key);
+            if(!cleaned[roomId])cleaned[roomId]=[];
+            cleaned[roomId].push(e);
+          });
+        });
+        // 確保沒有遺漏的考場 key
+        Object.keys(original).forEach(roomId=>{
+          if(!cleaned[roomId])cleaned[roomId]=[];
+        });
+        DB.savedScheduleSnapshot=cleaned;
         if(dupCount>0){
           console.log('[snapshot] 自動清理',dupCount,'筆重複學生分配（同一修別出現在多考場）');
-          if(window._FB&&ST.role==='admin'){
+          // ★ 改：任何角色都可以觸發寫回（資料修復）
+          if(window._FB){
             dirtyRooms.forEach(roomId=>{
               fbSet('scheduleSnapshots',roomId,{entries:DB.savedScheduleSnapshot[roomId]||[],_savedAt:new Date().toISOString()});
             });
@@ -5653,23 +5659,27 @@ function renderSchedule(){
 
   // 1. 考場篩選（entry 的 roomId 已由 getScheduleEntries 依 SCH_STATE.roomId 設定）
   const roomId=SCH_STATE.roomId;
-  // 已在 getScheduleEntries 層設定 roomId，此處不需再過濾
+  // ★ 修正：手動加入的 (_forceInclude) 應依其自身 roomId 過濾；其他依當前 SCH_STATE.roomId
+  entries=entries.filter(e=>{
+    if(e._forceInclude)return e.roomId===roomId; // 強制加入的依 entry 自己的 roomId 過濾
+    return true; // 其他維持原邏輯（已在 getScheduleEntries 設為 SCH_STATE.roomId）
+  });
 
-  // 2. 樂器大項篩選（過濾：只顯示勾選大項的學生）
+  // 2. 樂器大項篩選（過濾：只顯示勾選大項的學生）— ★ 修正：_forceInclude 不受此限制
   const activeCats=new Set(SCH_STATE.catOrder.filter(c=>c.active).map(c=>c.id));
-  if(activeCats.size)entries=entries.filter(e=>activeCats.has(e.catId));
+  if(activeCats.size)entries=entries.filter(e=>e._forceInclude||activeCats.has(e.catId));
 
-  // 3. 樂器別篩選（過濾：只顯示勾選細項樂器的學生）
+  // 3. 樂器別篩選（過濾：只顯示勾選細項樂器的學生）— ★ 修正：_forceInclude 不受此限制
   const activeInsts=new Set(SCH_STATE.instOrder.filter(i=>i.active).map(i=>i.id));
-  if(activeInsts.size)entries=entries.filter(e=>activeInsts.has(e.instId));
+  if(activeInsts.size)entries=entries.filter(e=>e._forceInclude||activeInsts.has(e.instId));
 
-  // 4. 修別篩選
+  // 4. 修別篩選 — ★ 修正：_forceInclude 不受此限制
   const activeTypes=new Set(SCH_STATE.typeOrder.filter(t=>t.active).map(t=>t.key));
-  entries=entries.filter(e=>activeTypes.has(e.type));
+  entries=entries.filter(e=>e._forceInclude||activeTypes.has(e.type));
 
-  // 5. 班級篩選
+  // 5. 班級篩選 — ★ 修正：_forceInclude 不受此限制
   const activeClasses=new Set(SCH_STATE.classOrder.filter(c=>c.active).map(c=>c.cls));
-  if(activeClasses.size)entries=entries.filter(e=>activeClasses.has(e.class));
+  if(activeClasses.size)entries=entries.filter(e=>e._forceInclude||activeClasses.has(e.class));
 
   // 6. 排除規則過濾（_forceInclude 的 entry 不受排除規則影響）
   const rules=SCH_STATE.excludeRules||[];
