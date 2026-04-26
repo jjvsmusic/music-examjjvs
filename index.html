@@ -5634,9 +5634,27 @@ function renderSchedule(){
   });
 
   // ★ 合併手動加入的項目（若在 removedEntries 中則不加回）
+  // ★ 核心修正：先標記既有 entries 的 _forceInclude，再 push 不存在的
+  const forceMap={}; // 'studentId_type' -> {roomId, ...}
   allExtraEntries.forEach(ex=>{
     const key=ex.studentId+'_'+ex.type;
     if(SCH_STATE.removedEntries.has(key))return;
+    forceMap[key]=ex;
+  });
+  // 把現有 entries 內符合 extraEntries 的標記為 _forceInclude，並改寫其 roomId
+  entries.forEach(e=>{
+    const key=e.studentId+'_'+e.type;
+    if(forceMap[key]){
+      e._forceInclude=true;
+      e._extra=true;
+      // ★ 重要：把 entry 的 roomId 改寫為手動指派的考場（覆蓋掉 getScheduleEntries 設的 SCH_STATE.roomId）
+      e.roomId=forceMap[key].roomId||e.roomId;
+      const room=DB.rooms.find(r=>r.id===e.roomId);
+      if(room){e.roomName=room.name;e.roomLocation=room.location||'';}
+    }
+  });
+  // 若 forceMap 中的學生不在 entries（沒填該修別樂器），補進
+  Object.entries(forceMap).forEach(([key,ex])=>{
     const alreadyIn=entries.some(e=>e.studentId===ex.studentId&&e.type===ex.type);
     if(alreadyIn)return;
     const stu=DB.users.find(u=>u.id===ex.studentId);if(!stu)return;
@@ -5923,13 +5941,24 @@ function _buildFilteredEntries(roomId){
   const targetRemoved=targetRemovedRaw instanceof Set?targetRemovedRaw:new Set(Array.isArray(targetRemovedRaw)?targetRemovedRaw:[]);
 
   entries=entries.filter(e=>!targetRemoved.has(e.studentId+'_'+e.type));
-  // ★ 把 entry 的 roomId 都改寫為目標 roomId（不再 = SCH_STATE.roomId）
+  // ★ 把 entry 的 roomId 都改寫為目標 roomId
   entries.forEach(e=>{e.roomId=roomId;});
+
+  // ★ 修正核心：建立「強制加入」的索引（含手動指派的學生）
+  //    若 entry 在 targetExtra 中，標記 _forceInclude=true，後續篩選會 bypass
+  const forceKeys=new Set(targetExtra.map(ex=>ex.studentId+'_'+ex.type));
+  entries.forEach(e=>{
+    if(forceKeys.has(e.studentId+'_'+e.type)){
+      e._forceInclude=true;
+      e._extra=true;
+    }
+  });
+  // 若 targetExtra 的學生不在 entries 裡（沒有相關修別資料）才 push 新 entry
   targetExtra.forEach(ex=>{
     const key=ex.studentId+'_'+ex.type;
     if(targetRemoved.has(key))return;
     const alreadyIn=entries.some(e=>e.studentId===ex.studentId&&e.type===ex.type);
-    if(alreadyIn)return;
+    if(alreadyIn)return; // 已在 entries 且已標記 _forceInclude
     const stu=DB.users.find(u=>u.id===ex.studentId);if(!stu)return;
     const inst=stu[ex.type]?DB.instruments.items.find(i=>i.id===stu[ex.type]):null;
     const cat=inst?DB.instruments.categories.find(c=>c.id===inst.cat):null;
