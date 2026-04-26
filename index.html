@@ -169,6 +169,32 @@ td{padding:9px 12px;font-size:13px;vertical-align:middle}
 
 /* REG SECTIONS */
 .reg-section{border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:14px}
+.apr-suggest{margin:6px 0 8px;padding:0}
+.apr-suggest:empty{display:none}
+.apr-suggest-card{background:#fff8e6;border:1px solid var(--gold);border-left:3px solid var(--gold);border-radius:var(--r);padding:12px 14px;margin:8px 0}
+.apr-suggest-card .apr-h{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;color:var(--gold);margin-bottom:8px;font-weight:600}
+.apr-suggest-card label{display:flex;align-items:flex-start;gap:8px;padding:7px 9px;background:var(--paper);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;margin-bottom:4px;transition:all .15s}
+.apr-suggest-card label:hover{border-color:var(--gold);background:#fff}
+.apr-suggest-card label.on{border-color:var(--gold);background:var(--gold-bg)}
+.apr-suggest-card label input{margin-top:3px;accent-color:var(--gold);flex-shrink:0}
+.apr-suggest-card .apr-piece{flex:1;font-size:13px;line-height:1.5}
+.apr-suggest-card .apr-piece strong{color:var(--ink)}
+.apr-suggest-card .apr-piece em{color:var(--muted);font-style:normal;font-size:11px;display:block}
+.apr-suggest-card .apr-clear{font-size:11px;color:var(--muted);margin-top:4px;cursor:pointer;text-decoration:underline}
+.apr-rule-row{border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;margin-bottom:8px;background:var(--paper)}
+.apr-rule-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:1px solid var(--cream);padding-bottom:6px}
+.apr-rule-h .apr-rule-t{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1.5px;color:var(--steel)}
+.apr-cond-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:10px}
+.apr-cond-grid .apr-cond{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:4px;letter-spacing:1px}
+.apr-cond-pills{display:flex;flex-wrap:wrap;gap:3px}
+.apr-cond-pills label{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border:1px solid var(--border);border-radius:12px;font-size:11px;cursor:pointer;background:#fff}
+.apr-cond-pills label.on{border-color:var(--gold);background:var(--gold-bg);color:var(--ink)}
+.apr-cond-pills input{display:none}
+.apr-pieces{margin-top:8px}
+.apr-piece-row{display:flex;gap:6px;margin-bottom:5px}
+.apr-piece-row input{padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;outline:none;background:#fff}
+.apr-piece-row input:focus{border-color:var(--gold)}
+.apr-piece-row .apr-del-piece{background:none;border:none;color:var(--rust);cursor:pointer;font-size:14px;padding:0 4px}
 .reg-sec-h{background:var(--ink);color:var(--gold);padding:10px 16px;font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:2px;display:flex;align-items:center;gap:10px}
 .reg-sec-b{padding:16px;background:var(--white)}
 .hint-box{background:var(--cream);border-left:3px solid var(--gold);padding:9px 13px;margin-bottom:12px;font-size:11px;color:var(--muted);line-height:1.8;font-family:\'DM Mono\',monospace}
@@ -1059,6 +1085,7 @@ tbody td{color:var(--ink)!important}
               <div class="fg" style="flex:1"><label>指定曲 作曲家</label><input id="r-major-ac" type="text" placeholder="Composer name"></div>
               <div class="fg" style="flex:2"><label>指定曲 曲目名稱</label><input id="r-major-at" type="text" placeholder="Piece title, opus, movement..."></div>
             </div>
+            <div id="r-major-apr" class="apr-suggest"></div>
             <div class="fr">
               <div class="fg" style="flex:1"><label>自選曲 作曲家</label><input id="r-major-fc" type="text" placeholder="Composer name"></div>
               <div class="fg" style="flex:2"><label>自選曲 曲目名稱</label><input id="r-major-ft" type="text" placeholder="Piece title, opus, movement..."></div>
@@ -1075,6 +1102,7 @@ tbody td{color:var(--ink)!important}
             </div>
             <div id="r-minor-rep" style="display:none">
               <div class="fr"><div class="fg" style="flex:1"><label>指定曲 作曲家</label><input id="r-minor-ac" type="text" placeholder="Composer name"></div><div class="fg" style="flex:2"><label>指定曲 曲目名稱</label><input id="r-minor-at" type="text" placeholder="Piece title..."></div></div>
+              <div id="r-minor-apr" class="apr-suggest"></div>
               <div class="fr"><div class="fg" style="flex:1"><label>自選曲 作曲家</label><input id="r-minor-fc" type="text" placeholder="Composer name"></div><div class="fg" style="flex:2"><label>自選曲 曲目名稱</label><input id="r-minor-ft" type="text" placeholder="Piece title..."></div></div>
             </div>
           </div>
@@ -1088,6 +1116,7 @@ tbody td{color:var(--ink)!important}
           <div id="r-elec-area" style="display:none"><div class="reg-sec-b">
             <div class="fr"><div class="fg"><label>大項類別</label><select id="r-elec-cat" onchange="filterRepInst('elective')"><option value="">選擇類別</option></select></div><div class="fg"><label>樂器</label><select id="r-elec-inst"><option value="">—</option></select></div></div>
             <div class="fr"><div class="fg" style="flex:1"><label>指定曲 作曲家</label><input id="r-elec-ac" type="text" placeholder="Composer name"></div><div class="fg" style="flex:2"><label>指定曲 曲目名稱</label><input id="r-elec-at" type="text" placeholder="Piece title..."></div></div>
+            <div id="r-elec-apr" class="apr-suggest"></div>
             <div class="fr"><div class="fg" style="flex:1"><label>自選曲 作曲家</label><input id="r-elec-fc" type="text" placeholder="Composer name"></div><div class="fg" style="flex:2"><label>自選曲 曲目名稱</label><input id="r-elec-ft" type="text" placeholder="Piece title..."></div></div>
           </div></div>
         </div>
@@ -1832,6 +1861,19 @@ tbody td{color:var(--ink)!important}
           </style>
         </div>
 
+        <!-- ★ 指定曲自動帶入規則 -->
+        <div class="card" style="margin-top:14px" id="apr-admin-card">
+          <div class="card-t">🎼 指定曲自動帶入規則</div>
+          <p style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:14px;line-height:1.8">
+            設定後，學生在「曲目填寫」頁選擇樂器與修別時，系統自動帶入符合條件的指定曲。<br>
+            一條規則可設定多首曲目，學生會看到選項自行勾選一首。<br>
+            條件採 AND 邏輯：留空 = 該欄不限制；勾選 = 必須符合其中一個。
+          </p>
+          <div id="apr-rules-list" style="margin-bottom:14px"></div>
+          <button class="btn btn-p btn-sm" onclick="aprAddRule()">＋ 新增規則</button>
+          <button class="btn btn-s btn-sm" onclick="aprSaveAll()" style="margin-left:8px">💾 儲存全部規則</button>
+        </div>
+
         <!-- ★ 管理員補填評語 -->
         <div class="card" style="margin-top:14px">
           <div class="card-t">管理員補填評語（文字輸入 / 圖片 OCR 辨識）</div>
@@ -2139,6 +2181,8 @@ const DB = {
     jurySignupNote:'有兩位（含）以上學生的老師需參與期末考現場評分。若考試當天有事無法出席，請務必自行安排代評老師，並填寫代評資訊。',
     bulletin:{student:'',teacher:''},  // 公布欄
     examRules:{classical:'',pop:'',assigned:''},  // ★ 考試規則 & 指定曲 HTML 內容
+    assignedPieces:'',                              // 指定曲頁富文本（管理員自由說明）
+    assignedPiecesRules:[],                         // ★ 指定曲自動帶入規則 [{id,catIds,instIds,types,classes,pieces:[{composer,title}]}]
     jurySignupOptions:[
       {id:'opt_attend',label:'確認參加',isAttend:true,isSub:false,hasText:false},
       {id:'opt_sub',label:'已找代評老師',isAttend:false,isSub:true,hasText:false},
@@ -2754,6 +2798,7 @@ function loadAllFromFirebase(done, lightMode){
       if(rest.examRules)Object.assign(DB.config.examRules,rest.examRules);
       if(rest.examRules)Object.assign(DB.config.examRules,rest.examRules);
       if(rest.assignedPieces!==undefined)DB.config.assignedPieces=rest.assignedPieces;
+      if(rest.assignedPiecesRules!==undefined)DB.config.assignedPiecesRules=rest.assignedPiecesRules||[];
     }
 
     // — rooms —
@@ -2825,20 +2870,49 @@ function loadAllFromFirebase(done, lightMode){
     // ★ 修正：載入後自動去重（清理「同一學生同一修別在多考場」的歷史殘留資料）
     try{
       if(DB.savedScheduleSnapshot){
-        const seen=new Set();
+        // 第一輪：先收集「手動指定」(_forceInclude=true) 的紀錄佔位
+        const claimed=new Set();  // 'studentId_type' 已被分配
+        const dirtyRooms=new Set();
         let dupCount=0;
-        Object.keys(DB.savedScheduleSnapshot).forEach(roomId=>{
+        // 用 DB.rooms 的順序遍歷（_order 排序）；snapshot 中可能有 rooms 沒記錄的考場，最後處理
+        const orderedRoomIds=[
+          ...DB.rooms.map(r=>r.id),
+          ...Object.keys(DB.savedScheduleSnapshot).filter(id=>!DB.rooms.some(r=>r.id===id))
+        ];
+        // 第一輪：保留 _forceInclude 的（管理員手動指派的優先）
+        orderedRoomIds.forEach(roomId=>{
           const arr=DB.savedScheduleSnapshot[roomId]||[];
-          DB.savedScheduleSnapshot[roomId]=arr.filter(e=>{
+          const kept=[];
+          arr.forEach(e=>{
+            if(!e._forceInclude)return; // 第二輪處理
             const key=e.studentId+'_'+e.type;
-            if(seen.has(key)){dupCount++;return false;}
-            seen.add(key);
-            return true;
+            if(claimed.has(key)){dupCount++;dirtyRooms.add(roomId);return;}
+            claimed.add(key);kept.push(e);
+          });
+          DB.savedScheduleSnapshot[roomId]=kept; // 暫存只有 _forceInclude 的
+        });
+        // 第二輪：依 room 順序，補進其他自動分配的
+        orderedRoomIds.forEach(roomId=>{
+          const original=(r.scheduleSnapshots?.find(d=>d.id===roomId)?.entries)||
+                         (snapDoc?JSON.parse(snapDoc.data||'{}')[roomId]:[])||
+                         [];
+          original.forEach(e=>{
+            if(e._forceInclude)return; // 已在第一輪處理
+            const key=e.studentId+'_'+e.type;
+            if(claimed.has(key)){dupCount++;dirtyRooms.add(roomId);return;}
+            claimed.add(key);
+            if(!DB.savedScheduleSnapshot[roomId])DB.savedScheduleSnapshot[roomId]=[];
+            DB.savedScheduleSnapshot[roomId].push(e);
           });
         });
         if(dupCount>0){
           console.log('[snapshot] 自動清理',dupCount,'筆重複學生分配（同一修別出現在多考場）');
-          // 註：不立即寫回 Firebase，等下次 schSaveSchedule 觸發時會自動覆蓋
+          if(window._FB&&ST.role==='admin'){
+            dirtyRooms.forEach(roomId=>{
+              fbSet('scheduleSnapshots',roomId,{entries:DB.savedScheduleSnapshot[roomId]||[],_savedAt:new Date().toISOString()});
+            });
+            console.log('[snapshot] 已寫回',dirtyRooms.size,'個考場到 Firebase');
+          }
         }
       }
     }catch(e){console.warn('[snapshot] 去重失敗',e);}
@@ -3136,8 +3210,241 @@ function filterRepInst(type){
         sel.parentNode.after(box);
       }
     }
+    // ★ 樂器變更時觸發指定曲規則檢查
+    aprApply(type);
   };
+  // ★ 大項變更時也觸發（未選樂器則先收起建議區）
+  aprApply(type);
 }
+
+// ════════════════════════════════════════════════
+// ★ 指定曲自動帶入規則（APR = Assigned Pieces Rules）
+// ════════════════════════════════════════════════
+
+// 從學生班級名稱推測年級（取第一個中文數字字元，例：「音一莊」→ 1）
+function aprGradeFromClass(cls){
+  if(!cls)return '';
+  const m=String(cls).match(/[一二三四五六七八九十1-9]/);
+  if(!m)return '';
+  const map={'一':'1','二':'2','三':'3','四':'4','五':'5','六':'6','七':'7','八':'8','九':'9','十':'10'};
+  return map[m[0]]||m[0];
+}
+
+// 規則匹配
+function aprFindMatchingRules(stu,type,instId,catId){
+  const rules=DB.config.assignedPiecesRules||[];
+  if(!rules.length)return [];
+  const stuGrade=aprGradeFromClass(stu?.class);
+  return rules.filter(r=>{
+    if(r.types&&r.types.length&&!r.types.includes(type))return false;
+    if(r.instIds&&r.instIds.length&&!r.instIds.includes(instId))return false;
+    if(r.catIds&&r.catIds.length&&!r.catIds.includes(catId))return false;
+    if(r.classes&&r.classes.length&&!r.classes.includes(stu?.class))return false;
+    if(r.grades&&r.grades.length&&!r.grades.includes(stuGrade))return false;
+    if(!r.pieces||!r.pieces.length)return false;
+    return true;
+  });
+}
+
+// 學生端：套用規則並渲染建議區
+function aprApply(type){
+  const box=document.getElementById('r-'+type+'-apr');
+  if(!box)return;
+  const stu=ST.user;if(!stu||stu.role!=='student'){box.innerHTML='';return;}
+  const catId=document.getElementById('r-'+type+'-cat')?.value||'';
+  const instId=document.getElementById('r-'+type+'-inst')?.value||'';
+  if(!instId){box.innerHTML='';return;}
+  const rules=aprFindMatchingRules(stu,type,instId,catId);
+  const allPieces=[];const seen=new Set();
+  rules.forEach(r=>{
+    (r.pieces||[]).forEach(p=>{
+      const key=(p.composer||'')+'|'+(p.title||'');
+      if(seen.has(key))return;
+      seen.add(key);
+      allPieces.push(p);
+    });
+  });
+  if(!allPieces.length){box.innerHTML='';return;}
+  const acEl=document.getElementById('r-'+type+'-ac');
+  const atEl=document.getElementById('r-'+type+'-at');
+  const curAc=acEl?.value||'';
+  const curAt=atEl?.value||'';
+  const html=`<div class="apr-suggest-card">
+    <div class="apr-h">📋 系統偵測到適用此學生的指定曲（請選一首自動帶入）</div>
+    ${allPieces.map((p,idx)=>{
+      const isOn=(p.composer===curAc&&p.title===curAt);
+      return `<label class="${isOn?'on':''}">
+        <input type="radio" name="apr-${type}" ${isOn?'checked':''} onchange="aprPick('${type}',${idx})">
+        <div class="apr-piece">
+          <strong>${(p.title||'').replace(/</g,'&lt;')}</strong>
+          ${p.composer?`<em>${p.composer.replace(/</g,'&lt;')}</em>`:''}
+        </div>
+      </label>`;
+    }).join('')}
+    <div class="apr-clear" onclick="aprClear('${type}')">✕ 清除帶入（手動填寫）</div>
+  </div>`;
+  box.innerHTML=html;
+  box._pieces=allPieces;
+}
+window.aprApply=aprApply;
+
+function aprPick(type,idx){
+  const box=document.getElementById('r-'+type+'-apr');
+  const p=box?._pieces?.[idx];if(!p)return;
+  const acEl=document.getElementById('r-'+type+'-ac');
+  const atEl=document.getElementById('r-'+type+'-at');
+  if(acEl)acEl.value=p.composer||'';
+  if(atEl)atEl.value=p.title||'';
+  aprApply(type);
+}
+window.aprPick=aprPick;
+
+function aprClear(type){
+  const acEl=document.getElementById('r-'+type+'-ac');
+  const atEl=document.getElementById('r-'+type+'-at');
+  if(acEl)acEl.value='';
+  if(atEl)atEl.value='';
+  aprApply(type);
+}
+window.aprClear=aprClear;
+
+// ────── 後台管理：規則 CRUD ──────
+function aprRender(){
+  const list=document.getElementById('apr-rules-list');
+  if(!list)return;
+  const rules=DB.config.assignedPiecesRules||[];
+  if(!rules.length){
+    list.innerHTML='<div style="color:var(--muted);font-size:12px;font-style:italic;padding:12px">尚未設定任何規則。點下方「＋ 新增規則」開始。</div>';
+    return;
+  }
+  const allGrades=Array.from(new Set(DB.classes.map(c=>aprGradeFromClass(c)).filter(Boolean))).sort();
+  list.innerHTML=rules.map((r,idx)=>{
+    const cats=DB.instruments.categories||[];
+    const items=DB.instruments.items||[];
+    const types=[{key:'major',l:'主修'},{key:'minor',l:'副修'},{key:'elective',l:'選修'}];
+    const pillsCat=cats.map(c=>{
+      const on=(r.catIds||[]).includes(c.id);
+      return `<label class="${on?'on':''}"><input type="checkbox" data-rule="${r.id}" data-field="catIds" value="${c.id}" ${on?'checked':''} onchange="aprToggleCond(this)">${c.name}</label>`;
+    }).join('');
+    const pillsInst=items.map(i=>{
+      const on=(r.instIds||[]).includes(i.id);
+      const c=cats.find(x=>x.id===i.cat);
+      return `<label class="${on?'on':''}"><input type="checkbox" data-rule="${r.id}" data-field="instIds" value="${i.id}" ${on?'checked':''} onchange="aprToggleCond(this)">${c?.name?c.name+'-':''}${i.name}</label>`;
+    }).join('');
+    const pillsType=types.map(t=>{
+      const on=(r.types||[]).includes(t.key);
+      return `<label class="${on?'on':''}"><input type="checkbox" data-rule="${r.id}" data-field="types" value="${t.key}" ${on?'checked':''} onchange="aprToggleCond(this)">${t.l}</label>`;
+    }).join('');
+    const pillsClass=DB.classes.map(cls=>{
+      const on=(r.classes||[]).includes(cls);
+      return `<label class="${on?'on':''}"><input type="checkbox" data-rule="${r.id}" data-field="classes" value="${cls}" ${on?'checked':''} onchange="aprToggleCond(this)">${cls}</label>`;
+    }).join('');
+    const pillsGrade=allGrades.map(g=>{
+      const on=(r.grades||[]).includes(g);
+      return `<label class="${on?'on':''}"><input type="checkbox" data-rule="${r.id}" data-field="grades" value="${g}" ${on?'checked':''} onchange="aprToggleCond(this)">${g}年級</label>`;
+    }).join('');
+    const piecesHtml=(r.pieces||[]).map((p,pidx)=>`
+      <div class="apr-piece-row">
+        <input type="text" placeholder="作曲家" value="${(p.composer||'').replace(/"/g,'&quot;')}" style="flex:1" oninput="aprUpdatePiece('${r.id}',${pidx},'composer',this.value)">
+        <input type="text" placeholder="曲目名稱" value="${(p.title||'').replace(/"/g,'&quot;')}" style="flex:2" oninput="aprUpdatePiece('${r.id}',${pidx},'title',this.value)">
+        <button class="apr-del-piece" onclick="aprDelPiece('${r.id}',${pidx})" title="刪除此曲">✕</button>
+      </div>`).join('');
+    return `<div class="apr-rule-row" data-rule-id="${r.id}">
+      <div class="apr-rule-h">
+        <span class="apr-rule-t">規則 #${idx+1}</span>
+        <button class="btn btn-s btn-sm" onclick="aprDelRule('${r.id}')">🗑 刪除規則</button>
+      </div>
+      <div class="apr-cond-grid">
+        <div><div class="apr-cond">大項（空=全部）</div><div class="apr-cond-pills">${pillsCat||'<span style="color:var(--muted);font-size:11px">無大項</span>'}</div></div>
+        <div><div class="apr-cond">樂器（空=全部）</div><div class="apr-cond-pills" style="max-height:80px;overflow-y:auto">${pillsInst||'<span style="color:var(--muted);font-size:11px">無樂器</span>'}</div></div>
+        <div><div class="apr-cond">修別（空=全部）</div><div class="apr-cond-pills">${pillsType}</div></div>
+        <div><div class="apr-cond">班級（空=全部）</div><div class="apr-cond-pills">${pillsClass||'<span style="color:var(--muted);font-size:11px">無班級</span>'}</div></div>
+        <div><div class="apr-cond">年級（空=全部）</div><div class="apr-cond-pills">${pillsGrade||'<span style="color:var(--muted);font-size:11px">無</span>'}</div></div>
+      </div>
+      <div class="apr-pieces">
+        <div class="apr-cond" style="margin-bottom:5px">指定曲（學生會看到此清單，可選一首帶入）</div>
+        ${piecesHtml||'<div style="font-size:11px;color:var(--muted);padding:4px 0">尚無曲目</div>'}
+        <button class="btn btn-s btn-sm" onclick="aprAddPiece('${r.id}')" style="margin-top:5px">＋ 新增曲目</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+window.aprRender=aprRender;
+
+function aprAddRule(){
+  if(!DB.config.assignedPiecesRules)DB.config.assignedPiecesRules=[];
+  DB.config.assignedPiecesRules.push({
+    id:'apr_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+    catIds:[],instIds:[],types:[],classes:[],grades:[],pieces:[{composer:'',title:''}]
+  });
+  aprRender();
+}
+window.aprAddRule=aprAddRule;
+
+function aprDelRule(id){
+  if(!confirm('確定刪除此規則？'))return;
+  DB.config.assignedPiecesRules=(DB.config.assignedPiecesRules||[]).filter(r=>r.id!==id);
+  aprRender();
+}
+window.aprDelRule=aprDelRule;
+
+function aprAddPiece(ruleId){
+  const r=(DB.config.assignedPiecesRules||[]).find(x=>x.id===ruleId);if(!r)return;
+  if(!r.pieces)r.pieces=[];
+  r.pieces.push({composer:'',title:''});
+  aprRender();
+}
+window.aprAddPiece=aprAddPiece;
+
+function aprDelPiece(ruleId,pidx){
+  const r=(DB.config.assignedPiecesRules||[]).find(x=>x.id===ruleId);if(!r)return;
+  r.pieces.splice(pidx,1);
+  aprRender();
+}
+window.aprDelPiece=aprDelPiece;
+
+function aprUpdatePiece(ruleId,pidx,field,val){
+  const r=(DB.config.assignedPiecesRules||[]).find(x=>x.id===ruleId);if(!r)return;
+  if(!r.pieces[pidx])r.pieces[pidx]={};
+  r.pieces[pidx][field]=val;
+}
+window.aprUpdatePiece=aprUpdatePiece;
+
+function aprToggleCond(checkbox){
+  const ruleId=checkbox.dataset.rule;
+  const field=checkbox.dataset.field;
+  const val=checkbox.value;
+  const r=(DB.config.assignedPiecesRules||[]).find(x=>x.id===ruleId);if(!r)return;
+  if(!r[field])r[field]=[];
+  if(checkbox.checked){
+    if(!r[field].includes(val))r[field].push(val);
+  } else {
+    r[field]=r[field].filter(x=>x!==val);
+  }
+  const label=checkbox.closest('label');
+  if(label)label.classList.toggle('on',checkbox.checked);
+}
+window.aprToggleCond=aprToggleCond;
+
+function aprSaveAll(){
+  if(window._aprSaving)return;
+  window._aprSaving=true;
+  setTimeout(()=>{window._aprSaving=false;},2000);
+  const rules=(DB.config.assignedPiecesRules||[]).filter(r=>{
+    if(!r.pieces||!r.pieces.length)return false;
+    const validPieces=r.pieces.filter(p=>(p.composer||'').trim()||(p.title||'').trim());
+    if(!validPieces.length)return false;
+    r.pieces=validPieces;
+    return true;
+  });
+  DB.config.assignedPiecesRules=rules;
+  if(typeof fbSaveConfig==='function'){
+    fbSaveConfig();
+    showToast(`已儲存 ${rules.length} 條指定曲規則 ✓`,'ok');
+  }
+  aprRender();
+}
+window.aprSaveAll=aprSaveAll;
 
 function toggleElective(){
   const on=document.getElementById('r-elec-tog').checked;
@@ -3464,6 +3771,12 @@ function _autoFillRepInstruments(){
     if(u.elec_fc)setV('r-elec-fc',u.elec_fc);
     if(u.elec_ft)setV('r-elec-ft',u.elec_ft);
   }
+  // ★ 載入完成後觸發指定曲規則建議
+  setTimeout(()=>{
+    if(u.major)aprApply('major');
+    if(u.minor)aprApply('minor');
+    if(u.elective)aprApply('elective');
+  },50);
 }
 window.renderRepPage=renderRepPage;
 
@@ -5593,7 +5906,6 @@ function schSaveSchedule(){
 function _buildFilteredEntries(roomId){
   let entries=getScheduleEntries();
   // ★ 修正：依 roomId 取對應考場的 state（不再只看當前 SCH_STATE）
-  // 如此 saveStuRoomModal 加到「其他考場」的 extraEntries 也能讀到
   const isCurRoom=(SCH_STATE.roomId===roomId);
   const targetState=isCurRoom?SCH_STATE:(_SCH_ROOM_STATES[roomId]||{});
   const targetExtra=targetState.extraEntries||[];
@@ -5601,10 +5913,12 @@ function _buildFilteredEntries(roomId){
   const targetRemoved=targetRemovedRaw instanceof Set?targetRemovedRaw:new Set(Array.isArray(targetRemovedRaw)?targetRemovedRaw:[]);
 
   entries=entries.filter(e=>!targetRemoved.has(e.studentId+'_'+e.type));
+  // ★ 把 entry 的 roomId 都改寫為目標 roomId（不再 = SCH_STATE.roomId）
+  entries.forEach(e=>{e.roomId=roomId;});
   targetExtra.forEach(ex=>{
     const key=ex.studentId+'_'+ex.type;
     if(targetRemoved.has(key))return;
-    const alreadyIn=entries.some(e=>e.studentId===ex.studentId&&e.type===ex.type&&e.roomId===roomId);
+    const alreadyIn=entries.some(e=>e.studentId===ex.studentId&&e.type===ex.type);
     if(alreadyIn)return;
     const stu=DB.users.find(u=>u.id===ex.studentId);if(!stu)return;
     const inst=stu[ex.type]?DB.instruments.items.find(i=>i.id===stu[ex.type]):null;
@@ -5619,25 +5933,30 @@ function _buildFilteredEntries(roomId){
       instId:inst?.id||'',instName:inst?iname(inst.id):'（無樂器）',catId:inst?.cat||'',
       type:ex.type,typeOrder:{major:0,minor:1,elective:2}[ex.type],
       ac:stu[acKey]||'',at:stu[atKey]||'',fc:stu[fcKey]||'',ft:stu[ftKey]||'',
-      roomId:ex.roomId||roomId,roomName:room?.name||'—',roomLocation:room?.location||'',order:0,
+      roomId:roomId,roomName:room?.name||'—',roomLocation:room?.location||'',order:0,
       _extra:true,_forceInclude:true,
     });
   });
-  // ★ 過濾：只留下指派到此考場的 entries（getScheduleEntries 可能含其他考場）
-  entries=entries.filter(e=>e.roomId===roomId);
-  const activeCats=new Set(SCH_STATE.catOrder.filter(c=>c.active).map(c=>c.id));
-  if(activeCats.size)entries=entries.filter(e=>activeCats.has(e.catId));
-  const activeInsts=new Set(SCH_STATE.instOrder.filter(i=>i.active).map(i=>i.id));
-  if(activeInsts.size)entries=entries.filter(e=>activeInsts.has(e.instId));
-  const activeTypes=new Set(SCH_STATE.typeOrder.filter(t=>t.active).map(t=>t.key));
-  entries=entries.filter(e=>activeTypes.has(e.type));
-  const activeClasses=new Set(SCH_STATE.classOrder.filter(c=>c.active).map(c=>c.cls));
-  if(activeClasses.size)entries=entries.filter(e=>activeClasses.has(e.class));
-  const rules=SCH_STATE.excludeRules||[];
-  if(rules.length){
+  // ★ 修正核心：用目標考場（targetState）的篩選條件，而非 SCH_STATE 的
+  const tCatOrder=targetState.catOrder||[];
+  const tInstOrder=targetState.instOrder||[];
+  const tTypeOrder=targetState.typeOrder||SCH_STATE.typeOrder||[];
+  const tClassOrder=targetState.classOrder||[];
+  const tExcludeRules=targetState.excludeRules||[];
+
+  const activeCats=new Set(tCatOrder.filter(c=>c.active).map(c=>c.id));
+  if(activeCats.size)entries=entries.filter(e=>e._forceInclude||activeCats.has(e.catId));
+  const activeInsts=new Set(tInstOrder.filter(i=>i.active).map(i=>i.id));
+  if(activeInsts.size)entries=entries.filter(e=>e._forceInclude||activeInsts.has(e.instId));
+  const activeTypes=new Set(tTypeOrder.filter(t=>t.active).map(t=>t.key));
+  if(activeTypes.size)entries=entries.filter(e=>e._forceInclude||activeTypes.has(e.type));
+  const activeClasses=new Set(tClassOrder.filter(c=>c.active).map(c=>c.cls));
+  if(activeClasses.size)entries=entries.filter(e=>e._forceInclude||activeClasses.has(e.class));
+  if(tExcludeRules.length){
     entries=entries.filter(e=>{
+      if(e._forceInclude)return true;
       const stu=DB.users.find(u=>u.id===e.studentId)||{};
-      return !rules.some(r=>{
+      return !tExcludeRules.some(r=>{
         const matchCls=!r.cls||r.cls===e.class;
         if(!matchCls)return false;
         if(!r.catId&&!r.type)return true;
@@ -7048,6 +7367,7 @@ function fbSaveConfig(){
     bulletin:DB.config.bulletin||{student:'',teacher:''},
     examRules:DB.config.examRules||{classical:'',pop:''},
     assignedPieces:DB.config.assignedPieces||'',
+    assignedPiecesRules:DB.config.assignedPiecesRules||[],
   });
 }
 function saveTiming(){fbSaveConfig();showToast('時間設定已儲存 ✓','ok');}
@@ -8986,7 +9306,7 @@ function swAdminTab(key,el){
   el.classList.add('on');document.getElementById('at-'+key)?.classList.add('on');
   if(key==='jurysignup')renderJsupAdminPanel();
   // ★ 切換到內容設定 tab 時初始化富文字編輯器
-  if(key==='content')setTimeout(erInitAdminEditors,50);
+  if(key==='content'){setTimeout(erInitAdminEditors,50);setTimeout(aprRender,80);}
 }
 function swUserTab(key,el){
   document.querySelectorAll('#user-sub-tabs .tab').forEach(t=>t.classList.remove('on'));
