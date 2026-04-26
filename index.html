@@ -200,7 +200,7 @@ td{padding:9px 12px;font-size:13px;vertical-align:middle}
 .isb-b{padding:14px;background:var(--white)}
 
 /* MODAL */
-.overlay{position:fixed;inset:0;background:rgba(24,21,15,.65);z-index:5000;display:flex;align-items:center;justify-content:center;opacity:0;visibility:hidden;transition:all .3s}
+.overlay{position:fixed;inset:0;background:rgba(24,21,15,.65);z-index:10000;display:flex;align-items:center;justify-content:center;opacity:0;visibility:hidden;transition:all .3s}
 .overlay.on{opacity:1;visibility:visible}
 .modal{background:var(--paper);padding:26px;border-radius:var(--r);box-shadow:0 0 0 1px var(--gold),0 20px 60px rgba(0,0,0,.4);transform:translateY(16px);transition:transform .3s;max-height:90vh;overflow-y:auto;width:540px;max-width:96vw}
 .overlay.on .modal{transform:translateY(0)}
@@ -5968,23 +5968,52 @@ window.adminStuFilterClass=adminStuFilterClass;
 // ★ 後台學生考場調整 Modal
 function openStuRoomModal(stuId){
   const s=DB.users.find(u=>u.id===stuId);if(!s)return;
-  // 找該生目前在各考場快照中的狀態
-  const snap=DB.savedScheduleSnapshot||{};
+  // 找該生目前在各考場的狀態
   const inRooms={major:new Set(),minor:new Set(),elective:new Set()};
+
+  // ── 來源 1：savedScheduleSnapshot（已存檔的） ──
+  const snap=DB.savedScheduleSnapshot||{};
   Object.entries(snap).forEach(([roomId,entries])=>{
     (entries||[]).forEach(e=>{if(e.studentId===stuId)inRooms[e.type]?.add(roomId);});
   });
-  // ★ 同步查 SCH_STATE extraEntries（排程頁的手動加入）
+
+  // ── 來源 2：_SCH_ROOM_STATES extraEntries（手動加入但未存檔） ──
   Object.entries(_SCH_ROOM_STATES).forEach(([roomId,st])=>{
     (st.extraEntries||[]).forEach(ex=>{
       if(ex.studentId===stuId&&inRooms[ex.type])inRooms[ex.type].add(roomId);
     });
+    // removedEntries：手動移除的
+    const removed=st.removedEntries instanceof Set?st.removedEntries:new Set(st.removedEntries||[]);
+    ['major','minor','elective'].forEach(t=>{
+      if(removed.has(stuId+'_'+t))inRooms[t].delete(roomId);
+    });
   });
+  // 當前 SCH_STATE 也檢查
   (SCH_STATE.extraEntries||[]).forEach(ex=>{
     if(ex.studentId===stuId&&inRooms[ex.type])inRooms[ex.type].add(ex.roomId||SCH_STATE.roomId||'');
   });
+  ['major','minor','elective'].forEach(t=>{
+    if(SCH_STATE.removedEntries?.has?.(stuId+'_'+t)&&SCH_STATE.roomId){
+      inRooms[t].delete(SCH_STATE.roomId);
+    }
+  });
 
-  // ★ 修正：顯示全部三個修別（含無樂器的），不篩掉無樂器的修別
+  // ── 來源 3 ★ 修正：自動篩選計算（這個學生依規則會被分到哪些考場）──
+  //    這對於「尚未按排程儲存」的情況很重要——若不算這個，自動分配的考場都不會勾選
+  if(typeof _buildFilteredEntries==='function'){
+    DB.rooms.forEach(room=>{
+      try{
+        const entries=_buildFilteredEntries(room.id);
+        entries.forEach(e=>{
+          if(e.studentId===stuId&&inRooms[e.type]){
+            inRooms[e.type].add(room.id);
+          }
+        });
+      }catch(err){/* 某考場狀態未初始化等錯誤，略過 */}
+    });
+  }
+
+  // ★ 修正：顯示全部三個修別（含無樂器的）
   const ALL_TYPES=[
     {t:'major', l:'主修', inst:s.major},
     {t:'minor', l:'副修', inst:s.minor},
