@@ -2822,6 +2822,26 @@ function loadAllFromFirebase(done, lightMode){
       // 向下相容舊版 snapshot
       try{DB.savedScheduleSnapshot=JSON.parse(snapDoc.data);}catch(e){}
     }
+    // ★ 修正：載入後自動去重（清理「同一學生同一修別在多考場」的歷史殘留資料）
+    try{
+      if(DB.savedScheduleSnapshot){
+        const seen=new Set();
+        let dupCount=0;
+        Object.keys(DB.savedScheduleSnapshot).forEach(roomId=>{
+          const arr=DB.savedScheduleSnapshot[roomId]||[];
+          DB.savedScheduleSnapshot[roomId]=arr.filter(e=>{
+            const key=e.studentId+'_'+e.type;
+            if(seen.has(key)){dupCount++;return false;}
+            seen.add(key);
+            return true;
+          });
+        });
+        if(dupCount>0){
+          console.log('[snapshot] 自動清理',dupCount,'筆重複學生分配（同一修別出現在多考場）');
+          // 註：不立即寫回 Firebase，等下次 schSaveSchedule 觸發時會自動覆蓋
+        }
+      }
+    }catch(e){console.warn('[snapshot] 去重失敗',e);}
 
     // — juryScores（非 lightMode 才讀，且用 REST 模式直接並行） —
     if(!lightMode && window._FB){
@@ -5470,21 +5490,57 @@ function schSaveSchedule(){
     const snapshot={};
     const _origRoomId=SCH_STATE.roomId;
     _saveRoomState(_origRoomId);
+    // ★ 修正：先收集每個考場的 candidate entries
+    const allCandidates={}; // {roomId: entries[]}
     DB.rooms.forEach(room=>{
       SCH_STATE.roomId=room.id;
       _loadRoomState(room.id);
-      const prevEntries=_buildFilteredEntries(room.id);
-      snapshot[room.id]=prevEntries.map((e,idx)=>({
+      allCandidates[room.id]=_buildFilteredEntries(room.id);
+    });
+    SCH_STATE.roomId=_origRoomId;
+    _loadRoomState(_origRoomId);
+
+    // ★ 修正：去重——每個 (studentId, type) 只能屬於「第一個匹配」的考場
+    // 順序：(1) 手動指定的（_extra/_forceInclude）優先
+    //      (2) 否則依 DB.rooms 的 _order 取第一個
+    const claimed=new Set(); // 'studentId_type' 已被分配
+    const orderedRooms=DB.rooms.slice(); // 已是 _order 排序
+
+    // 第一輪：先處理「手動加入」的考場（_extra=true）
+    orderedRooms.forEach(room=>{
+      (allCandidates[room.id]||[]).forEach(e=>{
+        if(!e._extra&&!e._forceInclude)return;
+        const key=e.studentId+'_'+e.type;
+        if(claimed.has(key))return;
+        claimed.add(key);
+        if(!snapshot[room.id])snapshot[room.id]=[];
+        snapshot[room.id].push(e);
+      });
+    });
+    // 第二輪：依考場順序處理自動篩選的學生
+    orderedRooms.forEach(room=>{
+      (allCandidates[room.id]||[]).forEach(e=>{
+        if(e._extra||e._forceInclude)return; // 已在第一輪處理
+        const key=e.studentId+'_'+e.type;
+        if(claimed.has(key))return;
+        claimed.add(key);
+        if(!snapshot[room.id])snapshot[room.id]=[];
+        snapshot[room.id].push(e);
+      });
+    });
+    // 排序與重新編號：每個考場內依原本 entries 的順序
+    Object.keys(snapshot).forEach(roomId=>{
+      snapshot[roomId]=snapshot[roomId].map((e,idx)=>({
         entryKey:e.studentId+'_'+e.type,
         studentId:e.studentId,name:e.name,class:e.class,seat:e.seat,
         instId:e.instId,instName:e.instName,catId:e.catId,
         type:e.type,order:idx+1,
         ac:e.ac,at:e.at,fc:e.fc,ft:e.ft,
-        roomId:e.roomId,roomName:e.roomName,roomLocation:e.roomLocation,
+        roomId:roomId,
+        roomName:DB.rooms.find(r=>r.id===roomId)?.name||'—',
+        roomLocation:DB.rooms.find(r=>r.id===roomId)?.location||'',
       }));
     });
-    SCH_STATE.roomId=_origRoomId;
-    _loadRoomState(_origRoomId);
     DB.savedScheduleSnapshot=snapshot;
 
     // ★ 修正 #E3：空排程警告
