@@ -669,8 +669,11 @@ tbody td{color:var(--ink)!important}
   // liveExam 輪詢
   window._startLiveExamListener = function(){
     if(!window._FB)return;
+    // ★ 修正：ST 定義在另一個 IIFE 內，須透過 window.ST 訪問
+    const ST=window.ST;
+    if(!ST)return;
     if(ST.role==='student')return;
-    if(window._pollTimers.live){return;} // 已啟動，不重複
+    if(window._pollTimers.live){return;}
     async function pollLive(){
       if(document.hidden)return;
       try{
@@ -678,13 +681,13 @@ tbody td{color:var(--ink)!important}
         let changed = false;
         docs.forEach(d => {
           const {id, ...rest} = d;
-          if(JSON.stringify(DB.liveExam[id]) !== JSON.stringify(rest)){
-            DB.liveExam[id] = rest; changed = true;
+          if(JSON.stringify(window.DB.liveExam[id]) !== JSON.stringify(rest)){
+            window.DB.liveExam[id] = rest; changed = true;
           }
         });
         if(changed){
-          if(document.getElementById('pg-jury')?.classList.contains('on'))renderJuryTable();
-          if(document.getElementById('pg-invigilator')?.classList.contains('on'))_patchInvigLive();
+          if(document.getElementById('pg-jury')?.classList.contains('on')&&typeof renderJuryTable==='function')renderJuryTable();
+          if(document.getElementById('pg-invigilator')?.classList.contains('on')&&typeof window._patchInvigLive==='function')window._patchInvigLive();
         }
       }catch(e){}
     }
@@ -695,39 +698,54 @@ tbody td{color:var(--ink)!important}
 
   window._startJuryListener = function(){
     if(!window._FB)return;
+    // ★ 修正：ST 定義在另一個 IIFE 內，須透過 window.ST 訪問
+    const ST=window.ST;
+    if(!ST)return; // 未登入時略過
+    // ★ 改進 C：評審角色完全停用輪詢（評審只需要評自己的，不需看別人即時分數）
+    if(ST.role==='jury')return;
+    // 學生、監考也不需要
     if(ST.role==='student'||ST.role==='invigilator')return;
+    // 只剩下 admin（看成績彙整 / 評審頁）
     if(window._pollTimers.jury){return;}
     async function pollJury(){
       if(document.hidden)return;
       const resultsOn=document.getElementById('pg-results')?.classList.contains('on');
       const juryOn=document.getElementById('pg-jury')?.classList.contains('on');
-      if(!resultsOn&&!juryOn&&ST.role!=='jury')return;
+      // 沒在看相關頁面就跳過
+      if(!resultsOn&&!juryOn)return;
+      // ★ 改進 A：管理員只讀「目前查看的考場」(result-room 下拉值，或 jury-admin 選的考場)
+      let targetRoomId='';
+      if(resultsOn){
+        targetRoomId=document.getElementById('result-room')?.value||'';
+      } else if(juryOn){
+        targetRoomId=ST._adminJuryRoomId||'';
+      }
+      // 都沒選的話，預設拿第一個考場（不再讀全部）
+      if(!targetRoomId&&window.DB?.rooms?.length){
+        targetRoomId=window.DB.rooms[0].id;
+      }
+      if(!targetRoomId)return;
       try{
-        // ★ 修正 R7：並行讀取所有考場（原本串行 5 考場 = 5x 等待）
-        const results=await Promise.all(DB.rooms.map(room=>
-          _fsList('juryScores/'+room.id+'/entries').then(docs=>({roomId:room.id,docs})).catch(()=>({roomId:room.id,docs:[]}))
-        ));
+        const docs=await _fsList('juryScores/'+targetRoomId+'/entries');
+        if(!window.DB.juryScores[targetRoomId])window.DB.juryScores[targetRoomId]={};
         let changed=false;
-        results.forEach(({roomId,docs})=>{
-          if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
-          docs.forEach(d=>{
-            const {id,...rest}=d;
-            // ★ 只在有實際差異時才標記 changed（避免無謂重渲染）
-            if(JSON.stringify(DB.juryScores[roomId][id])!==JSON.stringify(rest)){
-              DB.juryScores[roomId][id]=rest;
-              changed=true;
-            }
-          });
+        docs.forEach(d=>{
+          const {id,...rest}=d;
+          if(JSON.stringify(window.DB.juryScores[targetRoomId][id])!==JSON.stringify(rest)){
+            window.DB.juryScores[targetRoomId][id]=rest;
+            changed=true;
+          }
         });
         if(changed){
-          if(resultsOn)renderResults();
-          if(juryOn&&ST.role==='admin')renderJuryTable();
+          if(resultsOn&&typeof renderResults==='function')renderResults();
+          if(juryOn&&typeof renderJuryTable==='function')renderJuryTable();
         }
       }catch(e){}
     }
-    const interval=(ST.role==='jury')?10000:30000;
+    // ★ 拉長到 60 秒（管理員看彙整不需要那麼即時）
+    const interval=60000;
     pollJury();
-    window._pollTimers.jury = {fn:pollJury, interval, id:setInterval(pollJury,interval)};
+    window._pollTimers.jury={fn:pollJury,interval,id:setInterval(pollJury,interval)};
   };
 
   // ★ 局部更新監考表格
@@ -2133,6 +2151,7 @@ window.DB = DB; // expose to Firebase callbacks
 const ST = {user:null,role:null,juryRoom:null,juryName:'',juryId:'',
   npTarget:null,npVal:'',npCallback:null,isOnline:navigator.onLine,
   invigRoom:null,invigName:'',_remarkFilterOn:false};
+window.ST = ST; // ★ 修正：暴露 ST 給其他 IIFE（如 Firebase 輪詢）使用
 
 // ★ #8 管理員重整不登出：從 sessionStorage 恢復登入狀態
 (function restoreAdminSession(){
@@ -2322,28 +2341,45 @@ function doJuryDirectLogin(){
       }
       return;
     }
+    console.log('[jury login] 找到考場:',room.name,'(id=',room.id,', code=',room.code,')');
     ST.juryRoom=room;
     try{
       const savedJury=localStorage.getItem('_jurySession_'+room.id);
       if(savedJury){
         const sess=JSON.parse(savedJury);
-        if(sess.juryId&&sess.name){
-          if(confirm(`偵測到先前在此考場登入過：「${sess.name}」\n\n要繼續使用此身分嗎？\n（取消 = 重新輸入姓名）`)){
+        // ★ 修正：只在 12 小時內的 session 才提示恢復；超過視為過期，直接走新登入
+        const ageMs=Date.now()-(sess.savedAt||0);
+        const ageOk=ageMs<12*3600*1000;
+        if(sess.juryId&&sess.name&&ageOk){
+          console.log('[jury login] 偵測到 12hr 內的舊 session:',sess.name,'asking confirm');
+          if(confirm(`偵測到先前在此考場登入過：「${sess.name}」\n\n要繼續使用此身分嗎？\n\n[確定] = 用「${sess.name}」繼續評分\n[取消] = 重新輸入姓名`)){
             ST.juryId=sess.juryId;ST.juryName=sess.name;ST.role='jury';
             ST.user={id:ST.juryId,name:sess.name,role:'jury'};
+            console.log('[jury login] 沿用舊身分，啟動 launchApp');
             launchApp();return;
           }
+          console.log('[jury login] 使用者選擇重新輸入');
+        } else if(sess&&!ageOk){
+          console.log('[jury login] 舊 session 已過期（>12hr），清除');
+          try{localStorage.removeItem('_jurySession_'+room.id);}catch(e){}
         }
       }
-    }catch(e){}
+    }catch(e){console.warn('[jury login] localStorage 讀取失敗',e);}
+    console.log('[jury login] 開啟姓名輸入對話框');
     document.getElementById('jn-name').value='';
     document.getElementById('jn-err').textContent='';
     const nameEl=document.getElementById('jn-room-name');
     const locEl=document.getElementById('jn-room-loc');
     if(nameEl)nameEl.textContent=room.name;
     if(locEl)locEl.textContent=room.location?('📍 '+room.location):'';
-    openOverlay('jury-name-modal');
-    setTimeout(()=>document.getElementById('jn-name').focus(),200);
+    const modal=document.getElementById('jury-name-modal');
+    if(!modal){
+      errEl.textContent='系統錯誤：找不到姓名對話框元件';
+      console.error('[jury login] 找不到 #jury-name-modal 元素');
+      return;
+    }
+    modal.classList.add('on');
+    setTimeout(()=>document.getElementById('jn-name')?.focus(),200);
   }
 
   // ★ 修正：先檢查記憶體（preloadUsersForLogin 應已載入 rooms）
@@ -2870,6 +2906,21 @@ function launchApp(){
           if(window._startJuryListener)window._startJuryListener();
           if(window._startLiveExamListener)window._startLiveExamListener();
         },500);
+        // ★ 改進 A+C：評審進場時一次性讀取自己考場的歷史分數（不啟動輪詢）
+        if(ST.role==='jury'&&ST.juryRoom?.id&&window._FB){
+          setTimeout(async()=>{
+            try{
+              const roomId=ST.juryRoom.id;
+              if(typeof _fsList==='function'){
+                const docs=await _fsList('juryScores/'+roomId+'/entries');
+                if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
+                docs.forEach(d=>{const{id,...rest}=d;DB.juryScores[roomId][id]=rest;});
+                if(document.getElementById('pg-jury')?.classList.contains('on'))renderJuryTable();
+                console.log('[jury] 已載入考場',roomId,'的歷史分數，共',docs.length,'筆');
+              }
+            }catch(e){console.warn('[jury] 歷史分數載入失敗',e);}
+          },800);
+        }
         // ★ 修正 #O2：進入頁面時若已連線且有 pending，主動 sync 一次
         setTimeout(()=>{
           if(navigator.onLine&&window._FB&&typeof syncPendingToFirebase==='function'){
