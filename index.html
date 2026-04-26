@@ -5451,6 +5451,7 @@ function schSaveSchedule(){
         seatDir:st.seatDir,
         extraEntries:st.extraEntries,
         removedEntries:[...st.removedEntries],
+        excludeRules:st.excludeRules||[],  // ★ 修正：加入排除規則（原本漏掉導致重整消失）
       };
     });
     const curId=SCH_STATE.roomId;
@@ -5463,6 +5464,7 @@ function schSaveSchedule(){
         seatDir:SCH_STATE.seatDir,
         extraEntries:[...SCH_STATE.extraEntries],
         removedEntries:[...SCH_STATE.removedEntries],
+        excludeRules:[...(SCH_STATE.excludeRules||[])],  // ★ 修正：當前考場的排除規則
       };
     }
     const snapshot={};
@@ -5638,6 +5640,7 @@ function _applyScheduleState(data){
       classOrder:st.classOrder||[],seatDir:st.seatDir||1,
       extraEntries:st.extraEntries||[],
       removedEntries:new Set(st.removedEntries||[]),
+      excludeRules:st.excludeRules||[],  // ★ 修正：還原排除規則
     };
   });
   // 重新載入目前考場狀態（不在此 render，由 launchApp 的 renderAll 統一處理）
