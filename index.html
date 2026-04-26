@@ -5974,13 +5974,35 @@ function openStuRoomModal(stuId){
   // 找該生目前在各考場的狀態
   const inRooms={major:new Set(),minor:new Set(),elective:new Set()};
 
-  // ── 來源 1：savedScheduleSnapshot（已存檔的） ──
+  // ── 來源 1（最權威）：savedScheduleSnapshot ──
+  // 已按下「儲存排程」後產生的實際分配，每個 type 只在一個考場出現
   const snap=DB.savedScheduleSnapshot||{};
-  Object.entries(snap).forEach(([roomId,entries])=>{
-    (entries||[]).forEach(e=>{if(e.studentId===stuId)inRooms[e.type]?.add(roomId);});
-  });
+  const hasSnap=Object.values(snap).some(arr=>arr&&arr.length>0);
+  if(hasSnap){
+    Object.entries(snap).forEach(([roomId,entries])=>{
+      (entries||[]).forEach(e=>{if(e.studentId===stuId)inRooms[e.type]?.add(roomId);});
+    });
+  } else {
+    // ── Fallback：未存檔時用即時預測，每個 type 取第一個匹配的考場（避免重複勾選）──
+    if(typeof _buildFilteredEntries==='function'){
+      const foundTypes=new Set();
+      DB.rooms.forEach(room=>{
+        try{
+          const entries=_buildFilteredEntries(room.id);
+          entries.forEach(e=>{
+            // 同一 type 已找到匹配考場就跳過（避免一個修別勾多個考場）
+            const key=e.studentId+'_'+e.type;
+            if(e.studentId===stuId&&!foundTypes.has(key)&&inRooms[e.type]){
+              inRooms[e.type].add(room.id);
+              foundTypes.add(key);
+            }
+          });
+        }catch(err){}
+      });
+    }
+  }
 
-  // ── 來源 2：_SCH_ROOM_STATES extraEntries（手動加入但未存檔） ──
+  // ── 來源 2：手動加入（extraEntries）— 永遠加入，覆蓋自動分配 ──
   Object.entries(_SCH_ROOM_STATES).forEach(([roomId,st])=>{
     (st.extraEntries||[]).forEach(ex=>{
       if(ex.studentId===stuId&&inRooms[ex.type])inRooms[ex.type].add(roomId);
@@ -5991,7 +6013,7 @@ function openStuRoomModal(stuId){
       if(removed.has(stuId+'_'+t))inRooms[t].delete(roomId);
     });
   });
-  // 當前 SCH_STATE 也檢查
+  // 當前 SCH_STATE
   (SCH_STATE.extraEntries||[]).forEach(ex=>{
     if(ex.studentId===stuId&&inRooms[ex.type])inRooms[ex.type].add(ex.roomId||SCH_STATE.roomId||'');
   });
@@ -6000,21 +6022,6 @@ function openStuRoomModal(stuId){
       inRooms[t].delete(SCH_STATE.roomId);
     }
   });
-
-  // ── 來源 3 ★ 修正：自動篩選計算（這個學生依規則會被分到哪些考場）──
-  //    這對於「尚未按排程儲存」的情況很重要——若不算這個，自動分配的考場都不會勾選
-  if(typeof _buildFilteredEntries==='function'){
-    DB.rooms.forEach(room=>{
-      try{
-        const entries=_buildFilteredEntries(room.id);
-        entries.forEach(e=>{
-          if(e.studentId===stuId&&inRooms[e.type]){
-            inRooms[e.type].add(room.id);
-          }
-        });
-      }catch(err){/* 某考場狀態未初始化等錯誤，略過 */}
-    });
-  }
 
   // ★ 修正：顯示全部三個修別（含無樂器的）
   const ALL_TYPES=[
