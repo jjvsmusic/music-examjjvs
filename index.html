@@ -5946,10 +5946,20 @@ function _buildFilteredEntries(roomId){
       });
     });
   }
-  const catIndexOf=catId=>SCH_STATE.catOrder.findIndex(c=>c.id===catId);
-  const instIndexOf=id=>SCH_STATE.instOrder.findIndex(i=>i.id===id);
-  const typeIndexOf=key=>SCH_STATE.typeOrder.findIndex(t=>t.key===key);
-  const classIndexOf=cls=>{const i=SCH_STATE.classOrder.findIndex(c=>c.cls===cls);return i>=0?i:999;};
+  // ★ 修正：排序也用 targetState（與篩選一致），否則跨考場呼叫時用錯狀態
+  const sortCatOrder=targetState.catOrder||SCH_STATE.catOrder||[];
+  const sortInstOrder=targetState.instOrder||SCH_STATE.instOrder||[];
+  const sortTypeOrder=targetState.typeOrder||SCH_STATE.typeOrder||[
+    {key:'major',label:'主修',active:true},
+    {key:'minor',label:'副修',active:true},
+    {key:'elective',label:'選修',active:true}
+  ];
+  const sortClassOrder=targetState.classOrder||SCH_STATE.classOrder||[];
+  const sortSeatDir=targetState.seatDir||SCH_STATE.seatDir||1;
+  const catIndexOf=catId=>{const i=sortCatOrder.findIndex(c=>c.id===catId);return i>=0?i:999;};
+  const instIndexOf=id=>{const i=sortInstOrder.findIndex(it=>it.id===id);return i>=0?i:999;};
+  const typeIndexOf=key=>{const i=sortTypeOrder.findIndex(t=>t.key===key);return i>=0?i:({major:0,minor:1,elective:2}[key]??99);};
+  const classIndexOf=cls=>{const i=sortClassOrder.findIndex(c=>c.cls===cls);return i>=0?i:999;};
   // ★ 修正：優先使用使用者拖曳的順序（manualOrder）
   const manualOrder=targetState.manualOrder||[];
   if(manualOrder.length){
@@ -5964,7 +5974,7 @@ function _buildFilteredEntries(roomId){
       const di=instIndexOf(a.instId)-instIndexOf(b.instId);if(di!==0)return di;
       const dt=typeIndexOf(a.type)-typeIndexOf(b.type);if(dt!==0)return dt;
       const dcl=classIndexOf(a.class)-classIndexOf(b.class);if(dcl!==0)return dcl;
-      return (a.seat-b.seat)*(SCH_STATE.seatDir||1);
+      return (a.seat-b.seat)*sortSeatDir;
     });
   } else {
     entries.sort((a,b)=>{
@@ -5972,7 +5982,7 @@ function _buildFilteredEntries(roomId){
       const di=instIndexOf(a.instId)-instIndexOf(b.instId);if(di!==0)return di;
       const dt=typeIndexOf(a.type)-typeIndexOf(b.type);if(dt!==0)return dt;
       const dcl=classIndexOf(a.class)-classIndexOf(b.class);if(dcl!==0)return dcl;
-      return (a.seat-b.seat)*SCH_STATE.seatDir;
+      return (a.seat-b.seat)*sortSeatDir;
     });
   }
   return entries;
