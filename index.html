@@ -5304,7 +5304,6 @@ function _makeDefaultSchState(){
 let SCH_STATE=_makeDefaultSchState();
 
 function _saveRoomState(roomId){
-  // 儲存目前篩選狀態到該考場的 slot（deep copy，Set 轉 Array）
   const key=roomId||'__all__';
   _SCH_ROOM_STATES[key]={
     catOrder:SCH_STATE.catOrder.map(c=>({...c})),
@@ -5315,6 +5314,7 @@ function _saveRoomState(roomId){
     extraEntries:[...SCH_STATE.extraEntries],
     removedEntries:new Set(SCH_STATE.removedEntries),
     excludeRules:[...(SCH_STATE.excludeRules||[])],
+    manualOrder:[...(SCH_STATE.manualOrder||[])],  // ★ 保留手動排序
   };
 }
 function _loadRoomState(roomId){
@@ -5329,9 +5329,12 @@ function _loadRoomState(roomId){
     SCH_STATE.extraEntries=[...saved.extraEntries];
     SCH_STATE.removedEntries=new Set(saved.removedEntries);
     SCH_STATE.excludeRules=[...(saved.excludeRules||[])];
-    return true; // 有存檔
+    SCH_STATE.manualOrder=[...(saved.manualOrder||[])];  // ★ 還原手動排序
+    return true;
   }
-  return false; // 新考場，需重新初始化
+  // 新考場：清掉舊 manualOrder
+  SCH_STATE.manualOrder=[];
+  return false;
 }
 
 function schSelectRoom(roomId,btn){
@@ -5720,25 +5723,45 @@ function renderSchedule(){
     });
   }
 
-  // 7. 五層排序：①大項 →②樂器 →③修別 →④班級 →⑤座號
+  // 7. 五層排序：①大項 →②樂器 →③修別 →④班級 →⑤座號（若有 manualOrder 則優先用）
   const catIndexOf=catId=>SCH_STATE.catOrder.findIndex(c=>c.id===catId);
   const instIndexOf=id=>SCH_STATE.instOrder.findIndex(i=>i.id===id);
   const typeIndexOf=key=>SCH_STATE.typeOrder.findIndex(t=>t.key===key);
   const classIndexOf=cls=>{const i=SCH_STATE.classOrder.findIndex(c=>c.cls===cls);return i>=0?i:999;};
-  entries.sort((a,b)=>{
-    const instA=DB.instruments.items.find(i=>i.id===a.instId);
-    const instB=DB.instruments.items.find(i=>i.id===b.instId);
-    // ① 樂器大項（依 catOrder 排序）
-    const dc=catIndexOf(instA?.cat||'')-catIndexOf(instB?.cat||'');if(dc!==0)return dc;
-    // ② 樂器別（依 instOrder 排序）
-    const di=instIndexOf(a.instId)-instIndexOf(b.instId);if(di!==0)return di;
-    // ③ 修別
-    const dt=typeIndexOf(a.type)-typeIndexOf(b.type);if(dt!==0)return dt;
-    // ④ 班級
-    const dcl=classIndexOf(a.class)-classIndexOf(b.class);if(dcl!==0)return dcl;
-    // ⑤ 座號
-    return (a.seat-b.seat)*SCH_STATE.seatDir;
-  });
+  // ★ 修正：優先使用使用者拖曳的順序（manualOrder）
+  const manualOrder=SCH_STATE.manualOrder||[];
+  if(manualOrder.length){
+    const manualIdx=new Map(manualOrder.map((k,i)=>[k,i]));
+    entries.sort((a,b)=>{
+      const ka=a.studentId+'_'+a.type, kb=b.studentId+'_'+b.type;
+      const ia=manualIdx.has(ka)?manualIdx.get(ka):999999;
+      const ib=manualIdx.has(kb)?manualIdx.get(kb):999999;
+      if(ia!==ib)return ia-ib;
+      // 不在 manualOrder 中的（新加入的）依五層排序
+      const instA=DB.instruments.items.find(i=>i.id===a.instId);
+      const instB=DB.instruments.items.find(i=>i.id===b.instId);
+      const dc=catIndexOf(instA?.cat||'')-catIndexOf(instB?.cat||'');if(dc!==0)return dc;
+      const di=instIndexOf(a.instId)-instIndexOf(b.instId);if(di!==0)return di;
+      const dt=typeIndexOf(a.type)-typeIndexOf(b.type);if(dt!==0)return dt;
+      const dcl=classIndexOf(a.class)-classIndexOf(b.class);if(dcl!==0)return dcl;
+      return (a.seat-b.seat)*(SCH_STATE.seatDir||1);
+    });
+  } else {
+    entries.sort((a,b)=>{
+      const instA=DB.instruments.items.find(i=>i.id===a.instId);
+      const instB=DB.instruments.items.find(i=>i.id===b.instId);
+      // ① 樂器大項（依 catOrder 排序）
+      const dc=catIndexOf(instA?.cat||'')-catIndexOf(instB?.cat||'');if(dc!==0)return dc;
+      // ② 樂器別（依 instOrder 排序）
+      const di=instIndexOf(a.instId)-instIndexOf(b.instId);if(di!==0)return di;
+      // ③ 修別
+      const dt=typeIndexOf(a.type)-typeIndexOf(b.type);if(dt!==0)return dt;
+      // ④ 班級
+      const dcl=classIndexOf(a.class)-classIndexOf(b.class);if(dcl!==0)return dcl;
+      // ⑤ 座號
+      return (a.seat-b.seat)*SCH_STATE.seatDir;
+    });
+  }
 
   entries.forEach((e,i)=>e._displayOrder=i+1);
   const titleEl=document.getElementById('sch-list-title');
@@ -5812,7 +5835,8 @@ function schSaveSchedule(){
         seatDir:st.seatDir,
         extraEntries:st.extraEntries,
         removedEntries:[...st.removedEntries],
-        excludeRules:st.excludeRules||[],  // ★ 修正：加入排除規則（原本漏掉導致重整消失）
+        excludeRules:st.excludeRules||[],
+        manualOrder:st.manualOrder||[],  // ★ 新增：拖曳手動排序
       };
     });
     const curId=SCH_STATE.roomId;
@@ -5825,7 +5849,8 @@ function schSaveSchedule(){
         seatDir:SCH_STATE.seatDir,
         extraEntries:[...SCH_STATE.extraEntries],
         removedEntries:[...SCH_STATE.removedEntries],
-        excludeRules:[...(SCH_STATE.excludeRules||[])],  // ★ 修正：當前考場的排除規則
+        excludeRules:[...(SCH_STATE.excludeRules||[])],
+        manualOrder:[...(SCH_STATE.manualOrder||[])],  // ★ 新增：當前考場的手動排序
       };
     }
     const snapshot={};
@@ -6013,13 +6038,31 @@ function _buildFilteredEntries(roomId){
   const instIndexOf=id=>SCH_STATE.instOrder.findIndex(i=>i.id===id);
   const typeIndexOf=key=>SCH_STATE.typeOrder.findIndex(t=>t.key===key);
   const classIndexOf=cls=>{const i=SCH_STATE.classOrder.findIndex(c=>c.cls===cls);return i>=0?i:999;};
-  entries.sort((a,b)=>{
-    const dc=catIndexOf(a.catId||'')-catIndexOf(b.catId||'');if(dc!==0)return dc;
-    const di=instIndexOf(a.instId)-instIndexOf(b.instId);if(di!==0)return di;
-    const dt=typeIndexOf(a.type)-typeIndexOf(b.type);if(dt!==0)return dt;
-    const dcl=classIndexOf(a.class)-classIndexOf(b.class);if(dcl!==0)return dcl;
-    return (a.seat-b.seat)*SCH_STATE.seatDir;
-  });
+  // ★ 修正：優先使用使用者拖曳的順序（manualOrder）
+  const manualOrder=targetState.manualOrder||[];
+  if(manualOrder.length){
+    const manualIdx=new Map(manualOrder.map((k,i)=>[k,i]));
+    entries.sort((a,b)=>{
+      const ka=a.studentId+'_'+a.type, kb=b.studentId+'_'+b.type;
+      const ia=manualIdx.has(ka)?manualIdx.get(ka):999999;
+      const ib=manualIdx.has(kb)?manualIdx.get(kb):999999;
+      if(ia!==ib)return ia-ib;
+      // fallback：不在 manualOrder 中的（新加入的學生）依五層排序
+      const dc=catIndexOf(a.catId||'')-catIndexOf(b.catId||'');if(dc!==0)return dc;
+      const di=instIndexOf(a.instId)-instIndexOf(b.instId);if(di!==0)return di;
+      const dt=typeIndexOf(a.type)-typeIndexOf(b.type);if(dt!==0)return dt;
+      const dcl=classIndexOf(a.class)-classIndexOf(b.class);if(dcl!==0)return dcl;
+      return (a.seat-b.seat)*(SCH_STATE.seatDir||1);
+    });
+  } else {
+    entries.sort((a,b)=>{
+      const dc=catIndexOf(a.catId||'')-catIndexOf(b.catId||'');if(dc!==0)return dc;
+      const di=instIndexOf(a.instId)-instIndexOf(b.instId);if(di!==0)return di;
+      const dt=typeIndexOf(a.type)-typeIndexOf(b.type);if(dt!==0)return dt;
+      const dcl=classIndexOf(a.class)-classIndexOf(b.class);if(dcl!==0)return dcl;
+      return (a.seat-b.seat)*SCH_STATE.seatDir;
+    });
+  }
   return entries;
 }
 window._buildFilteredEntries=_buildFilteredEntries;
@@ -6054,10 +6097,10 @@ function _applyScheduleState(data){
       classOrder:st.classOrder||[],seatDir:st.seatDir||1,
       extraEntries:st.extraEntries||[],
       removedEntries:new Set(st.removedEntries||[]),
-      excludeRules:st.excludeRules||[],  // ★ 修正：還原排除規則
+      excludeRules:st.excludeRules||[],
+      manualOrder:st.manualOrder||[],  // ★ 還原拖曳排序
     };
   });
-  // 重新載入目前考場狀態（不在此 render，由 launchApp 的 renderAll 統一處理）
   _loadRoomState(SCH_STATE.roomId);
 }
 
@@ -6605,6 +6648,24 @@ function saveStuRoomModal(stuId){
       const snapStr=JSON.stringify(snap);
       if(snapStr.length<800000)fbSet('scheduleState','snapshot',{data:snapStr});
     }catch(e){}
+    // ★ 關鍵修正：同時寫入 scheduleState/main，把 _SCH_ROOM_STATES.extraEntries 持久化
+    //    否則重新整理後 _SCH_ROOM_STATES 會被舊資料覆蓋，extraEntries 消失
+    try{
+      _saveRoomState(SCH_STATE.roomId);
+      const stateData={};
+      Object.entries(_SCH_ROOM_STATES).forEach(([rid,st])=>{
+        stateData[rid]={
+          catOrder:st.catOrder||[],instOrder:st.instOrder||[],
+          typeOrder:st.typeOrder||[],classOrder:st.classOrder||[],
+          seatDir:st.seatDir||1,
+          extraEntries:st.extraEntries||[],
+          removedEntries:[...(st.removedEntries||[])],
+          excludeRules:st.excludeRules||[],
+          manualOrder:st.manualOrder||[],
+        };
+      });
+      fbSet('scheduleState','main',{data:JSON.stringify(stateData)});
+    }catch(e){console.warn('[saveStuRoom] 寫入 scheduleState/main 失敗',e);}
     showToast(`${s.name} 考場已強制更新並同步 ✓`,'ok');
   } else {
     try{localStorage.setItem('scheduleSnapshot',JSON.stringify(snap));}catch(e){}
@@ -8717,8 +8778,33 @@ function _renderAdminLinkageWarnings(){
 // ════════════════════════════════════════════════
 function setupDrag(el,container){
   el.addEventListener('dragstart',e=>{el.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
-  el.addEventListener('dragend',()=>el.classList.remove('dragging'));
+  el.addEventListener('dragend',()=>{
+    el.classList.remove('dragging');
+    // ★ 修正：拖曳結束後，記錄當前 DOM 順序到 SCH_STATE.manualOrder
+    _saveManualOrder(container);
+  });
   el.addEventListener('dragover',e=>{e.preventDefault();const after=getDragAfter(container,e.clientY);const dr=container.querySelector('.dragging');if(after)container.insertBefore(dr,after);else container.appendChild(dr);renumberItems(container);});
+}
+// ★ 新增：把當前畫面上的順序記錄到 SCH_STATE.manualOrder（陣列：[entryKey1, entryKey2, ...]）
+function _saveManualOrder(container){
+  if(!container)return;
+  if(typeof SCH_STATE==='undefined'||!SCH_STATE)return;
+  const items=[...container.querySelectorAll('.exam-item')];
+  if(!items.length)return;
+  const order=[];
+  items.forEach(item=>{
+    // 從按鈕的 onclick 解析 studentId 和 type
+    const removeBtn=item.querySelector('button[onclick^="schRemoveEntry"]');
+    if(removeBtn){
+      const m=removeBtn.getAttribute('onclick').match(/schRemoveEntry\('([^']+)'\)/);
+      if(m)order.push(m[1]); // entryKey = studentId_type
+    }
+  });
+  SCH_STATE.manualOrder=order;
+  if(_SCH_ROOM_STATES[SCH_STATE.roomId]){
+    _SCH_ROOM_STATES[SCH_STATE.roomId].manualOrder=order;
+  }
+  console.log('[schedule] 已記錄手動排序',order.length,'筆，記得按「儲存排程」才會生效');
 }
 function getDragAfter(container,y){
   return [...container.querySelectorAll('.exam-item:not(.dragging)')].reduce((cl,el)=>{
