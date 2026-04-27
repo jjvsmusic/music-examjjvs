@@ -4515,7 +4515,7 @@ function getJuryEntries(){
   const roomId=ST.juryRoom?.id||(ST.role==='admin'?(ST._adminJuryRoomId||DB.rooms[0]?.id||''):'');
   if(roomId&&DB.savedScheduleSnapshot[roomId]&&DB.savedScheduleSnapshot[roomId].length){
     // 從快照補回最新學生資料（曲目可能有更新）
-    return DB.savedScheduleSnapshot[roomId].map(snap=>{
+    return DB.savedScheduleSnapshot[roomId].map((snap,idx)=>{
       const stu=DB.users.find(u=>u.id===snap.studentId)||{};
       const acKey=snap.type==='elective'?'elec_ac':(snap.type+'_ac');
       const atKey=snap.type==='elective'?'elec_at':(snap.type+'_at');
@@ -4525,13 +4525,14 @@ function getJuryEntries(){
         ac:stu[acKey]||snap.ac||'',at:stu[atKey]||snap.at||'',
         fc:stu[fcKey]||snap.fc||'',ft:stu[ftKey]||snap.ft||'',
         catOrder:snap.catOrder??99,typeOrder:{major:0,minor:1,elective:2}[snap.type]??99,
+        order:idx+1,  // ★ 強制以 array index 為序號（snapshot 順序 = 排程最終順序）
       };
     });
   }
   // fallback：快照不存在時動態計算（兼容舊資料）
   const all=getScheduleEntries();
   if(!roomId)return all;
-  return all.filter(e=>e.roomId===roomId);
+  return all.filter(e=>e.roomId===roomId).map((e,idx)=>({...e,order:idx+1}));
 }
 
 function renderJuryTable(){
@@ -5616,153 +5617,50 @@ window.schApplySort=schApplySort;
 
 function renderSchedule(){
   const container=document.getElementById('sch-list');if(!container)return;
-  let entries=getScheduleEntries();
-
-  // ★ 過濾手動移除的項目（removedEntries 優先於 extraEntries）
-  entries=entries.filter(e=>!SCH_STATE.removedEntries.has(e.studentId+'_'+e.type));
-
-  // ★ 修正：合併所有考場的 extraEntries（不只當前考場），這樣管理員從學生名單分配考場後立即同步
-  const allExtraEntries=[];
-  // 當前考場的 extraEntries
-  SCH_STATE.extraEntries.forEach(ex=>allExtraEntries.push({...ex,_srcRoom:SCH_STATE.roomId}));
-  // 其他考場的 extraEntries（避免重複）
-  Object.entries(_SCH_ROOM_STATES).forEach(([rid,st])=>{
-    if(rid===SCH_STATE.roomId)return; // 已加過
-    (st.extraEntries||[]).forEach(ex=>{
-      // 避免與當前考場重複
-      if(!allExtraEntries.some(e=>e.studentId===ex.studentId&&e.type===ex.type)){
-        allExtraEntries.push({...ex,_srcRoom:rid});
-      }
-    });
-  });
-
-  // ★ 合併手動加入的項目（若在 removedEntries 中則不加回）
-  // ★ 核心修正：先標記既有 entries 的 _forceInclude，再 push 不存在的
-  const forceMap={}; // 'studentId_type' -> {roomId, ...}
-  allExtraEntries.forEach(ex=>{
-    const key=ex.studentId+'_'+ex.type;
-    if(SCH_STATE.removedEntries.has(key))return;
-    forceMap[key]=ex;
-  });
-  // 把現有 entries 內符合 extraEntries 的標記為 _forceInclude，並改寫其 roomId
-  entries.forEach(e=>{
-    const key=e.studentId+'_'+e.type;
-    if(forceMap[key]){
-      e._forceInclude=true;
-      e._extra=true;
-      // ★ 重要：把 entry 的 roomId 改寫為手動指派的考場（覆蓋掉 getScheduleEntries 設的 SCH_STATE.roomId）
-      e.roomId=forceMap[key].roomId||e.roomId;
-      const room=DB.rooms.find(r=>r.id===e.roomId);
-      if(room){e.roomName=room.name;e.roomLocation=room.location||'';}
-    }
-  });
-  // 若 forceMap 中的學生不在 entries（沒填該修別樂器），補進
-  Object.entries(forceMap).forEach(([key,ex])=>{
-    const alreadyIn=entries.some(e=>e.studentId===ex.studentId&&e.type===ex.type);
-    if(alreadyIn)return;
-    const stu=DB.users.find(u=>u.id===ex.studentId);if(!stu)return;
-    const inst=stu[ex.type]?DB.instruments.items.find(i=>i.id===stu[ex.type]):null;
-    const cat=inst?DB.instruments.categories.find(c=>c.id===inst.cat):null;
-    const room=DB.rooms.find(r=>r.id===ex.roomId)||_findRoomForCat(inst?.cat)||DB.rooms[0];
-    const acKey=ex.type==='elective'?'elec_ac':(ex.type+'_ac');
-    const atKey=ex.type==='elective'?'elec_at':(ex.type+'_at');
-    const fcKey=ex.type==='elective'?'elec_fc':(ex.type+'_fc');
-    const ftKey=ex.type==='elective'?'elec_ft':(ex.type+'_ft');
-    entries.push({
-      studentId:stu.id,name:stu.name,class:stu.class,seat:stu.seat,
-      instId:inst?.id||'',instName:inst?iname(inst.id):'（無樂器）',catId:inst?.cat||'',catOrder:cat?.order??99,
-      type:ex.type,typeOrder:{major:0,minor:1,elective:2}[ex.type],
-      ac:stu[acKey]||'',at:stu[atKey]||'',fc:stu[fcKey]||'',ft:stu[ftKey]||'',
-      roomId:ex.roomId||room?.id||'r1',roomName:room?.name||'—',roomLocation:room?.location||'',order:0,
-      _extra:true,_forceInclude:true,
-    });
-  });
-
-  // 1. 考場篩選（entry 的 roomId 已由 getScheduleEntries 依 SCH_STATE.roomId 設定）
   const roomId=SCH_STATE.roomId;
-  // ★ 修正：手動加入的 (_forceInclude) 應依其自身 roomId 過濾；其他依當前 SCH_STATE.roomId
-  entries=entries.filter(e=>{
-    if(e._forceInclude)return e.roomId===roomId; // 強制加入的依 entry 自己的 roomId 過濾
-    return true; // 其他維持原邏輯（已在 getScheduleEntries 設為 SCH_STATE.roomId）
+  if(!roomId){
+    container.innerHTML='<p style="color:var(--muted);font-family:\'DM Mono\',monospace;font-size:11px;padding:14px">請先選擇考場</p>';
+    return;
+  }
+
+  // ★ 統一資料源：直接呼叫 _buildFilteredEntries 並做跨考場去重
+  //    這樣排程頁、snapshot、評審頁三者順序完全一致
+  const _origRoomId=SCH_STATE.roomId;
+  _saveRoomState(_origRoomId);
+  const allCandidates={};
+  DB.rooms.forEach(room=>{
+    SCH_STATE.roomId=room.id;
+    _loadRoomState(room.id);
+    allCandidates[room.id]=_buildFilteredEntries(room.id);
+  });
+  SCH_STATE.roomId=_origRoomId;
+  _loadRoomState(_origRoomId);
+
+  // 跨考場去重：每個 (studentId, type) 只保留一個考場
+  const assignment={}; // 'studentId_type' -> roomId
+  // 第一輪：_forceInclude 優先佔位
+  DB.rooms.forEach(room=>{
+    (allCandidates[room.id]||[]).forEach(e=>{
+      if(!e._forceInclude)return;
+      const key=e.studentId+'_'+e.type;
+      if(!assignment[key])assignment[key]=room.id;
+    });
+  });
+  // 第二輪：自動篩選依考場順序取第一個
+  DB.rooms.forEach(room=>{
+    (allCandidates[room.id]||[]).forEach(e=>{
+      const key=e.studentId+'_'+e.type;
+      if(!assignment[key])assignment[key]=room.id;
+    });
   });
 
-  // 2. 樂器大項篩選（過濾：只顯示勾選大項的學生）— ★ 修正：_forceInclude 不受此限制
-  const activeCats=new Set(SCH_STATE.catOrder.filter(c=>c.active).map(c=>c.id));
-  if(activeCats.size)entries=entries.filter(e=>e._forceInclude||activeCats.has(e.catId));
+  // 取出當前考場的 entries（依該考場 _buildFilteredEntries 已算好的順序）
+  const entries=(allCandidates[roomId]||[]).filter(e=>{
+    const key=e.studentId+'_'+e.type;
+    return assignment[key]===roomId;
+  });
 
-  // 3. 樂器別篩選（過濾：只顯示勾選細項樂器的學生）— ★ 修正：_forceInclude 不受此限制
-  const activeInsts=new Set(SCH_STATE.instOrder.filter(i=>i.active).map(i=>i.id));
-  if(activeInsts.size)entries=entries.filter(e=>e._forceInclude||activeInsts.has(e.instId));
-
-  // 4. 修別篩選 — ★ 修正：_forceInclude 不受此限制
-  const activeTypes=new Set(SCH_STATE.typeOrder.filter(t=>t.active).map(t=>t.key));
-  entries=entries.filter(e=>e._forceInclude||activeTypes.has(e.type));
-
-  // 5. 班級篩選 — ★ 修正：_forceInclude 不受此限制
-  const activeClasses=new Set(SCH_STATE.classOrder.filter(c=>c.active).map(c=>c.cls));
-  if(activeClasses.size)entries=entries.filter(e=>e._forceInclude||activeClasses.has(e.class));
-
-  // 6. 排除規則過濾（_forceInclude 的 entry 不受排除規則影響）
-  const rules=SCH_STATE.excludeRules||[];
-  if(rules.length){
-    entries=entries.filter(e=>{
-      if(e._forceInclude)return true; // 手動強制加入，免排除
-      const stu=DB.users.find(u=>u.id===e.studentId)||{};
-      return !rules.some(r=>{
-        const matchCls=!r.cls||r.cls===e.class;
-        if(!matchCls)return false;
-        if(!r.catId&&!r.type)return true;
-        if(r.type&&!r.catId)return !!stu[r.type];
-        const typesToCheck=r.type?[r.type]:['major','minor','elective'];
-        return typesToCheck.some(t=>{
-          const instId=stu[t];if(!instId)return false;
-          const inst=DB.instruments.items.find(i=>i.id===instId);
-          return inst&&inst.cat===r.catId;
-        });
-      });
-    });
-  }
-
-  // 7. 五層排序：①大項 →②樂器 →③修別 →④班級 →⑤座號（若有 manualOrder 則優先用）
-  const catIndexOf=catId=>SCH_STATE.catOrder.findIndex(c=>c.id===catId);
-  const instIndexOf=id=>SCH_STATE.instOrder.findIndex(i=>i.id===id);
-  const typeIndexOf=key=>SCH_STATE.typeOrder.findIndex(t=>t.key===key);
-  const classIndexOf=cls=>{const i=SCH_STATE.classOrder.findIndex(c=>c.cls===cls);return i>=0?i:999;};
-  // ★ 修正：優先使用使用者拖曳的順序（manualOrder）
-  const manualOrder=SCH_STATE.manualOrder||[];
-  if(manualOrder.length){
-    const manualIdx=new Map(manualOrder.map((k,i)=>[k,i]));
-    entries.sort((a,b)=>{
-      const ka=a.studentId+'_'+a.type, kb=b.studentId+'_'+b.type;
-      const ia=manualIdx.has(ka)?manualIdx.get(ka):999999;
-      const ib=manualIdx.has(kb)?manualIdx.get(kb):999999;
-      if(ia!==ib)return ia-ib;
-      // 不在 manualOrder 中的（新加入的）依五層排序
-      const instA=DB.instruments.items.find(i=>i.id===a.instId);
-      const instB=DB.instruments.items.find(i=>i.id===b.instId);
-      const dc=catIndexOf(instA?.cat||'')-catIndexOf(instB?.cat||'');if(dc!==0)return dc;
-      const di=instIndexOf(a.instId)-instIndexOf(b.instId);if(di!==0)return di;
-      const dt=typeIndexOf(a.type)-typeIndexOf(b.type);if(dt!==0)return dt;
-      const dcl=classIndexOf(a.class)-classIndexOf(b.class);if(dcl!==0)return dcl;
-      return (a.seat-b.seat)*(SCH_STATE.seatDir||1);
-    });
-  } else {
-    entries.sort((a,b)=>{
-      const instA=DB.instruments.items.find(i=>i.id===a.instId);
-      const instB=DB.instruments.items.find(i=>i.id===b.instId);
-      // ① 樂器大項（依 catOrder 排序）
-      const dc=catIndexOf(instA?.cat||'')-catIndexOf(instB?.cat||'');if(dc!==0)return dc;
-      // ② 樂器別（依 instOrder 排序）
-      const di=instIndexOf(a.instId)-instIndexOf(b.instId);if(di!==0)return di;
-      // ③ 修別
-      const dt=typeIndexOf(a.type)-typeIndexOf(b.type);if(dt!==0)return dt;
-      // ④ 班級
-      const dcl=classIndexOf(a.class)-classIndexOf(b.class);if(dcl!==0)return dcl;
-      // ⑤ 座號
-      return (a.seat-b.seat)*SCH_STATE.seatDir;
-    });
-  }
-
+  // ★ entries 已由 _buildFilteredEntries 處理完所有篩選/排序/合併邏輯，直接使用
   entries.forEach((e,i)=>e._displayOrder=i+1);
   const titleEl=document.getElementById('sch-list-title');
   const countEl=document.getElementById('sch-count');
@@ -5856,7 +5754,7 @@ function schSaveSchedule(){
     const snapshot={};
     const _origRoomId=SCH_STATE.roomId;
     _saveRoomState(_origRoomId);
-    // ★ 修正：先收集每個考場的 candidate entries
+    // ★ 收集每個考場的 candidate entries（已含 manualOrder 排序）
     const allCandidates={}; // {roomId: entries[]}
     DB.rooms.forEach(room=>{
       SCH_STATE.roomId=room.id;
@@ -5866,33 +5764,44 @@ function schSaveSchedule(){
     SCH_STATE.roomId=_origRoomId;
     _loadRoomState(_origRoomId);
 
-    // ★ 修正：去重——每個 (studentId, type) 只能屬於「第一個匹配」的考場
-    // 順序：(1) 手動指定的（_extra/_forceInclude）優先
-    //      (2) 否則依 DB.rooms 的 _order 取第一個
-    const claimed=new Set(); // 'studentId_type' 已被分配
-    const orderedRooms=DB.rooms.slice(); // 已是 _order 排序
-
-    // 第一輪：先處理「手動加入」的考場（_extra=true）
-    orderedRooms.forEach(room=>{
+    // ★ 修正：去重邏輯——「同一學生同修別跨多考場」只保留一個
+    //   優先順序：(1) 該考場有 _forceInclude 標記的優先（手動指派）
+    //            (2) 否則依 DB.rooms 順序取第一個出現的考場
+    //   ★ 重要：保留每個考場內 _buildFilteredEntries 已算好的「行內順序」（含 manualOrder）
+    
+    // Step 1：先掃描所有考場，建立「每個 (studentId,type) 應分配給哪個考場」的決策表
+    const assignment={}; // 'studentId_type' -> roomId
+    // 第一輪：_forceInclude 優先佔位
+    DB.rooms.forEach(room=>{
       (allCandidates[room.id]||[]).forEach(e=>{
-        if(!e._extra&&!e._forceInclude)return;
+        if(!e._forceInclude)return;
         const key=e.studentId+'_'+e.type;
-        if(claimed.has(key))return;
-        claimed.add(key);
-        if(!snapshot[room.id])snapshot[room.id]=[];
-        snapshot[room.id].push(e);
+        if(!assignment[key])assignment[key]=room.id;
       });
     });
-    // 第二輪：依考場順序處理自動篩選的學生
-    orderedRooms.forEach(room=>{
+    // 第二輪：自動篩選依考場順序取第一個
+    DB.rooms.forEach(room=>{
       (allCandidates[room.id]||[]).forEach(e=>{
-        if(e._extra||e._forceInclude)return; // 已在第一輪處理
         const key=e.studentId+'_'+e.type;
-        if(claimed.has(key))return;
-        claimed.add(key);
-        if(!snapshot[room.id])snapshot[room.id]=[];
-        snapshot[room.id].push(e);
+        if(!assignment[key])assignment[key]=room.id;
       });
+    });
+    
+    // Step 2：依各考場原順序產生 snapshot（順序完全等同 _buildFilteredEntries 的回傳順序）
+    DB.rooms.forEach(room=>{
+      const candidates=allCandidates[room.id]||[];
+      // 在該考場的原順序中，過濾出「分配給這個考場」的學生
+      const filtered=candidates.filter(e=>{
+        const key=e.studentId+'_'+e.type;
+        return assignment[key]===room.id;
+      });
+      if(filtered.length){
+        snapshot[room.id]=filtered;
+      }
+    });
+    // 確保每個考場都有（即使空）
+    DB.rooms.forEach(room=>{
+      if(!snapshot[room.id])snapshot[room.id]=[];
     });
     // 排序與重新編號：每個考場內依原本 entries 的順序
     Object.keys(snapshot).forEach(roomId=>{
@@ -5905,6 +5814,9 @@ function schSaveSchedule(){
         roomId:roomId,
         roomName:DB.rooms.find(r=>r.id===roomId)?.name||'—',
         roomLocation:DB.rooms.find(r=>r.id===roomId)?.location||'',
+        // ★ 關鍵修正：保留強制加入標記，否則重新整理後手動指派失效
+        ...(e._forceInclude?{_forceInclude:true}:{}),
+        ...(e._extra?{_extra:true}:{}),
       }));
     });
     DB.savedScheduleSnapshot=snapshot;
