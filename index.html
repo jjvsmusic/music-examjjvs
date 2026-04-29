@@ -1137,6 +1137,27 @@ tbody td{color:var(--ink)!important}
       <div id="scores-body"></div>
     </div>
 
+    <!-- ══ LIVE RESULTS（學生 & 教師唯讀成績總表） ══ -->
+    <div class="pg" id="pg-live-results">
+      <div class="ph"><h1>現場評分成績總表</h1><span>Live Results</span></div>
+      <div class="card" style="margin-bottom:14px">
+        <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:10px;padding:8px 12px;background:var(--cream);border-radius:var(--r);line-height:1.9">
+          📊 本頁顯示各考場術科成績（含扣分及原因），🥇🥈🥉 為各考場前三名，點開「評審評語」可查看每位評審給您的評語。
+        </div>
+        <div class="room-bar">
+          <label>考場</label>
+          <select id="lr-room" onchange="renderLiveResults()" style="padding:7px 12px;border:1px solid var(--border);background:var(--paper);font-family:Noto Serif TC,serif;font-size:14px;outline:none;border-radius:var(--r)">
+            <option value="">全部考場</option>
+          </select>
+          <label>班級</label>
+          <select id="lr-class" onchange="renderLiveResults()" style="padding:7px 12px;border:1px solid var(--border);background:var(--paper);font-family:Noto Serif TC,serif;font-size:14px;outline:none;border-radius:var(--r)">
+            <option value="">全部班級</option>
+          </select>
+        </div>
+      </div>
+      <div id="lr-body"><p style="color:var(--muted);font-family:'DM Mono',monospace;font-size:12px;padding:14px">請選擇考場</p></div>
+    </div>
+
     <!-- ══ STUDENT: SCHEDULE LOOKUP ══ -->
     <div class="pg" id="pg-stu-schedule">
       <div class="ph"><h1>考試順序查詢</h1><span>Schedule Lookup</span></div>
@@ -1300,6 +1321,8 @@ tbody td{color:var(--ink)!important}
           <div class="card-t" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
             <span>我的學生評量總覽</span>
             <div class="bg">
+              <!-- ★ 需求3：上方送出鍵 -->
+              <button class="btn btn-g btn-sm" onclick="teaWizSubmitAll()" title="儲存目前所有已填寫的評量並標記完成">✓ 送出所有評量</button>
               <!-- ★ 管理員教師模式切換（僅 admin 可見） -->
               <div id="tea-view-toggle" style="display:none;align-items:center;gap:5px;background:var(--cream);border:1px solid var(--border);border-radius:var(--r);padding:3px 6px">
                 <span style="font-family:DM Mono,monospace;font-size:8px;color:var(--muted);letter-spacing:1px">學生範圍：</span>
@@ -1321,6 +1344,11 @@ tbody td{color:var(--ink)!important}
         </div>
         <!-- ★ 完成提醒 banner -->
         <div id="tea-incomplete-banner" style="display:none"></div>
+        <!-- ★ 需求3：下方送出鍵 -->
+        <div class="bg" style="margin-bottom:10px">
+          <button class="btn btn-g" onclick="teaWizSubmitAll()">✓ 送出所有評量</button>
+          <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">所有學生填寫完成後點此送出</span>
+        </div>
         <div id="tea-all-done-banner" style="display:none">
           <div style="background:linear-gradient(135deg,#d4edda,#c3e6cb);border:1px solid var(--sage);border-radius:var(--r);padding:20px 24px;text-align:center;margin-bottom:14px">
             <div style="font-size:28px;margin-bottom:8px">🎉</div>
@@ -1341,6 +1369,13 @@ tbody td{color:var(--ink)!important}
           <div class="card-t" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
             <span>📋 期末考評分參與確認</span>
             <span id="jsup-submit-status" style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted)"></span>
+          </div>
+
+          <!-- ★ 需求2：上方送出鍵 -->
+          <div class="bg" style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--cream)">
+            <button class="btn btn-g" onclick="submitJurySignup()">✓ 確認送出報名</button>
+            <button class="btn btn-s btn-sm" onclick="saveJurySignupDraft()">暫時儲存草稿</button>
+            <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">↓ 填完下方各考場選項後送出</span>
           </div>
 
           <!-- 說明文字 -->
@@ -1587,6 +1622,8 @@ tbody td{color:var(--ink)!important}
     <!-- ══ ADMIN ══ -->
     <div class="pg" id="pg-admin">
       <div class="ph"><h1>管理員後台</h1><span>Administration</span></div>
+      <!-- ★ 需求1：學生樂器異動通知區 -->
+      <div id="admin-inst-change-panel"></div>
       <div class="g4" style="margin-bottom:20px">
         <div class="sc"><div class="sn" id="stat-s">0</div><div class="sl">學生人數</div></div>
         <div class="sc"><div class="sn" id="stat-r">0</div><div class="sl">已填報</div></div>
@@ -1999,6 +2036,10 @@ tbody td{color:var(--ink)!important}
               <div><div style="font-size:14px;font-weight:600;margin-bottom:3px">清除考試成績與評語</div><div style="font-size:12px;color:var(--muted)">清除所有評審打的術科成績與評語</div></div>
               <button class="btn btn-d btn-sm" onclick="clearData('jury')">清除</button>
             </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border:1px solid var(--border);border-radius:var(--r)">
+              <div><div style="font-size:14px;font-weight:600;margin-bottom:3px">清除教師期末考評分報名</div><div style="font-size:12px;color:var(--muted)">清除所有教師的期末考場評分報名資料（不影響成績）</div></div>
+              <button class="btn btn-d btn-sm" onclick="clearData('jurySignup')">清除</button>
+            </div>
             <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border:2px solid var(--rust);border-radius:var(--r);background:#fff5f5">
               <div><div style="font-size:14px;font-weight:600;color:var(--rust);margin-bottom:3px">清除全部考試資料</div><div style="font-size:12px;color:var(--muted)">包含以上三項，一次全部清除</div></div>
               <button class="btn btn-d btn-sm" onclick="clearData('all')">全部清除</button>
@@ -2046,6 +2087,24 @@ tbody td{color:var(--ink)!important}
         目前：<span id="jury-name-mode-label">僅顯示代號</span>
       </span>
     </div>
+    <!-- ★ 需求4：發佈流程控制列（管理員專用） -->
+    <div id="results-publish-bar" style="display:none;margin-bottom:14px">
+      <div style="background:#e8f5e9;border:1px solid var(--sage);border-left:4px solid var(--sage);border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--sage);font-weight:700;margin-bottom:4px">📢 成績發佈控制</div>
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">
+            狀態：<span id="results-publish-status" style="font-weight:700">尚未發佈</span>
+            <span id="results-publish-time" style="margin-left:8px;opacity:.7"></span>
+          </div>
+        </div>
+        <div class="bg" style="flex-wrap:wrap">
+          <button class="btn btn-b btn-sm" onclick="exportResultsCSV()">↓ 匯出本場 CSV</button>
+          <button class="btn btn-s btn-sm" onclick="exportResultsCSV(true)">↓ 全部匯出</button>
+          <button class="btn btn-g" onclick="publishResults()" id="publish-results-btn">📢 發佈成績給學生/教師</button>
+          <button class="btn btn-d btn-sm" onclick="unpublishResults()" id="unpublish-results-btn" style="display:none">🔒 收回發佈</button>
+        </div>
+      </div>
+    </div>
       <div class="room-bar">
         <!-- 檢視模式切換 -->
         <div style="display:flex;align-items:center;gap:6px;background:var(--cream);border:1px solid var(--border);border-radius:var(--r);padding:4px 8px">
@@ -2058,8 +2117,6 @@ tbody td{color:var(--ink)!important}
         <label>班級</label>
         <select id="result-class" onchange="renderResults()" style="padding:7px 12px;border:1px solid var(--border);background:var(--paper);font-family:Noto Serif TC,serif;font-size:14px;outline:none;border-radius:var(--r)"><option value="">全部班級</option></select>
         <button class="btn btn-d btn-sm" id="result-remark-filter-btn" onclick="toggleRemarkFilter()" title="顯示有備註（疑似需扣分）的學生">⚠ 疑似扣分篩選</button>
-        <button class="btn btn-b btn-sm" onclick="exportResultsCSV()">↓ 匯出本班 CSV</button>
-        <button class="btn btn-s btn-sm" onclick="exportResultsCSV(true)">↓ 全部匯出</button>
       </div>
       <div id="results-body"></div>
     </div>
@@ -2172,8 +2229,8 @@ const DB = {
       schedule:{open:'2024-01-01T08:00',close:'2024-12-31T23:59',visible:true,announce:''},
     },
     // access control per role: {pageId: true/false}
-    studentAccess:{rep:true,scores:true,'stu-schedule':true,'exam-rules':true},
-    teacherAccess:{teacher:true,'stu-schedule':false,'jury-signup':true,'exam-rules':true},
+    studentAccess:{rep:true,scores:true,'stu-schedule':true,'exam-rules':true,'live-results':false},
+    teacherAccess:{teacher:true,'stu-schedule':false,'jury-signup':true,'exam-rules':true,'live-results':false},
     teacherScheduleClosedMsg:'考試排程尚未開放查看，請等候管理員公告。',
     instRestrict:{major:[],minor:[],elective:[]},
     repConfirmMsg:'',
@@ -2192,6 +2249,13 @@ const DB = {
 };
 
 window.DB = DB; // expose to Firebase callbacks
+DB.repInstChanges = {}; // ★ 需求1：樂器異動通知（管理員用）
+DB.jurySignup = DB.jurySignup || {};
+DB.juryScores = DB.juryScores || {};
+DB.deductions = DB.deductions || {};
+DB.teacherComments = DB.teacherComments || {};
+DB.blackSign = DB.blackSign || {};
+DB.liveExam = DB.liveExam || {};
 const ST = {user:null,role:null,juryRoom:null,juryName:'',juryId:'',
   npTarget:null,npVal:'',npCallback:null,isOnline:navigator.onLine,
   invigRoom:null,invigName:'',_remarkFilterOn:false};
@@ -2750,6 +2814,7 @@ function loadAllFromFirebase(done, lightMode){
     jurySignupConfig: load('jurySignupConfig'),
     scheduleState: load('scheduleState'),
     scheduleSnapshots: load('scheduleSnapshots'),
+    repInstChanges: lightMode ? Promise.resolve([]) : load('repInstChanges'), // ★ 需求1
     // lightMode 跳過的慢速集合
     teacherComments: lightMode ? Promise.resolve([]) : load('teacherComments'),
     deductions: lightMode ? Promise.resolve([]) : load('deductions'),
@@ -2799,6 +2864,8 @@ function loadAllFromFirebase(done, lightMode){
       if(rest.examRules)Object.assign(DB.config.examRules,rest.examRules);
       if(rest.assignedPieces!==undefined)DB.config.assignedPieces=rest.assignedPieces;
       if(rest.assignedPiecesRules!==undefined)DB.config.assignedPiecesRules=rest.assignedPiecesRules||[];
+      if(rest.resultsPublished!==undefined)DB.config.resultsPublished=rest.resultsPublished; // ★ 需求4
+      if(rest.resultsPublishedAt!==undefined)DB.config.resultsPublishedAt=rest.resultsPublishedAt; // ★ 需求4
     }
 
     // — rooms —
@@ -2844,6 +2911,12 @@ function loadAllFromFirebase(done, lightMode){
 
     // — jurySignup —
     r.jurySignup.forEach(d=>{const{id,_updatedAt,...rest}=d;DB.jurySignup[id]=rest;});
+
+    // — repInstChanges（需求1：樂器異動通知） —
+    if(r.repInstChanges){
+      DB.repInstChanges={};
+      r.repInstChanges.forEach(d=>{const{id,_updatedAt,...rest}=d;DB.repInstChanges[id]=rest;});
+    }
 
     // — jurySignupConfig —
     const jscfg=r.jurySignupConfig.find(d=>d.id==='main');
@@ -3041,8 +3114,9 @@ const NAV_MAP = {
     {label:'成績查閱',page:'scores'},
     {label:'考試順序',page:'stu-schedule'},
     {label:'考試規則',page:'exam-rules'},
+    {label:'成績總表',page:'live-results'},
   ],
-  teacher:[{label:'平時評量',page:'teacher'},{label:'考試順序',page:'tea-schedule'},{label:'考試規則',page:'exam-rules'}],
+  teacher:[{label:'平時評量',page:'teacher'},{label:'考試順序',page:'tea-schedule'},{label:'考試規則',page:'exam-rules'},{label:'📋 期末考報名',page:'jury-signup'},{label:'成績總表',page:'live-results'}],
   jury:[{label:'現場評分',page:'jury'}],
   invigilator:[{label:'監考管理',page:'invigilator'}],
   admin:[
@@ -3124,6 +3198,7 @@ function showPage(id){
   // ★ 效能優化：切換到排程/成績頁時才 render（避免 renderAll 重複渲染）
   if(id==='schedule')renderSchedule();
   if(id==='results')renderResults();
+  if(id==='live-results')renderLiveResults(); // ★ Bug8
   // ★ 切換到管理後台時重新診斷連動警告
   if(id==='admin'&&ST.role==='admin')_renderAdminLinkageWarnings();
   // ★ 進入考試規則頁時初始化並渲染
@@ -3161,6 +3236,11 @@ function initDropdowns(){
   // Room selects (result only; schedule now uses room tab buttons)
   const rs=document.getElementById('result-room');
   if(rs){const _v=rs.value;rs.innerHTML='<option value="">選擇考場</option>';DB.rooms.forEach(r=>rs.appendChild(new Option(r.name,r.id)));rs.value=_v;}
+  // ★ Bug8：成績總表考場/班級下拉初始化
+  const lrRoom=document.getElementById('lr-room');
+  if(lrRoom){const _v=lrRoom.value;lrRoom.innerHTML='<option value="">全部考場</option>';DB.rooms.forEach(r=>lrRoom.appendChild(new Option(r.name,r.id)));lrRoom.value=_v;}
+  const lrClass=document.getElementById('lr-class');
+  if(lrClass){const _v=lrClass.value;lrClass.innerHTML='<option value="">全部班級</option>';DB.classes.forEach(c=>lrClass.appendChild(new Option(c,c)));lrClass.value=_v;}
   // Schedule room tabs
   schInitRoomTabs();
   // Inst cat sel
@@ -3684,12 +3764,65 @@ function submitRep(){
   const elecInst=hasElec?document.getElementById('r-elec-inst').value:'';
   u.elective=elecInst||null;
   u.elec_ac=elecInst?document.getElementById('r-elec-ac').value:'';
+  u.elec_ac=elecInst?document.getElementById('r-elec-ac').value:'';
   u.elec_at=elecInst?document.getElementById('r-elec-at').value:'';
   u.elec_fc=elecInst?document.getElementById('r-elec-fc').value:'';
   u.elec_ft=elecInst?document.getElementById('r-elec-ft').value:'';
+  // ★ 需求1：偵測學生填報的樂器是否與管理員原設定不同，若有差異則寫入通知供管理員查看
+  (function _checkInstChange(){
+    // 從 DB 取得「送出前」的原始值（submit 前 u 已被覆蓋，需從 DB.users 取快照）
+    const orig=DB.users.find(x=>x.id===u.id)||{};
+    const diffs=[];
+    const instLabel=(id)=>DB.instruments.items.find(i=>i.id===id)?.name||id||'（無）';
+    const typeCN={major:'主修',minor:'副修',elective:'選修'};
+    ['major','minor','elective'].forEach(t=>{
+      // 原始值（submit 之前，在 _autoFillRepInstruments 帶入的）
+      // 管理員設定的參考值儲存在 u._adminMajor 等，若無則 fallback 到 orig 值
+      const adminVal=orig['_admin_'+t]||orig[t]||null;
+      const newVal=u[t]||null;
+      if(adminVal&&newVal&&adminVal!==newVal){
+        diffs.push({type:t,label:typeCN[t],from:instLabel(adminVal),to:instLabel(newVal)});
+      }
+    });
+    if(!diffs.length)return;
+    // 寫入 repInstChanges collection，管理員後台可查看
+    const notice={
+      studentId:u.id,studentName:u.name,class:u.class,seat:u.seat,
+      changes:diffs,
+      at:new Date().toISOString(),
+      read:false,
+    };
+    fbSet('repInstChanges',u.id+'_'+Date.now(),notice);
+    // 在 DB 記憶體也記錄，讓後台即時顯示
+    if(!DB.repInstChanges)DB.repInstChanges={};
+    DB.repInstChanges[u.id]=notice;
+    console.log('[需求1] 學生樂器與管理員設定不符，已通知：',diffs);
+  })();
   u.repDone=true;
   // ★ Write the COMPLETE user object to avoid partial-write data loss
   fbSet('users',u.id,u);
+  // ★ Bug1 修正：曲目提交後同步更新已存檔排程快照，讓考試排程及現場評分立即看到最新曲目
+  (function _syncRepToSnapshot(uid,pieces){
+    const snap=DB.savedScheduleSnapshot||{};
+    const dirtyRooms=new Set();
+    Object.entries(snap).forEach(([roomId,entries])=>{
+      if(!entries||!entries.length)return;
+      entries.forEach(e=>{
+        if(e.studentId!==uid)return;
+        const p=pieces[e.type];if(!p)return;
+        e.ac=p.ac||'';e.at=p.at||'';e.fc=p.fc||'';e.ft=p.ft||'';
+        dirtyRooms.add(roomId);
+      });
+    });
+    dirtyRooms.forEach(roomId=>{
+      fbSet('scheduleSnapshots',roomId,{entries:snap[roomId],_savedAt:new Date().toISOString()});
+    });
+    if(dirtyRooms.size>0)console.log('[Bug1] 已同步曲目至快照考場：',Array.from(dirtyRooms).join(','));
+  })(u.id,{
+    major:   {ac:u.major_ac, at:u.major_at, fc:u.major_fc, ft:u.major_ft},
+    minor:   {ac:u.minor_ac, at:u.minor_at, fc:u.minor_fc, ft:u.minor_ft},
+    elective:{ac:u.elec_ac,  at:u.elec_at,  fc:u.elec_fc,  ft:u.elec_ft},
+  });
   document.getElementById('rep-form-area').style.display='none';
   document.getElementById('rep-preview').style.display='none';
   document.getElementById('rep-done-card').style.display='block';
@@ -4537,6 +4670,20 @@ function getJuryEntries(){
 
 function renderJuryTable(){
   const tbody=document.getElementById('jury-tbody');if(!tbody)return;
+  // ★ Bug6 修正：管理員現場評分頁顯示唯讀提示橫幅
+  const adminBanner=document.getElementById('jury-admin-readonly-banner');
+  if(ST.role==='admin'){
+    if(!adminBanner){
+      const banner=document.createElement('div');
+      banner.id='jury-admin-readonly-banner';
+      banner.style.cssText='background:#fff3cd;border:1px solid #ffc107;border-left:4px solid var(--gold);border-radius:var(--r);padding:10px 16px;margin-bottom:14px;font-family:\'DM Mono\',monospace;font-size:11px;color:#856404;display:flex;align-items:center;gap:10px';
+      banner.innerHTML='<span style="font-size:16px">👁</span><span><strong>管理員觀看模式（唯讀）</strong> — 此頁面僅供觀察現場評分狀況，管理員無法參與評分或送出分數，以防止產生無姓名的評審資料。</span>';
+      const juryPg=document.getElementById('pg-jury');
+      if(juryPg){const ph=juryPg.querySelector('.ph');if(ph)ph.insertAdjacentElement('afterend',banner);else juryPg.insertBefore(banner,juryPg.firstChild);}
+    }
+  } else {
+    if(adminBanner)adminBanner.remove();
+  }
   // ★ 管理員：初始化考場切換按鈕 & 設定 juryRoom
   if(ST.role==='admin')initJuryAdminRoomBar();
   const entries=getJuryEntries();
@@ -4740,6 +4887,18 @@ function toggleAbsent(i,roomId,entryKey){
 }
 
 function saveJCell(i,roomId,entryKey,field,val){
+  // ★ Bug6 修正：管理員角色為唯讀，禁止寫入評分（避免產生無姓名的幽靈評審）
+  if(ST.role==='admin'){
+    showToast('管理員模式為唯讀，無法參與評分','warn');
+    // 恢復輸入欄位原值
+    const inp=document.getElementById(`js-${field}-${i}`);
+    if(inp){
+      const cur=DB.juryScores[roomId]?.[entryKey];
+      // 不修改資料，直接還原
+      inp.value=inp.defaultValue||'';
+    }
+    return;
+  }
   const myId=ST.juryId||ST.user?.id||'admin';
   if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
   if(!DB.juryScores[roomId][entryKey])DB.juryScores[roomId][entryKey]={};
@@ -5124,6 +5283,8 @@ function flushAllComments(){
 }
 
 function checkJuryBeforeSubmit(){
+  // ★ Bug6 修正：管理員唯讀，禁止送出評分
+  if(ST.role==='admin'){showToast('管理員模式為唯讀，無法送出評分','warn');return;}
   flushAllComments(); // ★ 先強制存評語
   const entries=getJuryEntries();
   const roomId=ST.juryRoom?.id||'r1';
@@ -5159,6 +5320,8 @@ function checkJuryBeforeSubmit(){
 function confirmSubmitJury(){closeOverlay('check-modal');submitJuryAll();}
 
 async function submitJuryAll(){
+  // ★ Bug6 修正：管理員唯讀，禁止送出
+  if(ST.role==='admin'){showToast('管理員模式為唯讀，無法送出評分','warn');return;}
   // ★ 修正 #A2：真實等待 pending queue 同步完成
   flushAllComments();
   showSyncStatus('sync','正在送出...');
@@ -7390,6 +7553,8 @@ function fbSaveConfig(){
     examRules:DB.config.examRules||{classical:'',pop:''},
     assignedPieces:DB.config.assignedPieces||'',
     assignedPiecesRules:DB.config.assignedPiecesRules||[],
+    resultsPublished:DB.config.resultsPublished||false,           // ★ 需求4
+    resultsPublishedAt:DB.config.resultsPublishedAt||null,        // ★ 需求4
   });
 }
 function saveTiming(){fbSaveConfig();showToast('時間設定已儲存 ✓','ok');}
@@ -7800,8 +7965,20 @@ window.saveRoomFields=saveRoomFields;
 // ════════════════════════════════════════════════
 // access value: true=公開, 'pending'=尚未開放(可見但鎖定), false=關閉(不可見)
 function renderAccessControl(){
-  const studentPages=[{id:'rep',label:'曲目填寫'},{id:'scores',label:'成績查閱'},{id:'stu-schedule',label:'考試順序查詢'},{id:'exam-rules',label:'考試規則與指定曲'}];
-  const teacherPages=[{id:'teacher',label:'平時評量'},{id:'stu-schedule',label:'考試順序查看'},{id:'jury-signup',label:'📋 期末考評分報名'},{id:'exam-rules',label:'考試規則與指定曲'}];
+  const studentPages=[
+    {id:'rep',label:'曲目填寫'},
+    {id:'scores',label:'成績查閱'},
+    {id:'stu-schedule',label:'考試順序查詢'},
+    {id:'exam-rules',label:'考試規則與指定曲'},
+    {id:'live-results',label:'📊 現場評分成績總表'},
+  ];
+  const teacherPages=[
+    {id:'teacher',label:'平時評量'},
+    {id:'stu-schedule',label:'考試順序查看'},
+    {id:'jury-signup',label:'📋 期末考評分報名'},
+    {id:'exam-rules',label:'考試規則與指定曲'},
+    {id:'live-results',label:'📊 現場評分成績總表'},
+  ];
   const stateLabel=(v)=>{
     if(v===true||v===undefined||v===null)return {txt:'公開',cls:'background:#d4edda;color:#155724'};
     if(v==='pending')return {txt:'尚未開放',cls:'background:#fff3cd;color:#856404'};
@@ -8069,7 +8246,7 @@ window.saveRepConfirmMsg=saveRepConfirmMsg;
 // ADMIN - DANGER: CLEAR DATA
 // ════════════════════════════════════════════════
 function clearData(type){
-  const labels={rep:'學生曲目填報',teacher:'教師平時成績',jury:'考試成績與評語',all:'全部考試資料'};
+  const labels={rep:'學生曲目填報',teacher:'教師平時成績',jury:'考試成績與評語',jurySignup:'教師期末考評分報名',all:'全部考試資料'};
   if(!confirm(`確定要清除「${labels[type]}」？此操作不可復原。`))return;
   // ★ 修正 R8：二次確認 + 預估筆數
   let estimateOps=0;
@@ -8078,6 +8255,7 @@ function clearData(type){
   if(type==='jury'||type==='all'){
     Object.values(DB.juryScores||{}).forEach(r=>estimateOps+=Object.keys(r||{}).length);
   }
+  if(type==='jurySignup')estimateOps+=Object.keys(DB.jurySignup||{}).length;
   if(estimateOps>50&&!confirm(`此操作將觸發約 ${estimateOps} 次 Firebase 寫入/刪除操作。\n\n再次確認要繼續？`))return;
   if(window._clearingData){showToast('清除中，請稍候...','warn');return;}
   window._clearingData=true;
@@ -8110,6 +8288,15 @@ function clearData(type){
         p.forEach(k=>localStorage.removeItem(k));
         localStorage.removeItem(PENDING_KEY);
       }catch(e){}
+    }
+    // ★ Bug3 修正：清除教師期末考評分報名資料
+    if(type==='jurySignup'||type==='all'){
+      Object.keys(DB.jurySignup||{}).forEach(tid=>{
+        fbDelete('jurySignup',tid);
+      });
+      DB.jurySignup={};
+      if(typeof renderJsupAdminTable==='function')renderJsupAdminTable();
+      if(typeof renderJurySignupPage==='function')renderJurySignupPage();
     }
     renderAll();showToast(`已清除「${labels[type]}」✓`,'ok');
   }finally{
@@ -8209,8 +8396,16 @@ window._getEntriesForRoom=_getEntriesForRoom;
 
 function renderResults(){
   const el=document.getElementById('results-body');if(!el)return;
+  // ★ Bug7：每次渲染成績前清除評審排序快取，確保使用最新資料
+  if(DB._jurorOrderCache)DB._jurorOrderCache={};
   const toggleBar=document.getElementById('jury-name-toggle-bar');
   if(toggleBar)toggleBar.style.display=(ST.role==='admin')?'block':'none';
+  // ★ 需求4：管理員顯示發佈控制列
+  const publishBar=document.getElementById('results-publish-bar');
+  if(publishBar){
+    publishBar.style.display=(ST.role==='admin')?'block':'none';
+    if(ST.role==='admin')_updatePublishBarUI();
+  }
   const roomId=document.getElementById('result-room')?.value||'';
   const classF=document.getElementById('result-class')?.value||'';
   // 更新班級下拉
@@ -8348,7 +8543,29 @@ function _buildResultCard(e,ei,getEntryRemarks,showRoom){
   const isBlack=!!(DB.blackSign[useRoomId]?.[entryKey]);
   const remarksList=getEntryRemarks(useRoomId,entryKey);
   const hasRemarks=remarksList.length>0;
-  const jurorIds=Object.keys(jurorData);
+  // ★ Bug7 修正：評審排列順序一致化
+  //   取得此考場所有 entries 中出現過的評審 id 的聯集，依字典序固定排列
+  //   讓所有學生的「評審1/評審2/...」對應到同一位評審
+  const _getConsistentJurorIds=(roomId,jData)=>{
+    // 蒐集本考場所有 entries 的評審 key，取聯集後排序
+    if(!DB._jurorOrderCache)DB._jurorOrderCache={};
+    if(!DB._jurorOrderCache[roomId]){
+      const allIds=new Set();
+      Object.values(DB.juryScores[roomId]||{}).forEach(entry=>{
+        Object.keys(entry||{}).forEach(k=>{if(!k.startsWith('_'))allIds.add(k);});
+      });
+      // 固定字典序排序，確保所有學生的評審編號一致
+      DB._jurorOrderCache[roomId]=[...allIds].sort();
+    }
+    const globalOrder=DB._jurorOrderCache[roomId];
+    const localIds=Object.keys(jData);
+    // 依全域順序排列本學生有的評審
+    const sorted=globalOrder.filter(id=>localIds.includes(id));
+    // 加上本學生有但全域沒有的（理論上不應發生，安全起見）
+    localIds.forEach(id=>{if(!sorted.includes(id))sorted.push(id);});
+    return sorted;
+  };
+  const jurorIds=_getConsistentJurorIds(useRoomId,jurorData);
   const buildJurorRows=(field)=>{
     return jurorIds.map((jid,ji)=>{
       const s=jurorData[jid];
@@ -8447,8 +8664,31 @@ function editJuryScores(roomId,entryKey,studentName){
 function exportResultsCSV(allClasses){
   const roomId=document.getElementById('result-room')?.value||'';
   const classF=allClasses?'':(document.getElementById('result-class')?.value||'');
-  let entries=getScheduleEntries().filter(e=>!roomId||e.roomId===roomId);
+  // ★ Bug5 修正：優先從已存檔快照取得 entries（與 renderResults 邏輯一致）
+  //   避免重新整理後 SCH_STATE 被重設導致 getScheduleEntries 回傳空陣列
+  const snap=DB.savedScheduleSnapshot||{};
+  const hasSnap=Object.values(snap).some(arr=>arr&&arr.length>0);
+  let allSched=[];
+  if(hasSnap){
+    Object.entries(snap).forEach(([snapRoomId,snaps])=>{
+      const room=DB.rooms.find(r=>r.id===snapRoomId);
+      (snaps||[]).forEach(e=>allSched.push({
+        ...e,
+        roomId:snapRoomId,
+        roomName:e.roomName||(room?.name||snapRoomId),
+      }));
+    });
+    allSched.sort((a,b)=>{
+      const ri=DB.rooms.findIndex(r=>r.id===a.roomId)-DB.rooms.findIndex(r=>r.id===b.roomId);
+      return ri!==0?ri:(a.order||0)-(b.order||0);
+    });
+  } else {
+    allSched=getScheduleEntries();
+  }
+  let entries=allSched;
+  if(roomId)entries=entries.filter(e=>e.roomId===roomId);
   if(classF)entries=entries.filter(e=>e.class===classF);
+  if(!entries.length){showToast('無資料可匯出，請確認已選擇考場或排程已存檔','err');return;}
   const data=entries.map((e,i)=>{
     const entryKey=e.studentId+'_'+e.type;
     const rId=e.roomId;
@@ -8538,6 +8778,212 @@ function saveDisqIndividual(){
 window.saveDisqIndividual=saveDisqIndividual;
 
 // ════════════════════════════════════════════════
+// ★ 需求4：發佈 / 收回成績
+// ════════════════════════════════════════════════
+function _updatePublishBarUI(){
+  const isPublished=!!(DB.config.resultsPublished);
+  const statusEl=document.getElementById('results-publish-status');
+  const timeEl=document.getElementById('results-publish-time');
+  const pubBtn=document.getElementById('publish-results-btn');
+  const unpubBtn=document.getElementById('unpublish-results-btn');
+  if(statusEl)statusEl.textContent=isPublished?'✅ 已發佈':'⚑ 尚未發佈';
+  if(statusEl)statusEl.style.color=isPublished?'var(--sage)':'var(--rust)';
+  if(timeEl)timeEl.textContent=isPublished&&DB.config.resultsPublishedAt?('發佈時間：'+new Date(DB.config.resultsPublishedAt).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})):'';
+  if(pubBtn)pubBtn.style.display=isPublished?'none':'inline-flex';
+  if(unpubBtn)unpubBtn.style.display=isPublished?'inline-flex':'none';
+}
+window._updatePublishBarUI=_updatePublishBarUI;
+
+function publishResults(){
+  if(!confirm('確定要發佈成績？學生及教師將可看到完整術科成績（含扣分及評語）。'))return;
+  DB.config.resultsPublished=true;
+  DB.config.resultsPublishedAt=new Date().toISOString();
+  // 同時開放 live-results 頁面給學生和教師
+  DB.config.studentAccess['live-results']=true;
+  DB.config.teacherAccess['live-results']=true;
+  fbSaveConfig();
+  // 更新 config 中的發佈旗標
+  fbSet('resultsPublish','main',{published:true,publishedAt:DB.config.resultsPublishedAt});
+  _updatePublishBarUI();
+  buildNav(); // 重建導覽讓 live-results 頁顯示
+  showToast('成績已發佈，學生及教師現在可查看 ✓','ok');
+}
+window.publishResults=publishResults;
+
+function unpublishResults(){
+  if(!confirm('確定要收回成績發佈？學生及教師將無法查看成績總表。'))return;
+  DB.config.resultsPublished=false;
+  DB.config.resultsPublishedAt=null;
+  DB.config.studentAccess['live-results']=false;
+  DB.config.teacherAccess['live-results']=false;
+  fbSaveConfig();
+  fbSet('resultsPublish','main',{published:false,publishedAt:null});
+  _updatePublishBarUI();
+  buildNav();
+  showToast('成績已收回，學生及教師無法查看','warn');
+}
+window.unpublishResults=unpublishResults;
+
+// ════════════════════════════════════════════════
+// ★ 需求4 & Bug8：現場評分成績總表（學生 & 教師唯讀）
+//   含扣分及原因、各考場前三名、所有評審評語
+// ════════════════════════════════════════════════
+function renderLiveResults(){
+  const el=document.getElementById('lr-body');if(!el)return;
+  const roomId=document.getElementById('lr-room')?.value||'';
+  const classF=document.getElementById('lr-class')?.value||'';
+
+  // 從快照取得 entries
+  const snap=DB.savedScheduleSnapshot||{};
+  const hasSnap=Object.values(snap).some(arr=>arr&&arr.length>0);
+  let allSched=[];
+  if(hasSnap){
+    Object.entries(snap).forEach(([snapRoomId,snaps])=>{
+      const room=DB.rooms.find(r=>r.id===snapRoomId);
+      (snaps||[]).forEach(e=>allSched.push({
+        ...e,roomId:snapRoomId,
+        roomName:e.roomName||(room?.name||snapRoomId),
+      }));
+    });
+    allSched.sort((a,b)=>{
+      const ri=DB.rooms.findIndex(r=>r.id===a.roomId)-DB.rooms.findIndex(r=>r.id===b.roomId);
+      return ri!==0?ri:(a.order||0)-(b.order||0);
+    });
+  } else {
+    allSched=getScheduleEntries();
+  }
+
+  let entries=allSched;
+  if(roomId)entries=entries.filter(e=>e.roomId===roomId);
+  if(classF)entries=entries.filter(e=>e.class===classF);
+
+  if(!entries.length){
+    el.innerHTML='<div class="card" style="text-align:center;padding:32px"><div style="font-size:32px;margin-bottom:10px">🔒</div><div style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted)">尚無成績資料，或管理員尚未開放查閱</div></div>';
+    return;
+  }
+
+  // 清除評審排序快取
+  if(DB._jurorOrderCache)DB._jurorOrderCache={};
+
+  // ★ 計算各考場前三名（依最終成績排序，不含缺考）
+  const roomRankMap={}; // entryKey -> rank（1/2/3）
+  const roomGroups={};
+  entries.forEach(e=>{
+    if(!roomGroups[e.roomId])roomGroups[e.roomId]=[];
+    const entryKey=e.studentId+'_'+e.type;
+    const jurorData=DB.juryScores[e.roomId]?.[entryKey]||{};
+    const scoreArr=Object.values(jurorData);
+    const isAbsent=scoreArr.some(s=>s.absent);
+    const result=scoreArr.length&&!isAbsent?calcFinal(scoreArr,e.roomId,e):{finalScore:null};
+    const ded=DB.deductions[entryKey]||{amount:0};
+    const finalWithDed=result.finalScore!==null?Math.max(0,result.finalScore-(ded.amount||0)):null;
+    if(finalWithDed!==null)roomGroups[e.roomId].push({entryKey,score:finalWithDed});
+  });
+  Object.entries(roomGroups).forEach(([rId,arr])=>{
+    arr.sort((a,b)=>b.score-a.score);
+    arr.slice(0,3).forEach((item,i)=>{roomRankMap[rId+'_'+item.entryKey]=i+1;});
+  });
+  const rankLabel=['🥇','🥈','🥉'];
+
+  // 按考場分區顯示
+  const roomsToShow=roomId?DB.rooms.filter(r=>r.id===roomId):DB.rooms;
+  let html='';
+  roomsToShow.forEach(room=>{
+    const roomEntries=entries.filter(e=>e.roomId===room.id);
+    if(!roomEntries.length)return;
+    html+=`<div style="margin-bottom:28px">
+      <div style="background:var(--ink);color:var(--gold);padding:12px 18px;border-radius:var(--r) var(--r) 0 0;display:flex;align-items:center;gap:10px">
+        <span style="font-family:Cormorant Garamond,serif;font-size:22px;font-weight:300">${room.name}</span>
+        ${room.location?`<span style="font-family:'DM Mono',monospace;font-size:9px;opacity:.6">📍 ${room.location}</span>`:''}
+        <span style="font-family:'DM Mono',monospace;font-size:9px;opacity:.5;margin-left:auto">${roomEntries.length} 位出場</span>
+      </div>`;
+    roomEntries.forEach((e,ei)=>{
+      const entryKey=e.studentId+'_'+e.type;
+      const jurorData=DB.juryScores[e.roomId]?.[entryKey]||{};
+      const scoreArr=Object.values(jurorData);
+      const isAbsent=scoreArr.some(s=>s.absent);
+      const result=scoreArr.length?calcFinal(scoreArr,e.roomId,e):{finalScore:null,fS:null,fA:null,fF:null,fieldAvgs:{}};
+      const ded=DB.deductions[entryKey]||{amount:0,reason:''};
+      const finalWithDed=result.finalScore!==null?Math.max(0,result.finalScore-(ded.amount||0)):null;
+      const rank=roomRankMap[room.id+'_'+entryKey];
+      const roomFields=getRoomFields(e.roomId);
+
+      // 評審評語（依一致順序）
+      const _getSortedJurorIdsLR=(rId,jData)=>{
+        if(!DB._jurorOrderCache)DB._jurorOrderCache={};
+        if(!DB._jurorOrderCache[rId]){
+          const allIds=new Set();
+          Object.values(DB.juryScores[rId]||{}).forEach(entry=>{Object.keys(entry||{}).forEach(k=>{if(!k.startsWith('_'))allIds.add(k);});});
+          DB._jurorOrderCache[rId]=[...allIds].sort();
+        }
+        const globalOrder=DB._jurorOrderCache[rId];
+        const localIds=Object.keys(jData);
+        const sorted=globalOrder.filter(id=>localIds.includes(id));
+        localIds.forEach(id=>{if(!sorted.includes(id))sorted.push(id);});
+        return sorted;
+      };
+      const jurorIds=_getSortedJurorIdsLR(e.roomId,jurorData);
+
+      // 欄位平均列
+      const fieldHtml=roomFields.map(f=>{
+        const avg=result.fieldAvgs?.[f.id]??null;
+        return `<div style="text-align:center;min-width:70px">
+          <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--gold);margin-bottom:2px">${f.label}</div>
+          <div style="font-family:Cormorant Garamond,serif;font-size:20px">${avg!==null?(isAbsent?'—':avg.toFixed(1)):'—'}</div>
+        </div>`;
+      }).join('');
+
+      // 評語列（可折疊）
+      const hasComments=jurorIds.some(jid=>jurorData[jid]?.comment);
+      const commentsHtml=hasComments?`
+        <details style="margin-top:8px">
+          <summary style="font-family:'DM Mono',monospace;font-size:9px;color:var(--steel);cursor:pointer;letter-spacing:1px;padding:4px 0">▶ 評審評語（共 ${jurorIds.length} 位）</summary>
+          <div style="margin-top:8px;padding:10px;background:var(--cream);border-radius:var(--r)">
+            ${jurorIds.map((jid,ji)=>{
+              const s=jurorData[jid];
+              if(!s?.comment)return '';
+              return `<div style="margin-bottom:${ji<jurorIds.length-1?'10px':'0'}">
+                <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:3px">評審 ${ji+1}</div>
+                <div style="font-size:13px;line-height:1.8;color:var(--ink)">${s.comment}</div>
+              </div>`;
+            }).join('')}
+          </div>
+        </details>`:'';
+
+      // 是否為當前學生自己（學生角色時加強顯示）
+      const isSelf=(ST.role==='student')&&(e.studentId===ST.user?.id);
+
+      html+=`<div class="card" style="margin-bottom:6px;padding:12px 16px;border-radius:0;border-left:none;border-right:none;border-top:none;${isSelf?'background:#fffde7;border-left:3px solid var(--gold);':''}">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);min-width:28px">${String(e.order||ei+1).padStart(2,'0')}</div>
+          ${rank?`<span style="font-size:18px" title="本考場第${rank}名">${rankLabel[rank-1]}</span>`:''}
+          <div>
+            <strong style="font-size:14px">${e.name}</strong>
+            <span style="color:var(--muted);font-size:12px;margin-left:6px">${e.class}·座${e.seat}</span>
+            ${isSelf?'<span style="margin-left:6px;font-family:DM Mono,monospace;font-size:8px;background:var(--gold);color:var(--ink);padding:1px 7px;border-radius:10px">我</span>':''}
+          </div>
+          <div style="font-size:12px;color:var(--muted)">${e.instName}</div>
+          ${typeBadge(e.type)}
+          <div style="margin-left:auto;text-align:right">
+            ${finalWithDed!==null
+              ?`<div style="font-family:Cormorant Garamond,serif;font-size:26px;${finalWithDed<60?'color:var(--red)':'color:var(--gold)'}" class="${finalWithDed<60?'red-score':''}">${isAbsent?'缺考':finalWithDed.toFixed(2)}</div>
+                <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted)">最終成績${ded.amount?'（扣 '+ded.amount+' 分）':''}</div>
+                ${ded.reason?`<div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--rust);margin-top:1px">扣分原因：${ded.reason}</div>`:''}`
+              :'<div style="font-family:\'DM Mono\',monospace;font-size:11px;color:var(--muted)">尚無評分</div>'
+            }
+          </div>
+        </div>
+        ${roomFields.length&&!isAbsent?`<div style="display:flex;gap:14px;margin-top:8px;padding-top:8px;border-top:1px solid var(--cream);flex-wrap:wrap">${fieldHtml}</div>`:''}
+        ${commentsHtml}
+      </div>`;
+    });
+    html+='</div>';
+  });
+  el.innerHTML=html;
+}
+window.renderLiveResults=renderLiveResults;
+
+// ════════════════════════════════════════════════
 // TEACHER SCHEDULE PAGE
 // ════════════════════════════════════════════════
 function renderTeaSchedulePage(){
@@ -8569,19 +9015,52 @@ function teaSchSelectRoom(roomId,btn){
   const bc=document.getElementById('tea-schedule-room-btns');
   if(bc){bc.querySelectorAll('button').forEach(b=>{b.className='btn btn-s btn-sm';});if(btn){btn.className='btn btn-p btn-sm';} else {const first=bc.querySelector('button');if(first)first.className='btn btn-p btn-sm';}}
   const tbody=document.getElementById('tea-sched-tbody');if(!tbody)return;
-  let entries=getScheduleEntries();
-  if(roomId)entries=entries.filter(e=>e.roomId===roomId);
+
+  // ★ Bug2 修正：優先使用已存檔的排程快照，讓各考場篩選正確反映管理員設定的排程
+  const snap=DB.savedScheduleSnapshot||{};
+  const hasSnap=Object.values(snap).some(arr=>arr&&arr.length>0);
+  let entries=[];
+  if(hasSnap){
+    if(roomId){
+      // 單一考場：直接取該考場快照，依序號排序
+      entries=(snap[roomId]||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
+      entries.forEach((e,i)=>{
+        const room=DB.rooms.find(r=>r.id===roomId);
+        e._roomName=e.roomName||room?.name||roomId;
+        e._roomLoc=e.roomLocation||room?.location||'';
+        e._displayOrder=e.order||i+1;
+      });
+    } else {
+      // 全部考場：依考場順序合併，每個考場序號獨立
+      DB.rooms.forEach(r=>{
+        (snap[r.id]||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0)).forEach(e=>{
+          entries.push({...e,_roomName:e.roomName||r.name,_roomLoc:e.roomLocation||r.location||'',_displayOrder:e.order||0});
+        });
+      });
+      // 未在任何 DB.rooms 的快照也補上
+      Object.keys(snap).forEach(rid=>{
+        if(DB.rooms.find(r=>r.id===rid))return;
+        (snap[rid]||[]).forEach(e=>{entries.push({...e,_roomName:e.roomName||rid,_roomLoc:e.roomLocation||'',_displayOrder:e.order||0});});
+      });
+    }
+  } else {
+    // 快照不存在時 fallback 到記憶體排程
+    entries=getScheduleEntries();
+    if(roomId)entries=entries.filter(e=>e.roomId===roomId);
+    entries.forEach(e=>{e._roomName=e.roomName;e._roomLoc=e.roomLocation||'';e._displayOrder=e.order||0;});
+  }
+
   tbody.innerHTML=entries.map(e=>`<tr>
-    <td style="font-family:\'DM Mono\',monospace;color:var(--ink);font-weight:600">${e.order}</td>
-    <td style="color:var(--ink)">${e.roomName}</td>
-    <td style="color:var(--ink);font-family:\'DM Mono\',monospace;font-size:11px">${e.roomLocation||'—'}</td>
+    <td style="font-family:'DM Mono',monospace;color:var(--ink);font-weight:600">${e._displayOrder}</td>
+    <td style="color:var(--ink)">${e._roomName}</td>
+    <td style="color:var(--ink);font-family:'DM Mono',monospace;font-size:11px">${e._roomLoc||'—'}</td>
     <td style="color:var(--ink)">${e.class}</td>
     <td style="color:var(--ink);font-weight:600">${e.name}</td>
     <td style="color:var(--ink)">${e.instName}</td>
     <td>${typeBadge(e.type)}</td>
     <td style="font-size:12px;color:var(--ink)">${e.ac?e.ac+' — <em>'+e.at+'</em>':'—'}</td>
     <td style="font-size:12px;color:var(--ink)">${e.fc?e.fc+' — <em>'+e.ft+'</em>':'—'}</td>
-  </tr>`).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;font-family:\'DM Mono\',monospace;font-size:12px">查無資料</td></tr>';
+  </tr>`).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;font-family:\'DM Mono\',monospace;font-size:12px">查無資料（請確認管理員已存檔排程）</td></tr>';
 }
 window.teaSchSelectRoom=teaSchSelectRoom;
 
@@ -8594,8 +9073,65 @@ function updateStats(){
   document.getElementById('stat-r').textContent=done;
   document.getElementById('stat-t').textContent=teachers().length;
   // ★ 每次更新統計時同步更新連動警告
-  if(ST.role==='admin')_renderAdminLinkageWarnings();
+  if(ST.role==='admin'){_renderAdminLinkageWarnings();renderAdminInstChangeNotices();}
 }
+
+// ════════════════════════════════════════════════
+// ★ 需求1：學生樂器異動通知渲染
+// ════════════════════════════════════════════════
+function renderAdminInstChangeNotices(){
+  const panel=document.getElementById('admin-inst-change-panel');
+  if(!panel)return;
+  const notices=Object.values(DB.repInstChanges||{}).filter(n=>!n.read);
+  if(!notices.length){panel.innerHTML='';return;}
+  panel.innerHTML=`<div style="background:#fff3cd;border:1px solid #ffc107;border-left:4px solid var(--gold);border-radius:var(--r);padding:14px 16px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+      <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:#856404;font-weight:700">⚠ 學生樂器填報與管理員設定不符（共 ${notices.length} 筆）</div>
+      <button class="btn btn-s btn-xs" onclick="markAllInstChangesRead()">全部標為已讀</button>
+    </div>
+    ${notices.map(n=>`
+      <div style="background:#fff;border:1px solid #ffc107;border-radius:var(--r);padding:10px 12px;margin-bottom:6px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <div>
+          <strong>${n.studentName}</strong>
+          <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:6px">${n.class||''}·座${n.seat||''}</span>
+          <span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-left:6px">${new Date(n.at).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>
+          <div style="margin-top:5px">
+            ${(n.changes||[]).map(c=>`
+              <div style="font-size:12px;margin-bottom:2px">
+                <span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--steel);background:var(--cream);padding:1px 6px;border-radius:10px;margin-right:4px">${c.label}</span>
+                <span style="color:var(--rust)">原設定：${c.from}</span>
+                <span style="margin:0 4px;color:var(--muted)">→</span>
+                <span style="color:var(--sage);font-weight:600">學生填報：${c.to}</span>
+              </div>`).join('')}
+          </div>
+        </div>
+        <button class="btn btn-s btn-xs" onclick="markInstChangeRead('${n.studentId}')">已讀</button>
+      </div>`).join('')}
+  </div>`;
+}
+window.renderAdminInstChangeNotices=renderAdminInstChangeNotices;
+
+function markInstChangeRead(studentId){
+  // 找對應的 key
+  const key=Object.keys(DB.repInstChanges||{}).find(k=>DB.repInstChanges[k].studentId===studentId);
+  if(!key)return;
+  DB.repInstChanges[key].read=true;
+  fbSet('repInstChanges',key,{...DB.repInstChanges[key],read:true});
+  renderAdminInstChangeNotices();
+}
+window.markInstChangeRead=markInstChangeRead;
+
+function markAllInstChangesRead(){
+  Object.keys(DB.repInstChanges||{}).forEach(key=>{
+    if(!DB.repInstChanges[key].read){
+      DB.repInstChanges[key].read=true;
+      fbSet('repInstChanges',key,{...DB.repInstChanges[key],read:true});
+    }
+  });
+  renderAdminInstChangeNotices();
+  showToast('已全部標為已讀 ✓','ok');
+}
+window.markAllInstChangesRead=markAllInstChangesRead;
 
 // ════════════════════════════════════════════════
 // ★ 管理員連動診斷系統：主動偵測資料異常並警告
@@ -9122,9 +9658,12 @@ function submitJurySignup(){
   jsupDraftSave();
   const opts=DB.config.jurySignupOptions||[];
   const errors=[];
+  // ★ Bug4 修正：只需至少勾選一場，未選的考場允許跳過，不強制每場都需選擇
+  let hasAtLeastOne=false;
   DB.rooms.forEach(r=>{
     const rd=(DB.jurySignup[tid]||{})[r.id]||{};
-    if(!rd.optId){errors.push(`請選擇「${r.name}」的出席狀態`);return;}
+    if(!rd.optId)return; // 未選此考場 → 跳過，不報錯
+    hasAtLeastOne=true;
     const opt=opts.find(o=>o.id===rd.optId);
     if(opt?.isAttend&&!rd.phone) errors.push(`「${r.name}」請填寫您的手機號碼`);
     if(opt?.isSub){
@@ -9133,6 +9672,7 @@ function submitJurySignup(){
       if(!rd.subRoomId) errors.push(`「${r.name}」請選擇代評老師負責的考場`);
     }
   });
+  if(!hasAtLeastOne){window._submittingJurySignup=false;showToast('請至少選擇一個考場的出席狀態','err');return;}
   if(errors.length){window._submittingJurySignup=false;showToast(errors[0],'err');return;}
   DB.jurySignup[tid]._submitted=true;
   DB.jurySignup[tid]._draft=false;
@@ -9394,7 +9934,7 @@ const _expose = [
   'checkJuryBeforeSubmit','submitJuryAll','confirmSubmitJury','toggleAbsent','saveJCell',
   'generateSchedule','exportScheduleCSV','publishSchedule','schResetFilters','schResetToRoomDefaults','schSaveSchedule','schLoadSchedule','schInitSortBar','schAddExcludeRule','schRemoveExcludeRule','renderSchExcludeUI','schToggleSortKey','openDisqModal','saveDisq','removeDisq','importDisqCSV','exportDisqCSV','downloadDisqSample','renderDisqList','onSchRoomChange','schRoomCatToggle','schRoomInstToggle','openSchAddModal','schAddSearch','schAddEntry','schRestoreEntry','schRemoveEntry','schAddCurrentFilter',
   'openAddDisqIndividual','adimSearch','adimSelect','saveDisqIndividual',
-  'renderTeaSchedulePage','teaSchSelectRoom',
+  'renderTeaSchedulePage','teaSchSelectRoom','renderLiveResults',
   'swAdminTab','swUserTab',
   'showAddUser','editUser','resetUserPwd','deleteUser','bulkDeleteUsers','toggleAllCheck','updateBulkBar','importCSV','downloadSample','importTeaStudentsCSV','downloadTeaStudentsSample','sortTeaList','adminStuFilterClass',
   'addCategory','renameCategory','delCategory','addInstrument','renameInst','delInst',
@@ -9403,6 +9943,7 @@ const _expose = [
   'addClass','renameClass','delClass',
   'saveTiming','saveAnnounce','saveBulletin','renderBulletin','saveWeights','addTrim','saveTrimRules','fbSaveConfig',
   'setAccess','saveRepHint','saveTyText','clearData','saveTeaScheduleMsg',
+  'publishResults','unpublishResults','renderAdminInstChangeNotices','markInstChangeRead','markAllInstChangesRead',
   'erShowTab','erAdminTab','erCmd','erInsertTable','erInsertImage','erSave','erInitAdminEditors',
   'switchExamRulesTab','switchErAdminTab','saveExamRules','renderExamRulesPage','initExamRulesEditor','erExec','erMarkDirty','erHandleTab','erInsertTable','erInsertImage',
   'npKey','npDel','npConfirm','npBg','npStar',
@@ -9417,7 +9958,7 @@ const _expose = [
   'renderJsupAdminPanel','renderJsupOptsList','addJsupOption','jsupUpdateOptLabel','jsupUpdateOptFlag','jsupDelOption','saveJurySignupConfig','saveJsupOptions','renderJsupAdminTable','exportJsupCSV',
 ];
 // ★ 安全暴露到 window（不用 eval，改用函數名對照表）
-const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schResetToRoomDefaults,schSaveSchedule,schLoadSchedule,schInitSortBar,schAddExcludeRule,schRemoveExcludeRule,renderSchExcludeUI,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,openStuRoomModal,saveStuRoomModal,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,rfAddRule,rfRemoveRule,rfReadRulesFromDOM,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveBulletin,renderBulletin,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,erShowTab,erAdminTab,erCmd,erInsertTable,erInsertImage,erSave,erInitAdminEditors,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,teaInlineToggle,teaInlineEdit,teaInlineSave,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,saveJsupOptions,renderJsupAdminTable,exportJsupCSV};
+const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schResetToRoomDefaults,schSaveSchedule,schLoadSchedule,schInitSortBar,schAddExcludeRule,schRemoveExcludeRule,renderSchExcludeUI,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,renderLiveResults,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,openStuRoomModal,saveStuRoomModal,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,rfAddRule,rfRemoveRule,rfReadRulesFromDOM,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveBulletin,renderBulletin,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,publishResults,unpublishResults,renderAdminInstChangeNotices,markInstChangeRead,markAllInstChangesRead,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,erShowTab,erAdminTab,erCmd,erInsertTable,erInsertImage,erSave,erInitAdminEditors,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,teaInlineToggle,teaInlineEdit,teaInlineSave,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,saveJsupOptions,renderJsupAdminTable,exportJsupCSV};
 Object.keys(_fnMap).forEach(function(name){ window[name] = _fnMap[name]; });
 
 // ★ 頁面載入後立即從 Firebase 同步 users，讓登入時帳密是最新狀態
