@@ -8336,13 +8336,38 @@ function clearData(type){
   try{
     if(type==='rep'||type==='all'){
       students().forEach(s=>{
+        // ★ 清除記憶體中的所有曲目欄位
         s.major_ac=s.major_at=s.major_fc=s.major_ft='';
         s.minor_ac=s.minor_at=s.minor_fc=s.minor_ft='';
         s.elec_ac=s.elec_at=s.elec_fc=s.elec_ft='';
         s.repDone=false;
-        // ★ 只更新需要清除的欄位（不寫整個 user，避免 REST 模式不必要的欄位寫入）
-        fbSet('users',s.id,{major_ac:'',major_at:'',major_fc:'',major_ft:'',minor_ac:'',minor_at:'',minor_fc:'',minor_ft:'',elec_ac:'',elec_at:'',elec_fc:'',elec_ft:'',repDone:false});
+        // ★ 寫入完整 user 物件（非 merge），確保 Firebase 中所有曲目欄位被覆蓋
+        //   若使用 merge/patch，Firebase 裡舊欄位值不會被清除
+        const fullUser={...s,
+          major_ac:'',major_at:'',major_fc:'',major_ft:'',
+          minor_ac:'',minor_at:'',minor_fc:'',minor_ft:'',
+          elec_ac:'',elec_at:'',elec_fc:'',elec_ft:'',
+          repDone:false,
+        };
+        // 直接呼叫底層 REST SET（全覆蓋），不用 merge
+        if(window._FB?._rest){
+          window._FB._set('users/'+s.id, {...fullUser, _updatedAt:new Date().toISOString()})
+            .catch(e=>console.warn('[clearRep]',e));
+        } else {
+          // SDK 模式：不用 merge:true，直接 set（全覆蓋）
+          if(window._FB?.db){
+            window._FB.db.collection('users').doc(s.id)
+              .set({...fullUser, _updatedAt:new Date().toISOString()})
+              .catch(e=>console.warn('[clearRep]',e));
+          }
+        }
       });
+      // ★ 同時清除樂器異動通知
+      if(DB.repInstChanges){
+        Object.keys(DB.repInstChanges).forEach(k=>fbDelete('repInstChanges',k));
+        DB.repInstChanges={};
+      }
+      if(typeof renderAdminInstChangeNotices==='function')renderAdminInstChangeNotices();
     }
     if(type==='teacher'||type==='all'){
       Object.keys(DB.teacherComments).forEach(k=>{fbDelete('teacherComments',k);delete DB.teacherComments[k];});
@@ -8371,7 +8396,14 @@ function clearData(type){
       if(typeof renderJsupAdminTable==='function')renderJsupAdminTable();
       if(typeof renderJurySignupPage==='function')renderJurySignupPage();
     }
-    renderAll();showToast(`已清除「${labels[type]}」✓`,'ok');
+    renderAll();
+    showToast(`已清除「${labels[type]}」✓ — 建議重新整理頁面以確認資料已更新`,'ok');
+    // ★ 3 秒後提示可手動重整
+    setTimeout(()=>{
+      if(confirm(`「${labels[type]}」已清除完成。\n\n是否立即重新整理頁面，以確認 Firebase 資料已更新？`)){
+        location.reload();
+      }
+    },500);
   }finally{
     window._clearingData=false;
   }
