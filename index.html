@@ -4727,11 +4727,13 @@ function getJuryEntries(){
       const atKey=snap.type==='elective'?'elec_at':(snap.type+'_at');
       const fcKey=snap.type==='elective'?'elec_fc':(snap.type+'_fc');
       const ftKey=snap.type==='elective'?'elec_ft':(snap.type+'_ft');
+      // ★ 曲目欄位強制從 DB.users 讀取（不 fallback 到快照舊值）
+      //   避免清除曲目後現場評分仍顯示舊曲目
       return {...snap,
-        ac:stu[acKey]||snap.ac||'',at:stu[atKey]||snap.at||'',
-        fc:stu[fcKey]||snap.fc||'',ft:stu[ftKey]||snap.ft||'',
+        ac:stu[acKey]??'',at:stu[atKey]??'',
+        fc:stu[fcKey]??'',ft:stu[ftKey]??'',
         catOrder:snap.catOrder??99,typeOrder:{major:0,minor:1,elective:2}[snap.type]??99,
-        order:idx+1,  // ★ 強制以 array index 為序號（snapshot 順序 = 排程最終順序）
+        order:idx+1,
       };
     });
   }
@@ -5110,7 +5112,7 @@ function renderInvigTable(){
       const atKey=snap.type==='elective'?'elec_at':(snap.type+'_at');
       const fcKey=snap.type==='elective'?'elec_fc':(snap.type+'_fc');
       const ftKey=snap.type==='elective'?'elec_ft':(snap.type+'_ft');
-      return {...snap,ac:stu[acKey]||snap.ac||'',at:stu[atKey]||snap.at||'',fc:stu[fcKey]||snap.fc||'',ft:stu[ftKey]||snap.ft||''};
+      return {...snap,ac:stu[acKey]??'',at:stu[atKey]??'',fc:stu[fcKey]??'',ft:stu[ftKey]??''};
     });
   } else {
     entries=getScheduleEntries().filter(e=>e.roomId===roomId);
@@ -8360,6 +8362,20 @@ function clearData(type){
               .set({...fullUser, _updatedAt:new Date().toISOString()})
               .catch(e=>console.warn('[clearRep]',e));
           }
+        }
+      });
+      // ★ 同步清空排程快照內的曲目欄位（現場評分頁從快照讀曲目）
+      const pieceFields=['ac','at','fc','ft'];
+      const snap=DB.savedScheduleSnapshot||{};
+      Object.entries(snap).forEach(([roomId,entries])=>{
+        if(!entries||!entries.length)return;
+        let dirty=false;
+        entries.forEach(e=>{
+          pieceFields.forEach(f=>{if(e[f]){e[f]='';dirty=true;}});
+        });
+        if(dirty){
+          // 更新 Firebase 快照
+          fbSet('scheduleSnapshots',roomId,{entries,_savedAt:new Date().toISOString()});
         }
       });
       // ★ 同時清除樂器異動通知
