@@ -1393,34 +1393,40 @@ tbody td{color:var(--ink)!important}
             <span id="jsup-submit-status" style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted)"></span>
           </div>
 
-          <!-- ★ 需求2：上方送出鍵 -->
-          <div class="bg" style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--cream)">
-            <button class="btn btn-g" onclick="submitJurySignup()">✓ 確認送出報名</button>
-            <button class="btn btn-s btn-sm" onclick="saveJurySignupDraft()">暫時儲存草稿</button>
-            <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">↓ 填完下方各考場選項後送出</span>
-          </div>
+          <!-- ★ 已送出確認摘要（送出後顯示，填報中隱藏） -->
+          <div id="jsup-submitted-summary" style="display:none"></div>
 
-          <!-- 說明文字 -->
-          <div class="jsup-note" id="jsup-note-text"></div>
+          <!-- ★ 填報區（送出後隱藏） -->
+          <div id="jsup-form-area">
+            <!-- ★ 需求2：上方送出鍵 -->
+            <div class="bg" style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--cream)">
+              <button class="btn btn-g" onclick="submitJurySignup()">✓ 確認送出報名</button>
+              <button class="btn btn-s btn-sm" onclick="saveJurySignupDraft()">暫時儲存草稿</button>
+              <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">↓ 填完下方各考場選項後送出</span>
+            </div>
 
-          <!-- ① 考場資訊展示（純資訊，不選項） -->
-          <div style="font-family:DM Mono,monospace;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:8px">① 考場資訊一覽</div>
-          <div class="jsup-info-grid" id="jsup-info-grid"></div>
+            <!-- 說明文字 -->
+            <div class="jsup-note" id="jsup-note-text"></div>
 
-          <!-- ② 勾選填報區（每考場一列，含選項） -->
-          <div style="font-family:DM Mono,monospace;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:8px">② 請選擇您對各考場的出席狀態</div>
-          <div class="jsup-select-section">
-            <div class="jsup-select-h">📌 請依考場逐一勾選（可複選確認參加的考場）</div>
-            <div id="jsup-rows-body"></div>
-          </div>
+            <!-- ① 考場資訊展示（純資訊，不選項） -->
+            <div style="font-family:DM Mono,monospace;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:8px">① 考場資訊一覽</div>
+            <div class="jsup-info-grid" id="jsup-info-grid"></div>
 
-          <!-- ③ 整體補充說明 -->
-          <div style="font-family:DM Mono,monospace;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:6px">③ 補充說明（選填）</div>
-          <textarea id="jsup-global-note" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;min-height:80px;outline:none;resize:vertical;font-family:Noto Serif TC,serif;line-height:1.8;background:var(--paper)" placeholder="如有其他需要說明的事項，請填寫於此..."></textarea>
+            <!-- ② 勾選填報區（每考場一列，含選項） -->
+            <div style="font-family:DM Mono,monospace;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:8px">② 請選擇您對各考場的出席狀態</div>
+            <div class="jsup-select-section">
+              <div class="jsup-select-h">📌 請依考場逐一勾選（可複選確認參加的考場）</div>
+              <div id="jsup-rows-body"></div>
+            </div>
 
-          <div class="bg" style="margin-top:16px">
-            <button class="btn btn-g" onclick="submitJurySignup()">✓ 確認送出報名</button>
-            <button class="btn btn-s btn-sm" onclick="saveJurySignupDraft()">暫時儲存</button>
+            <!-- ③ 整體補充說明 -->
+            <div style="font-family:DM Mono,monospace;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:6px">③ 補充說明（選填）</div>
+            <textarea id="jsup-global-note" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;min-height:80px;outline:none;resize:vertical;font-family:Noto Serif TC,serif;line-height:1.8;background:var(--paper)" placeholder="如有其他需要說明的事項，請填寫於此..."></textarea>
+
+            <div class="bg" style="margin-top:16px">
+              <button class="btn btn-g" onclick="submitJurySignup()">✓ 確認送出報名</button>
+              <button class="btn btn-s btn-sm" onclick="saveJurySignupDraft()">暫時儲存</button>
+            </div>
           </div>
         </div>
       </div>
@@ -9776,6 +9782,124 @@ function fmtRoomDt(r){
   return '日期待定';
 }
 
+// ★ 送出後：渲染已報名的考場確認摘要
+function _renderJsupSubmittedSummary(tid){
+  const summaryEl=document.getElementById('jsup-submitted-summary');
+  const formEl=document.getElementById('jsup-form-area');
+  if(!summaryEl||!formEl)return;
+
+  const existing=DB.jurySignup[tid]||{};
+  if(!existing._submitted){
+    summaryEl.style.display='none';
+    formEl.style.display='block';
+    return;
+  }
+
+  formEl.style.display='none';
+  summaryEl.style.display='block';
+
+  const opts=DB.config.jurySignupOptions||[];
+  const submittedAt=existing._submittedAt
+    ?new Date(existing._submittedAt).toLocaleString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
+    :'';
+
+  // 只取有選擇選項的考場
+  const selectedRooms=DB.rooms.filter(r=>existing[r.id]?.optId);
+  const skippedRooms=DB.rooms.filter(r=>!existing[r.id]?.optId);
+
+  const roomCards=selectedRooms.map(r=>{
+    const rd=existing[r.id]||{};
+    const opt=opts.find(o=>o.id===rd.optId);
+    const optLabel=opt?.label||rd.optId||'—';
+    const isAttend=opt?.isAttend;
+    const isSub=opt?.isSub;
+
+    // 狀態顏色
+    const statusColor=isAttend?'var(--sage)':isSub?'var(--rust)':'var(--orange)';
+    const statusBg=isAttend?'rgba(61,92,56,.08)':isSub?'rgba(139,51,34,.08)':'rgba(202,111,30,.08)';
+    const statusIcon=isAttend?'✅':isSub?'🔄':'📌';
+
+    // 考場日期時間
+    const dtStr=fmtRoomDt(r);
+
+    // 額外資訊
+    let extraHtml='';
+    if(isAttend&&rd.phone){
+      extraHtml+=`<div style="margin-top:6px;font-size:12px;color:var(--muted)">📱 聯絡電話：<strong style="color:var(--ink)">${rd.phone}</strong></div>`;
+    }
+    if(isSub){
+      if(rd.subName) extraHtml+=`<div style="margin-top:6px;font-size:12px;color:var(--muted)">代評老師：<strong style="color:var(--ink)">${rd.subName}</strong></div>`;
+      if(rd.subPhone) extraHtml+=`<div style="margin-top:2px;font-size:12px;color:var(--muted)">代評手機：<strong style="color:var(--ink)">${rd.subPhone}</strong></div>`;
+      if(rd.subRoomId){
+        const subRoom=DB.rooms.find(rr=>rr.id===rd.subRoomId);
+        if(subRoom) extraHtml+=`<div style="margin-top:2px;font-size:12px;color:var(--muted)">代評考場：<strong style="color:var(--ink)">${subRoom.name}</strong></div>`;
+      }
+    }
+    if(rd.optText){
+      extraHtml+=`<div style="margin-top:6px;font-size:12px;color:var(--muted)">說明：${rd.optText}</div>`;
+    }
+
+    return `<div style="border:1px solid var(--border);border-left:4px solid ${statusColor};border-radius:var(--r);padding:14px 16px;background:${statusBg}">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+        <div>
+          <span style="font-size:14px;font-weight:700;color:var(--ink)">${r.name}</span>
+          ${r.location?`<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:8px">📍 ${r.location}</span>`:''}
+        </div>
+        <span style="font-family:'DM Mono',monospace;font-size:9px;font-weight:700;color:${statusColor};background:${statusBg};border:1px solid ${statusColor};padding:2px 10px;border-radius:20px">${statusIcon} ${optLabel}</span>
+      </div>
+      <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">🗓 ${dtStr}</div>
+      ${extraHtml}
+    </div>`;
+  }).join('');
+
+  // 未填考場列表（若有）
+  const skippedHtml=skippedRooms.length
+    ?`<div style="margin-top:12px;padding:10px 14px;background:var(--cream);border-radius:var(--r);border:1px solid var(--border)">
+        <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:6px">以下考場未填寫狀態（略過）</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">${skippedRooms.map(r=>`<span style="font-family:'DM Mono',monospace;font-size:9px;padding:2px 10px;border:1px solid var(--border);border-radius:20px;background:var(--white);color:var(--muted)">${r.name}</span>`).join('')}</div>
+      </div>`
+    :'';
+
+  // 全域補充說明
+  const globalNoteHtml=existing._globalNote
+    ?`<div style="margin-top:12px;padding:10px 14px;background:var(--cream);border-radius:var(--r);border:1px solid var(--border)">
+        <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:4px">補充說明</div>
+        <div style="font-size:13px;line-height:1.8;color:var(--ink)">${existing._globalNote}</div>
+      </div>`
+    :'';
+
+  summaryEl.innerHTML=`
+    <div style="background:#f0faf2;border:2px solid var(--sage);border-radius:var(--r);padding:18px 20px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+        <span style="font-size:22px">✅</span>
+        <div>
+          <div style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:var(--sage);letter-spacing:1px">報名已確認送出</div>
+          ${submittedAt?`<div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-top:2px">送出時間：${submittedAt}</div>`:''}
+        </div>
+        <button class="btn btn-s btn-sm" style="margin-left:auto" onclick="_jsupReopenForm()">✏ 修改報名內容</button>
+      </div>
+      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--sage);margin-bottom:10px">
+        您已報名的考場（共 ${selectedRooms.length} 場）
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        ${roomCards||'<div style="font-size:13px;color:var(--muted)">尚無勾選任何考場</div>'}
+      </div>
+      ${skippedHtml}
+      ${globalNoteHtml}
+    </div>`;
+}
+window._renderJsupSubmittedSummary=_renderJsupSubmittedSummary;
+
+// 允許教師修改已送出的報名（重新開啟填報區）
+function _jsupReopenForm(){
+  const summaryEl=document.getElementById('jsup-submitted-summary');
+  const formEl=document.getElementById('jsup-form-area');
+  if(summaryEl)summaryEl.style.display='none';
+  if(formEl)formEl.style.display='block';
+  showToast('您可以修改後重新送出報名','');
+}
+window._jsupReopenForm=_jsupReopenForm;
+
 function renderJurySignupPage(){
   // 說明文字
   const noteEl=document.getElementById('jsup-note-text');
@@ -9784,6 +9908,10 @@ function renderJurySignupPage(){
   const tid=ST.user?.id;
   const existing=DB.jurySignup[tid]||{};
   const opts=DB.config.jurySignupOptions||[];
+
+  // ★ 已送出時顯示確認摘要，隱藏填報區
+  _renderJsupSubmittedSummary(tid);
+  if(existing._submitted)return; // 已送出則不渲染填報區內容
 
   // 已送出狀態
   const statusEl=document.getElementById('jsup-submit-status');
@@ -10079,6 +10207,8 @@ function submitJurySignup(){
   fbSet('jurySignup',tid,DB.jurySignup[tid]);
   const statusEl=document.getElementById('jsup-submit-status');
   if(statusEl)statusEl.innerHTML=`<span style="color:var(--sage)">✓ 已送出 ${new Date().toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>`;
+  // ★ 顯示已送出確認摘要
+  _renderJsupSubmittedSummary(tid);
   showToast('報名已送出 ✓','ok');
 }
 window.submitJurySignup=submitJurySignup;
@@ -10352,11 +10482,11 @@ const _expose = [
   'exportTeaOverviewCSV','renderTeaTable','openTeaSelfAddPanel','tsaSearch','adminCommentInit','adminCommentSave','adminCommentLoadStudent','adminCommentLoadType','adminCommentFromImage','adminCommentImportCSV','adminCommentDownloadSample',
   'doInvigLogin','invigSelectRoom','toggleBlackSign','toggleLivePlay','saveScaleKey','renderInvigPage',
   'saveJRemark','saveJRemarkText',
-  'switchTeaSubTab','updateJurySignupTabVisibility','teaCheckAllDone','teaInlineToggle','teaInlineEdit','teaInlineSave','renderJurySignupPage','adminJurySelectRoom','initJuryAdminRoomBar','jsupPickOpt','jsupDraftSave','saveJurySignupDraft','submitJurySignup',
+  'switchTeaSubTab','updateJurySignupTabVisibility','teaCheckAllDone','teaInlineToggle','teaInlineEdit','teaInlineSave','renderJurySignupPage','adminJurySelectRoom','initJuryAdminRoomBar','jsupPickOpt','jsupDraftSave','saveJurySignupDraft','submitJurySignup','_renderJsupSubmittedSummary','_jsupReopenForm',
   'renderJsupAdminPanel','renderJsupOptsList','addJsupOption','jsupUpdateOptLabel','jsupUpdateOptFlag','jsupDelOption','saveJurySignupConfig','saveJsupOptions','renderJsupAdminTable','exportJsupCSV',
 ];
 // ★ 安全暴露到 window（不用 eval，改用函數名對照表）
-const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schResetToRoomDefaults,schSaveSchedule,schLoadSchedule,schInitSortBar,schAddExcludeRule,schRemoveExcludeRule,renderSchExcludeUI,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,renderLiveResults,renderAdminResults,exportAdminResultsCSV,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,openStuRoomModal,saveStuRoomModal,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,rfAddRule,rfRemoveRule,rfReadRulesFromDOM,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveBulletin,renderBulletin,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,publishResults,unpublishResults,renderAdminInstChangeNotices,markInstChangeRead,markAllInstChangesRead,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,erShowTab,erAdminTab,erCmd,erInsertTable,erInsertImage,erSave,erInitAdminEditors,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,teaInlineToggle,teaInlineEdit,teaInlineSave,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,saveJsupOptions,renderJsupAdminTable,exportJsupCSV};
+const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schResetToRoomDefaults,schSaveSchedule,schLoadSchedule,schInitSortBar,schAddExcludeRule,schRemoveExcludeRule,renderSchExcludeUI,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,renderLiveResults,renderAdminResults,exportAdminResultsCSV,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,openStuRoomModal,saveStuRoomModal,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,rfAddRule,rfRemoveRule,rfReadRulesFromDOM,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveBulletin,renderBulletin,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,publishResults,unpublishResults,renderAdminInstChangeNotices,markInstChangeRead,markAllInstChangesRead,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,erShowTab,erAdminTab,erCmd,erInsertTable,erInsertImage,erSave,erInitAdminEditors,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,teaInlineToggle,teaInlineEdit,teaInlineSave,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,_renderJsupSubmittedSummary,_jsupReopenForm,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,saveJsupOptions,renderJsupAdminTable,exportJsupCSV};
 Object.keys(_fnMap).forEach(function(name){ window[name] = _fnMap[name]; });
 
 // ★ 頁面載入後立即從 Firebase 同步 users，讓登入時帳密是最新狀態
