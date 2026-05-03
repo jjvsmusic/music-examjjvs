@@ -311,6 +311,19 @@ td{padding:9px 12px;font-size:13px;vertical-align:middle}
 .jst thead .sticky-seq,.jst thead .sticky-name{z-index:25;background:var(--ink)}
 .jst tbody tr td:first-child{position:sticky;left:0;z-index:10;background:var(--paper)}
 .jst tbody tr td:nth-child(2){position:sticky;left:28px;z-index:10;background:var(--paper)}
+/* ★ 成績總表 sticky 樣式（直向欄位：序號+姓名固定；橫向：表頭固定） */
+.score-table-wrap{overflow-x:auto;overflow-y:auto;max-height:70vh;border:1px solid var(--border);border-top:none;position:relative}
+.score-tbl{border-collapse:collapse;width:100%;min-width:600px;table-layout:auto}
+.score-tbl thead th{position:sticky;top:0;z-index:20;background:var(--ink);color:var(--paper)}
+.score-tbl thead tr:nth-child(2) th{top:28px} /* 雙行表頭：第二行偏移第一行高度 */
+.score-tbl .st-seq{position:sticky;left:0;z-index:15;min-width:32px;max-width:32px;width:32px;background:var(--ink)}
+.score-tbl .st-name{position:sticky;left:32px;z-index:15;min-width:100px;max-width:160px;background:var(--ink)}
+.score-tbl thead .st-seq,.score-tbl thead .st-name{z-index:25;background:var(--ink)}
+.score-tbl tbody tr td.st-seq{position:sticky;left:0;z-index:10}
+.score-tbl tbody tr td.st-name{position:sticky;left:32px;z-index:10}
+.score-tbl tbody tr:nth-child(odd) td.st-seq,.score-tbl tbody tr:nth-child(odd) td.st-name{background:var(--white)}
+.score-tbl tbody tr:nth-child(even) td.st-seq,.score-tbl tbody tr:nth-child(even) td.st-name{background:var(--cream)}
+.score-tbl tbody tr.self-row td.st-seq,.score-tbl tbody tr.self-row td.st-name{background:#fffde7}
 .jst-row-a td:first-child,.jst-row-a td:nth-child(2){background:#fff5f5!important}
 .jst-row-black td:first-child,.jst-row-black td:nth-child(2){background:rgba(139,105,20,0.22)!important}
 .jst-row-live td:first-child,.jst-row-live td:nth-child(2){background:rgba(36,113,163,0.12)!important}
@@ -9052,10 +9065,10 @@ function renderLiveResults(){
     const thLeft='padding:5px 6px;font-family:\'DM Mono\',monospace;font-size:8px;letter-spacing:1px;font-weight:500;white-space:nowrap;border:1px solid rgba(255,255,255,.15);text-align:left';
 
     let row1='';
-    row1+=`<th rowspan="2" style="${thLeft};min-width:28px">序</th>`;
-    row1+=`<th rowspan="2" style="${thLeft};min-width:70px">班別</th>`;
+    row1+=`<th rowspan="2" class="st-seq" style="${thBase};min-width:32px">序</th>`;
+    row1+=`<th rowspan="2" class="st-name" style="${thLeft};min-width:100px">姓名</th>`;
+    row1+=`<th rowspan="2" style="${thBase};min-width:50px">班別</th>`;
     row1+=`<th rowspan="2" style="${thBase};min-width:36px">座號</th>`;
-    row1+=`<th rowspan="2" style="${thLeft};min-width:70px">姓名</th>`;
     row1+=`<th rowspan="2" style="${thLeft};min-width:80px">專長樂器</th>`;
     roomFields.forEach(f=>{
       row1+=`<th colspan="${fieldColspan}" style="${thBase};background:rgba(181,137,42,.18)">${f.label}</th>`;
@@ -9084,7 +9097,9 @@ function renderLiveResults(){
       // ★ 只有前三名顯示獎牌，放最末欄
       const rank=roomRankMap[room.id+'_'+ek];
       const self=isSelf(e);
+      // ★ sticky 欄背景依行號與自己控制（CSS class 處理）
       const rowBg=self?'background:#fffde7':((ei%2===0)?'background:var(--white)':'background:var(--cream)');
+      const rowClass=self?'self-row':'';
 
       const tdBase=`padding:5px 7px;border:1px solid var(--border);font-size:12px;text-align:center;${rowBg}`;
       const tdLeft=`padding:5px 7px;border:1px solid var(--border);font-size:12px;${rowBg}`;
@@ -9110,11 +9125,11 @@ function renderLiveResults(){
       const violation=ded.reason||(isAbsent?'缺考':'');
       const rankDisp=rank?rankMedal[rank-1]:'';
 
-      rows+=`<tr>
-        <td style="${tdNum}">${String(e.order||ei+1).padStart(2,'0')}</td>
-        <td style="${tdLeft}">${e.class||'—'}</td>
+      rows+=`<tr class="${rowClass}">
+        <td class="st-seq" style="${tdNum}">${String(e.order||ei+1).padStart(2,'0')}</td>
+        <td class="st-name" style="${tdLeft};font-weight:600">${e.name}${self?' ★':''}</td>
+        <td style="${tdBase}">${e.class||'—'}</td>
         <td style="${tdBase}">${e.seat||'—'}</td>
-        <td style="${tdLeft};font-weight:600">${e.name}${self?' ★':''}</td>
         <td style="${tdLeft}">${typeName(e.type)} ${e.instName}</td>
         ${scoresCells}
         <td style="${tdNum};color:var(--rust)">${dedAmt}</td>
@@ -9142,9 +9157,9 @@ function renderLiveResults(){
         ${room.location?`<span style="font-family:'DM Mono',monospace;font-size:9px;opacity:.6">📍 ${room.location}</span>`:''}
         <span style="font-family:'DM Mono',monospace;font-size:9px;opacity:.5;margin-left:auto">${roomEntries.length} 位出場・${jurorCount} 位評審</span>
       </div>
-      <div style="overflow-x:auto;border:1px solid var(--border);border-top:none">
-        <table style="border-collapse:collapse;width:100%;min-width:600px">
-          <thead style="background:var(--ink);color:var(--paper)">
+      <div class="score-table-wrap">
+        <table class="score-tbl">
+          <thead>
             <tr>${row1}</tr>
             <tr>${row2}</tr>
           </thead>
@@ -9345,10 +9360,10 @@ function renderAdminResults(){
     const thLeft='padding:5px 6px;font-family:\'DM Mono\',monospace;font-size:8px;letter-spacing:1px;font-weight:500;white-space:nowrap;border:1px solid rgba(255,255,255,.15);text-align:left';
 
     let row1='';
-    row1+=`<th rowspan="2" style="${thLeft};min-width:28px">序</th>`;
-    row1+=`<th rowspan="2" style="${thLeft};min-width:70px">班別</th>`;
+    row1+=`<th rowspan="2" class="st-seq" style="${thBase};min-width:32px">序</th>`;
+    row1+=`<th rowspan="2" class="st-name" style="${thLeft};min-width:100px">姓名</th>`;
+    row1+=`<th rowspan="2" style="${thBase};min-width:50px">班別</th>`;
     row1+=`<th rowspan="2" style="${thBase};min-width:36px">座號</th>`;
-    row1+=`<th rowspan="2" style="${thLeft};min-width:70px">姓名</th>`;
     row1+=`<th rowspan="2" style="${thLeft};min-width:80px">專長樂器</th>`;
     roomFields.forEach(f=>{
       row1+=`<th colspan="${fieldColspan}" style="${thBase};background:rgba(181,137,42,.18)">${f.label}</th>`;
@@ -9417,10 +9432,10 @@ function renderAdminResults(){
       }
 
       rows+=`<tr>
-        <td style="${tdNum}">${String(e.order||ei+1).padStart(2,'0')}</td>
-        <td style="${tdLeft}">${e.class||'—'}</td>
+        <td class="st-seq" style="${tdNum}">${String(e.order||ei+1).padStart(2,'0')}</td>
+        <td class="st-name" style="${tdLeft};font-weight:600">${e.name}</td>
+        <td style="${tdBase}">${e.class||'—'}</td>
         <td style="${tdBase}">${e.seat||'—'}</td>
-        <td style="${tdLeft};font-weight:600">${e.name}</td>
         <td style="${tdLeft}">${typeName(e.type)} ${e.instName}</td>
         ${scoresCells}
         <td style="${tdNum};color:var(--rust)">${dedAmt}</td>
@@ -9450,9 +9465,9 @@ function renderAdminResults(){
         <span style="font-family:'DM Mono',monospace;font-size:9px;opacity:.5;margin-left:auto">${roomEntries.length} 位出場・${jurorCount} 位評審</span>
         <button class="btn btn-b btn-xs" onclick="exportAdminResultsCSV(false,'${room.id}')">↓ 匯出此考場</button>
       </div>
-      <div style="overflow-x:auto;border:1px solid var(--border);border-top:none">
-        <table style="border-collapse:collapse;width:100%;min-width:600px">
-          <thead style="background:var(--ink);color:var(--paper)">
+      <div class="score-table-wrap">
+        <table class="score-tbl">
+          <thead>
             <tr>${row1}</tr>
             <tr>${row2}</tr>
           </thead>
