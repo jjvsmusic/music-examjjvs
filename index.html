@@ -2868,6 +2868,42 @@ function loadAllFromFirebase(done, lightMode){
   });
 
   // ── 並行讀取所有需要的集合 ──
+  // ★ 根本修正：juryScores 直接納入 tasks，確保 allSettled 等待成績讀完才 done()
+  const _loadJuryScores=async ()=>{
+    if(lightMode||!window._FB)return;
+    DB.juryScores={};
+    try{
+      if(window._FB._rest){
+        const roomDocs=await window._FB._list('juryScores').catch(()=>[]);
+        await Promise.all((roomDocs||[]).map(async roomDoc=>{
+          const roomId=roomDoc.id||Object.keys(roomDoc).find(k=>k!=='_updatedAt'&&!k.startsWith('_'));
+          if(!roomId)return;
+          const entryDocs=await window._FB._list('juryScores/'+roomId+'/entries').catch(()=>[]);
+          DB.juryScores[roomId]={};
+          (entryDocs||[]).forEach(ed=>{
+            const{id,_updatedAt,...jurors}=ed;
+            if(id)DB.juryScores[roomId][id]=jurors;
+          });
+        }));
+      } else {
+        const db=window._FB.db;
+        const roomSnap=await db.collection('juryScores').get();
+        await Promise.all(roomSnap.docs.map(async roomDoc=>{
+          const roomId=roomDoc.id;
+          DB.juryScores[roomId]={};
+          const entrySnap=await db.collection('juryScores').doc(roomId).collection('entries').get();
+          entrySnap.forEach(ed=>{
+            const raw=ed.data();const jurors={};
+            Object.keys(raw).forEach(k=>{if(!k.startsWith('_'))jurors[k]=raw[k];});
+            DB.juryScores[roomId][ed.id]=jurors;
+          });
+        }));
+      }
+      console.log('[juryScores] 載入完成，考場數：',Object.keys(DB.juryScores).length,
+        '總成績筆數：',Object.values(DB.juryScores).reduce((s,r)=>s+Object.keys(r).length,0));
+    }catch(e){console.warn('[juryScores] 載入失敗',e);}
+  };
+
   const tasks={
     config:   load('config'),
     rooms:    load('rooms'),
@@ -2880,12 +2916,14 @@ function loadAllFromFirebase(done, lightMode){
     jurySignupConfig: load('jurySignupConfig'),
     scheduleState: load('scheduleState'),
     scheduleSnapshots: load('scheduleSnapshots'),
-    repInstChanges: lightMode ? Promise.resolve([]) : load('repInstChanges'), // ★ 需求1
+    repInstChanges: lightMode ? Promise.resolve([]) : load('repInstChanges'),
     // lightMode 跳過的慢速集合（但學生需要 teacherComments 看自己評語）
     teacherComments: (lightMode && ST.role!=='student') ? Promise.resolve([]) : load('teacherComments'),
     deductions: lightMode ? Promise.resolve([]) : load('deductions'),
     blackSign: lightMode ? Promise.resolve([]) : load('blackSign'),
-    users: load('users'),  // 每次都讀確保最新（含 repDone/teaDone）
+    users: load('users'),
+    // ★ juryScores：直接納入 tasks，與所有集合並行且確保等待完成
+    juryScores: _loadJuryScores(),
   };
 
   // ★ 修正 #A3：用 allSettled 確保單一集合失敗不影響其他集合
@@ -3063,33 +3101,9 @@ function loadAllFromFirebase(done, lightMode){
       }
     }catch(e){console.warn('[snapshot] 去重失敗',e);}
 
-    // — juryScores（非 lightMode 才讀，且用 REST 模式直接並行） —
-    if(!lightMode && window._FB){
-      const db=window._FB.db;
-      let _jsDone=false;
-      const afterJury=()=>{if(!_jsDone){_jsDone=true;clearTimeout(_forceTimer);forceDone();}};
-      setTimeout(afterJury,8000); // juryScores 單獨 8 秒超時
-      db.collection('juryScores').get().then(roomSnap=>{
-        let roomCount=roomSnap.size;
-        if(roomCount===0){afterJury();return;}
-        roomSnap.forEach(roomDoc=>{
-          db.collection('juryScores').doc(roomDoc.id).collection('entries').get()
-            .then(entrySnap=>{
-              const roomId=roomDoc.id;
-              if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
-              entrySnap.forEach(ed=>{
-                const raw=ed.data();const jurors={};
-                Object.keys(raw).forEach(k=>{if(!k.startsWith('_'))jurors[k]=raw[k];});
-                DB.juryScores[roomId][ed.id]=jurors;
-              });
-              roomCount--;if(roomCount<=0)afterJury();
-            }).catch(()=>{roomCount--;if(roomCount<=0)afterJury();});
-        });
-      }).catch(afterJury);
-    } else {
-      clearTimeout(_forceTimer);
-      forceDone();
-    }
+    // — juryScores 已在 tasks 中並行載入，此處不需再做任何事 —
+    clearTimeout(_forceTimer);
+    forceDone();
 
   }).catch(e=>{
     console.warn('[loadAll] Promise.all 失敗',e);
@@ -3799,10 +3813,34 @@ function editRep(){
     document.getElementById('r-elec-tog').checked=true;
     document.getElementById('r-elec-area').style.display='block';
     const inst=DB.instruments.items.find(i=>i.id===u.elective);
-    if(inst){setV('r-elec-cat',inst.cat);filterRepInst('elective');}
+    if(inst){
+      // ★ 確保 r-elec-cat 的 options 已填入
+      const catSel=document.getElementById('r-elec-cat');
+      if(catSel&&catSel.options.length<=1){
+        DB.instruments.categories.sort((a,b)=>a.order-b.order)
+          .forEach(c=>catSel.appendChild(new Option(c.name,c.id)));
+      }
+      setV('r-elec-cat',inst.cat);
+      filterRepInst('elective');
+      // 若 options 裡沒有目標樂器，手動補入
+      const instSel=document.getElementById('r-elec-inst');
+      if(instSel&&![...instSel.options].some(o=>o.value===u.elective)){
+        instSel.innerHTML='';
+        DB.instruments.items.filter(i=>i.cat===inst.cat).sort((a,b)=>a.order-b.order)
+          .forEach(i=>instSel.appendChild(new Option(i.name,i.id)));
+      }
+    }
     setV('r-elec-inst',u.elective);
     setV('r-elec-ac',u.elec_ac);setV('r-elec-at',u.elec_at);
     setV('r-elec-fc',u.elec_fc);setV('r-elec-ft',u.elec_ft);
+    // 延遲確認
+    requestAnimationFrame(()=>{
+      const instSel2=document.getElementById('r-elec-inst');
+      if(instSel2&&u.elective&&instSel2.value!==u.elective){
+        const inst2=DB.instruments.items.find(i=>i.id===u.elective);
+        if(inst2){const c=document.getElementById('r-elec-cat');if(c)c.value=inst2.cat;filterRepInst('elective');instSel2.value=u.elective;}
+      }
+    });
   }
 }
 function submitRep(){
@@ -3978,12 +4016,40 @@ function _autoFillRepInstruments(){
     if(tog)tog.checked=true;
     document.getElementById('r-elec-area').style.display='block';
     const inst=DB.instruments.items.find(i=>i.id===u.elective);
-    if(inst){setV('r-elec-cat',inst.cat);filterRepInst('elective');}
+    if(inst){
+      // ★ 修正：確保 r-elec-cat 選單 options 已填入（避免 initDropdowns 尚未執行時 setV 失效）
+      const catSel=document.getElementById('r-elec-cat');
+      if(catSel&&catSel.options.length<=1){
+        DB.instruments.categories.sort((a,b)=>a.order-b.order)
+          .forEach(c=>catSel.appendChild(new Option(c.name,c.id)));
+      }
+      setV('r-elec-cat',inst.cat);
+      filterRepInst('elective');
+      // ★ 若 filterRepInst 後 r-elec-inst 還沒有目標樂器的 option，手動補入
+      const instSel=document.getElementById('r-elec-inst');
+      if(instSel&&![...instSel.options].some(o=>o.value===u.elective)){
+        instSel.innerHTML='';
+        DB.instruments.items.filter(i=>i.cat===inst.cat).sort((a,b)=>a.order-b.order)
+          .forEach(i=>instSel.appendChild(new Option(i.name,i.id)));
+      }
+    }
     setV('r-elec-inst',u.elective);
     if(u.elec_ac)setV('r-elec-ac',u.elec_ac);
     if(u.elec_at)setV('r-elec-at',u.elec_at);
     if(u.elec_fc)setV('r-elec-fc',u.elec_fc);
     if(u.elec_ft)setV('r-elec-ft',u.elec_ft);
+    // ★ 延遲再確認一次（應對 DOM 渲染時序問題）
+    requestAnimationFrame(()=>{
+      const instSel2=document.getElementById('r-elec-inst');
+      if(instSel2&&u.elective&&instSel2.value!==u.elective){
+        if(inst){
+          const catSel2=document.getElementById('r-elec-cat');
+          if(catSel2)catSel2.value=inst.cat;
+          filterRepInst('elective');
+          instSel2.value=u.elective;
+        }
+      }
+    });
   }
   // ★ 載入完成後觸發指定曲規則建議
   setTimeout(()=>{
