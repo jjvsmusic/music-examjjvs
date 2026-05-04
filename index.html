@@ -2181,6 +2181,7 @@ tbody td{color:var(--ink)!important}
             <option value="">— 先選考場 —</option>
           </select>
           <button class="btn btn-d" style="font-size:14px;padding:8px 18px" onclick="deleteJurorScores()">確認刪除此評審所有成績</button>
+          <button class="btn btn-s btn-sm" onclick="cleanGhostJurors()" title="合併重複評審、刪除無姓名幽靈記錄">🧹 清理幽靈評審</button>
           <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">⚠ 刪除後無法復原</span>
         </div>
       </div>
@@ -2599,34 +2600,47 @@ function doJuryLogin(){
   if(!name){if(errEl)errEl.textContent='請填入您的姓名';else showToast('請填入姓名','err');return;}
   if(errEl)errEl.textContent='';
   ST.juryName=name;
-  // ★ 修正：使用 timestamp + 加密強隨機數確保唯一性，避免 ms 級碰撞
-  const rand=(crypto?.getRandomValues?.(new Uint32Array(2))||[Math.random()*1e9|0,Math.random()*1e9|0]);
-  ST.juryId='J_'+Date.now()+'_'+(rand[0]||0).toString(36)+(rand[1]||0).toString(36);
+  // ★ 根本修正：以「考場ID + 姓名」作為穩定 juryId
+  //   同一位評審重新登入永遠得到相同 key，徹底消除幽靈評審問題
+  const roomId=ST.juryRoom?.id||'r';
+  const stableId='JN_'+roomId+'_'+name.replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_\u4e00-\u9fff]/g,'');
+  ST.juryId=stableId;
   ST.role='jury';
   ST.user={id:ST.juryId,name,role:'jury'};
-  // ★ 同名評審警告：避免同一評審在不同裝置重複登入
+  // ★ 同名評審在不同考場不衝突（key 含 roomId），同一考場同名才需確認
   try{
-    const roomId=ST.juryRoom?.id;
     if(roomId&&DB.juryScores[roomId]){
+      // 找出此考場中「同名但不同 key」的舊記錄，一併清理
       const existingNames=new Set();
-      Object.values(DB.juryScores[roomId]).forEach(entry=>{
-        Object.values(entry||{}).forEach(j=>{if(j&&j._jurorName)existingNames.add(j._jurorName);});
+      Object.entries(DB.juryScores[roomId]).forEach(([ek,entry])=>{
+        Object.entries(entry||{}).forEach(([jid,data])=>{
+          if(data&&data._jurorName===name&&jid!==stableId){
+            // 有舊的非穩定 key，寫入 Firestore 時合併到新 key 並刪除舊 key
+            console.log('[jury login] 偵測到同名舊 key：',jid,'→ 將合併至',stableId);
+            if(!DB.juryScores[roomId][ek][stableId]){
+              DB.juryScores[roomId][ek][stableId]={...data};
+            }
+            // 在 Firestore 更新：新 key 寫入，舊 key 設為 null（刪除欄位）
+            if(window._FB){
+              const {db,serverTimestamp,FieldValue}=window._FB;
+              const patch={};
+              patch[stableId]={...data,_jurorName:name};
+              patch[jid]=FieldValue?.delete?.()??null;
+              patch['_updatedAt']=serverTimestamp?.()??new Date().toISOString();
+              db.collection('juryScores').doc(roomId)
+                .collection('entries').doc(ek)
+                .set(patch,{merge:true})
+                .catch(e=>console.warn('[jury merge]',e));
+            }
+            delete DB.juryScores[roomId][ek][jid];
+          }
+        });
       });
-      if(existingNames.has(name)){
-        const ok=confirm(`「${name}」已在此考場評過分。\n\n若你是同一位評審重新登入，請點「取消」並改用相同姓名繼續（系統會以新身分記錄，舊分數仍保留）。\n若你是不同位評審但同名，請點「確定」繼續。`);
-        if(!ok){
-          // 改建議：要求加註區別（如「王老師A」「王老師B」）
-          const distinguish=prompt('請加上區別字（如：A、B、1、2）：');
-          if(distinguish){ST.juryName=name+distinguish;ST.user.name=ST.juryName;}
-          else{return;} // 使用者取消
-        }
-      }
     }
-  }catch(e){}
+  }catch(e){console.warn('[jury login] 舊 key 合併失敗',e);}
   closeOverlay('jury-name-modal');
-  // ★ 持久化評審身分到 localStorage（重整後可還原同一身分）
+  // ★ 持久化評審身分到 localStorage
   try{
-    const roomId=ST.juryRoom?.id;
     if(roomId){
       localStorage.setItem('_jurySession_'+roomId,JSON.stringify({juryId:ST.juryId,name:ST.juryName,savedAt:Date.now()}));
     }
@@ -3188,6 +3202,28 @@ function launchApp(){
             }catch(e){console.warn('[jury] 歷史分數載入失敗',e);}
           },800);
         }
+        // ★ Bug1：學生角色也需要載入 juryScores（所有考場，因為不知道在哪場）
+        if(ST.role==='student'&&window._FB){
+          setTimeout(async()=>{
+            try{
+              const roomIds=(DB.rooms||[]).map(r=>r.id).filter(Boolean);
+              await Promise.all(roomIds.map(async roomId=>{
+                if(window._FB._rest){
+                  const docs=await _fsList('juryScores/'+roomId+'/entries').catch(()=>[]);
+                  if(!docs||!docs.length)return;
+                  if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
+                  docs.forEach(d=>{const{id,_updatedAt,...jurors}=d;if(id)DB.juryScores[roomId][id]=jurors;});
+                } else if(window._FB.db){
+                  if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
+                  const snap=await window._FB.db.collection('juryScores').doc(roomId).collection('entries').get();
+                  snap.forEach(ed=>{const raw=ed.data();const j={};Object.keys(raw).forEach(k=>{if(!k.startsWith('_'))j[k]=raw[k];});DB.juryScores[roomId][ed.id]=j;});
+                }
+              }));
+              renderScoresPage();
+              console.log('[student] juryScores 載入完成');
+            }catch(e){console.warn('[student] juryScores 載入失敗',e);}
+          },800);
+        }
         // ★ 修正 #O2：進入頁面時若已連線且有 pending，主動 sync 一次
         setTimeout(()=>{
           if(navigator.onLine&&window._FB&&typeof syncPendingToFirebase==='function'){
@@ -3635,8 +3671,19 @@ window.aprSaveAll=aprSaveAll;
 function toggleElective(){
   const on=document.getElementById('r-elec-tog').checked;
   document.getElementById('r-elec-area').style.display=on?'block':'none';
-  if(!on){['r-elec-cat','r-elec-inst'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
-    ['r-elec-ac','r-elec-at','r-elec-fc','r-elec-ft'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});}
+  if(!on){
+    ['r-elec-cat','r-elec-inst'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+    ['r-elec-ac','r-elec-at','r-elec-fc','r-elec-ft'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+    return;
+  }
+  // ★ Bug2：展開選修時確保大項下拉已有 options（若 initDropdowns 尚未填入）
+  const catSel=document.getElementById('r-elec-cat');
+  if(catSel&&catSel.options.length<=1){
+    DB.instruments.categories.sort((a,b)=>a.order-b.order)
+      .forEach(c=>catSel.appendChild(new Option(c.name,c.id)));
+  }
+  // 若已有大項值，補觸發細項填入
+  if(catSel&&catSel.value)filterRepInst('elective');
 }
 
 // ════════════════════════════════════════════════
@@ -4078,6 +4125,30 @@ function renderScoresPage(){
   if(u.major)types.push({type:'major',inst:u.major,ac:u.major_ac,at:u.major_at,fc:u.major_fc,ft:u.major_ft});
   if(u.minor)types.push({type:'minor',inst:u.minor,ac:u.minor_ac,at:u.minor_at,fc:u.minor_fc,ft:u.minor_ft});
   if(u.elective)types.push({type:'elective',inst:u.elective,ac:u.elec_ac,at:u.elec_at,fc:u.elec_fc,ft:u.elec_ft});
+
+  // ★ Bug1：types 為空時（管理員尚未設定樂器 or 成績未開放）顯示友善說明
+  if(!types.length){
+    // 確認存取控制狀態
+    const access=DB.config.studentAccess?.scores;
+    if(access===false){
+      el.innerHTML=`<div class="card" style="text-align:center;padding:36px">
+        <div style="font-size:36px;margin-bottom:12px">🔒</div>
+        <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--muted)">此功能尚未開放</div>
+      </div>`;
+    } else {
+      el.innerHTML=`<div class="card" style="text-align:center;padding:36px">
+        <div style="font-size:36px;margin-bottom:12px">📭</div>
+        <div style="font-size:15px;color:var(--ink);margin-bottom:8px">尚無評語資料</div>
+        <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);line-height:1.9">
+          可能原因：<br>
+          ① 管理員尚未設定您的樂器別<br>
+          ② 評審尚未完成評分<br>
+          ③ 成績尚未開放查閱
+        </div>
+      </div>`;
+    }
+    return;
+  }
 
   el.innerHTML=types.map(t=>{
     const entryKey=u.id+'_'+t.type;
@@ -8649,6 +8720,70 @@ function _getEntriesForRoom(roomId, allSched){
 window._getEntriesForRoom=_getEntriesForRoom;
 
 // ════════════════════════════════════════════════
+// 幽靈評審清理工具（管理員用）
+// ════════════════════════════════════════════════
+async function cleanGhostJurors(){
+  if(ST.role!=='admin'){showToast('僅管理員可執行','err');return;}
+  if(!confirm('確定要清理幽靈評審？\n\n系統將：\n① 合併同名評審的重複記錄\n② 移除無姓名且無分數的幽靈記錄\n\n此操作不可復原。'))return;
+
+  let mergeCount=0,deleteCount=0;
+  const fv=window._FB?.FieldValue;
+  const db=window._FB?.db;
+  const st=window._FB?.serverTimestamp;
+
+  for(const roomId of Object.keys(DB.juryScores)){
+    const roomScores=DB.juryScores[roomId]||{};
+    for(const [entryKey,entryData] of Object.entries(roomScores)){
+      if(!entryData||typeof entryData!=='object')continue;
+      const jurors=Object.entries(entryData).filter(([k])=>!k.startsWith('_'));
+      const byName={};
+      const toDelete=[];
+      jurors.forEach(([jid,data])=>{
+        if(!data||typeof data!=='object'){toDelete.push(jid);return;}
+        const n=(data._jurorName||'').trim();
+        if(n){
+          if(!byName[n])byName[n]=[];
+          byName[n].push([jid,data]);
+        } else {
+          const fields=getRoomFields(roomId).map(f=>f.id);
+          const hasScore=fields.some(f=>data[f]!==undefined&&data[f]!==''&&data[f]!=='*'&&data[f]!==0&&data[f]!==null);
+          if(!hasScore)toDelete.push(jid);
+        }
+      });
+
+      const patch={};let dirty=false;
+      // ① 合併同名重複 key
+      for(const [name,records] of Object.entries(byName)){
+        if(records.length<=1)continue;
+        const stableId='JN_'+roomId+'_'+name.replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_\u4e00-\u9fff]/g,'');
+        const merged={_jurorName:name};
+        records.sort((a,b)=>(b[1]._localUpdatedAt||0)-(a[1]._localUpdatedAt||0));
+        records.forEach(([,d])=>{Object.keys(d).forEach(k=>{if(!merged[k]&&k!=='_jurorName'&&k!=='_localUpdatedAt')merged[k]=d[k];});});
+        merged._localUpdatedAt=Date.now();
+        DB.juryScores[roomId][entryKey][stableId]=merged;
+        patch[stableId]=merged;
+        records.forEach(([jid])=>{
+          if(jid!==stableId){delete DB.juryScores[roomId][entryKey][jid];patch[jid]=fv?.delete?.()??null;mergeCount++;dirty=true;}
+        });
+      }
+      // ② 刪除幽靈 key
+      toDelete.forEach(jid=>{
+        delete DB.juryScores[roomId][entryKey][jid];patch[jid]=fv?.delete?.()??null;deleteCount++;dirty=true;
+      });
+      if(dirty&&db){
+        patch['_updatedAt']=st?.()??new Date().toISOString();
+        await db.collection('juryScores').doc(roomId).collection('entries').doc(entryKey)
+          .set(patch,{merge:true}).catch(e=>console.warn('[cleanGhost]',e));
+      }
+    }
+  }
+  if(DB._jurorOrderCache)DB._jurorOrderCache={};
+  renderResults();if(typeof renderAdminResults==='function')renderAdminResults();
+  showToast(`清理完成：合併 ${mergeCount} 筆重複、刪除 ${deleteCount} 筆幽靈評審 ✓`,'ok');
+}
+window.cleanGhostJurors=cleanGhostJurors;
+
+// ════════════════════════════════════════════════
 // 管理員：刪除某考場某評審的所有成績
 // ════════════════════════════════════════════════
 function updateDelJurorList(){
@@ -10917,7 +11052,7 @@ const _expose = [
   'addClass','renameClass','delClass',
   'saveTiming','saveAnnounce','saveBulletin','renderBulletin','saveWeights','addTrim','saveTrimRules','fbSaveConfig',
   'setAccess','saveRepHint','saveTyText','clearData','saveTeaScheduleMsg',
-  'publishResults','unpublishResults','renderAdminInstChangeNotices','markInstChangeRead','markAllInstChangesRead','updateDelJurorList','deleteJurorScores',
+  'publishResults','unpublishResults','renderAdminInstChangeNotices','markInstChangeRead','markAllInstChangesRead','updateDelJurorList','deleteJurorScores','cleanGhostJurors',
   'erShowTab','erAdminTab','erCmd','erInsertTable','erInsertImage','erSave','erInitAdminEditors',
   'switchExamRulesTab','switchErAdminTab','saveExamRules','renderExamRulesPage','initExamRulesEditor','erExec','erMarkDirty','erHandleTab','erInsertTable','erInsertImage',
   'npKey','npDel','npConfirm','npBg','npStar',
@@ -10932,7 +11067,7 @@ const _expose = [
   'renderJsupAdminPanel','renderJsupOptsList','addJsupOption','jsupUpdateOptLabel','jsupUpdateOptFlag','jsupDelOption','saveJurySignupConfig','saveJsupOptions','renderJsupAdminTable','exportJsupCSV',
 ];
 // ★ 安全暴露到 window（不用 eval，改用函數名對照表）
-const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schResetToRoomDefaults,schSaveSchedule,schLoadSchedule,schInitSortBar,schAddExcludeRule,schRemoveExcludeRule,renderSchExcludeUI,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,renderLiveResults,renderTeaJuryComments,renderAdminResults,exportAdminResultsCSV,renderDeleteJurorBar,deleteJurorFromRoom,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,openStuRoomModal,saveStuRoomModal,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,rfAddRule,rfRemoveRule,rfReadRulesFromDOM,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveBulletin,renderBulletin,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,publishResults,unpublishResults,renderAdminInstChangeNotices,markInstChangeRead,markAllInstChangesRead,updateDelJurorList,deleteJurorScores,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,erShowTab,erAdminTab,erCmd,erInsertTable,erInsertImage,erSave,erInitAdminEditors,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,teaInlineToggle,teaInlineEdit,teaInlineSave,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,_renderJsupSubmittedSummary,_jsupReopenForm,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,saveJsupOptions,renderJsupAdminTable,exportJsupCSV};
+const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schResetToRoomDefaults,schSaveSchedule,schLoadSchedule,schInitSortBar,schAddExcludeRule,schRemoveExcludeRule,renderSchExcludeUI,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,renderLiveResults,renderTeaJuryComments,renderAdminResults,exportAdminResultsCSV,renderDeleteJurorBar,deleteJurorFromRoom,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,openStuRoomModal,saveStuRoomModal,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,rfAddRule,rfRemoveRule,rfReadRulesFromDOM,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveBulletin,renderBulletin,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,publishResults,unpublishResults,renderAdminInstChangeNotices,markInstChangeRead,markAllInstChangesRead,updateDelJurorList,deleteJurorScores,cleanGhostJurors,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,erShowTab,erAdminTab,erCmd,erInsertTable,erInsertImage,erSave,erInitAdminEditors,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,teaInlineToggle,teaInlineEdit,teaInlineSave,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,_renderJsupSubmittedSummary,_jsupReopenForm,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,saveJsupOptions,renderJsupAdminTable,exportJsupCSV};
 Object.keys(_fnMap).forEach(function(name){ window[name] = _fnMap[name]; });
 
 // ★ 頁面載入後立即從 Firebase 同步 users，讓登入時帳密是最新狀態
