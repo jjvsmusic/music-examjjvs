@@ -2755,8 +2755,53 @@ function doLogout(){
       window._jcDebounce={};
     }
   }catch(e){}
-  ST.user=null;ST.role=null;ST.juryRoom=null;ST.juryName='';ST.juryId='';ST.invigRoom=null;ST.invigName='';
+
+  // ★ 重置 ST 整個物件（保留 isOnline 因為這跟使用者無關）
+  const wasOnline=ST.isOnline;
+  Object.keys(ST).forEach(k=>{delete ST[k];});
+  ST.user=null;ST.role=null;ST.juryRoom=null;ST.juryName='';ST.juryId='';
+  ST.npTarget=null;ST.npVal='';ST.npCallback=null;ST.isOnline=wasOnline;
+  ST.invigRoom=null;ST.invigName='';ST._remarkFilterOn=false;
+
+  // ★ 徹底清空 DB（避免下個使用者看到上個人的資料殘影）
+  //   保留 instruments/classes/rooms 等預設值由 Firebase 重載即可
+  DB.users.length=0;
+  DB.teacherStudents={};
+  DB.juryScores={};
+  DB.teacherComments={};
+  DB.deductions={};
+  DB.disqualified={};
+  DB.blackSign={};
+  DB.liveExam={};
+  DB.savedScheduleSnapshot={};
+  DB.scheduleState={};
+  DB.jurySignup={};
+  DB.repInstChanges={};
+  if(DB._jurorOrderCache)DB._jurorOrderCache={};
+  delete DB._usersFreshAt;
+
+  // ★ 清空所有頁面渲染內容，避免下個使用者看到舊畫面
+  document.querySelectorAll('.pg').forEach(pg=>{
+    // 找出每個頁面的主要 body 容器（含 -body 後綴的、或 tbody）
+    pg.querySelectorAll('[id$="-body"], [id$="-tbody"], tbody').forEach(el=>{
+      if(el.id!=='login-screen-body')el.innerHTML='';
+    });
+    // 移除頁面顯示狀態
+    pg.classList.remove('on');
+  });
+
+  // 清除導覽列（角色不同會有不同 nav 項目）
+  const nav=document.getElementById('nav');
+  if(nav)nav.innerHTML='';
+
+  // 清除浮動元素（toast、modal、覆蓋層）
+  document.querySelectorAll('.overlay.show, .toast').forEach(el=>{
+    if(el.classList.contains('overlay'))el.classList.remove('show');
+  });
+
   try{sessionStorage.removeItem('_adminSession');}catch(e){}
+
+  // 切換登入畫面
   document.getElementById('app').classList.remove('on');
   document.getElementById('login-screen').classList.remove('gone');
   document.getElementById('l-user').value='';
@@ -2766,6 +2811,10 @@ function doLogout(){
   const je=document.getElementById('l-jury-err');if(je)je.textContent='';
   const ie=document.getElementById('l-invig-err');if(ie)ie.textContent='';
   const ic=document.getElementById('l-invig-code');if(ic)ic.value='';
+
+  // 清除可能殘留的「已送出評分」感謝畫面、「忘記密碼」之類的 modal 內容
+  const tyTitle=document.getElementById('ty-title-el');if(tyTitle)tyTitle.textContent='';
+  const tyText=document.getElementById('ty-text-el');if(tyText)tyText.textContent='';
 }
 
 function openChPwd(){
@@ -3232,6 +3281,11 @@ function loadAllFromFirebase(done, lightMode){
 }
 
 function launchApp(){
+  // ★ 清除上一個使用者可能殘留的渲染（防止 session 切換時看到舊畫面）
+  const nav=document.getElementById('nav');
+  if(nav)nav.innerHTML='';
+  document.querySelectorAll('.pg').forEach(pg=>pg.classList.remove('on'));
+
   document.getElementById('login-screen').classList.add('gone');
   document.getElementById('app').classList.add('on');
   document.getElementById('role-pill').textContent={admin:'管理員・教師',teacher:'教師',student:'學生',jury:'評審',invigilator:'監考'}[ST.role]||'';
@@ -9081,6 +9135,7 @@ function renderResults(){
 
   // ★ 修正：改從 savedScheduleSnapshot 取得 entries（含正確 roomId/order），
   //    fallback 到 getScheduleEntries（未存檔時）
+  // ★ 進一步修正：若選定的考場沒有快照但有評分資料，用即時排程補上
   const snap=DB.savedScheduleSnapshot||{};
   const hasSnap=Object.values(snap).some(arr=>arr&&arr.length>0);
   let allSched=[];
@@ -9099,6 +9154,21 @@ function renderResults(){
         });
       });
     });
+    // ★ 補上「沒存快照但有評分資料」的考場（避免成績卻看不到資料的窘境）
+    const snapRoomIds=new Set(Object.keys(snap).filter(k=>snap[k]&&snap[k].length));
+    const scoredRoomIds=Object.keys(DB.juryScores||{}).filter(rid=>{
+      const entries=DB.juryScores[rid]||{};
+      return Object.keys(entries).length>0;
+    });
+    const missingRoomIds=scoredRoomIds.filter(rid=>!snapRoomIds.has(rid));
+    if(missingRoomIds.length){
+      const liveAll=getScheduleEntries();
+      missingRoomIds.forEach(rid=>{
+        const liveEntries=liveAll.filter(e=>e.roomId===rid);
+        liveEntries.forEach(e=>allSched.push(e));
+      });
+      console.warn('[renderResults] 偵測到無快照但有評分資料的考場：',missingRoomIds,'（已用即時排程補上）');
+    }
   } else {
     allSched=getScheduleEntries();
   }
@@ -9506,6 +9576,14 @@ function renderLiveResults(){
       const room=DB.rooms.find(r=>r.id===snapRoomId);
       (snaps||[]).forEach(e=>allSched.push({...e,roomId:snapRoomId,roomName:e.roomName||(room?.name||snapRoomId)}));
     });
+    // ★ 補上「沒存快照但有評分資料」的考場
+    const snapRoomIds=new Set(Object.keys(snap).filter(k=>snap[k]&&snap[k].length));
+    const scoredRoomIds=Object.keys(DB.juryScores||{}).filter(rid=>Object.keys(DB.juryScores[rid]||{}).length>0);
+    const missing=scoredRoomIds.filter(rid=>!snapRoomIds.has(rid));
+    if(missing.length){
+      const liveAll=getScheduleEntries();
+      missing.forEach(rid=>liveAll.filter(e=>e.roomId===rid).forEach(e=>allSched.push(e)));
+    }
     allSched.sort((a,b)=>{
       const ri=DB.rooms.findIndex(r=>r.id===a.roomId)-DB.rooms.findIndex(r=>r.id===b.roomId);
       return ri!==0?ri:(a.order||0)-(b.order||0);
@@ -9827,6 +9905,14 @@ function _buildAdminResultsData(roomIdFilter,classFFilter){
       const room=DB.rooms.find(r=>r.id===snapRoomId);
       (snaps||[]).forEach(e=>allSched.push({...e,roomId:snapRoomId,roomName:e.roomName||(room?.name||snapRoomId)}));
     });
+    // ★ 補上「沒存快照但有評分資料」的考場
+    const snapRoomIds=new Set(Object.keys(snap).filter(k=>snap[k]&&snap[k].length));
+    const scoredRoomIds=Object.keys(DB.juryScores||{}).filter(rid=>Object.keys(DB.juryScores[rid]||{}).length>0);
+    const missing=scoredRoomIds.filter(rid=>!snapRoomIds.has(rid));
+    if(missing.length){
+      const liveAll=getScheduleEntries();
+      missing.forEach(rid=>liveAll.filter(e=>e.roomId===rid).forEach(e=>allSched.push(e)));
+    }
     allSched.sort((a,b)=>{
       const ri=DB.rooms.findIndex(r=>r.id===a.roomId)-DB.rooms.findIndex(r=>r.id===b.roomId);
       return ri!==0?ri:(a.order||0)-(b.order||0);
