@@ -21,15 +21,15 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;500;600;700&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
 <style>
 :root{
-  --ink:#18150f;--paper:#f6f1e7;--cream:#ede7d9;
+  --ink:#0f0c08;--paper:#f6f1e7;--cream:#ede7d9;
   --gold:#b5892a;--gold-l:#d4aa4a;--gold-bg:rgba(181,137,42,0.08);
-  --rust:#8b3322;--sage:#3d5c38;--steel:#3a5068;--muted:#7a7060;
-  --border:#cfc5ae;--white:#fff;--shadow:rgba(24,21,15,.10);--r:3px;
-  --red:#c0392b;--green:#27ae60;--blue:#2471a3;--orange:#ca6f1e;
+  --rust:#7a2718;--sage:#284626;--steel:#243650;--muted:#3d3830;
+  --border:#b8ae9a;--white:#fff;--shadow:rgba(24,21,15,.10);--r:3px;
+  --red:#a93226;--green:#1e8449;--blue:#1a5276;--orange:#b95a10;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
-body{font-family:Noto Serif TC,serif;background:var(--paper);color:var(--ink);display:flex;flex-direction:column}
+body{font-family:Noto Serif TC,serif;background:var(--paper);color:var(--ink);display:flex;flex-direction:column;font-size:15px}
 body::after{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");pointer-events:none;z-index:9000}
 
 /* LOGIN */
@@ -210,11 +210,11 @@ td{padding:9px 12px;font-size:13px;vertical-align:middle}
 .piece-cell{padding:6px 10px;vertical-align:middle}
 .piece-cell .pc-composer{font-size:11px;font-weight:600;color:var(--ink);word-break:break-word;line-height:1.4}
 .piece-cell .pc-title{font-size:10px;font-style:italic;color:var(--steel);word-break:break-word;line-height:1.4;margin-top:2px}
-.score-inp{width:100%;border:none;background:transparent;font-family:\'DM Mono\',monospace;font-size:13px;font-weight:700;text-align:center;color:var(--ink);outline:none;padding:6px 1px;cursor:pointer}
+.score-inp{width:100%;border:none;background:transparent;font-family:'DM Mono',monospace;font-size:17px;font-weight:700;text-align:center;color:var(--ink);outline:none;padding:6px 1px;cursor:pointer}
 .score-inp:focus{background:var(--gold-bg)}
 .score-inp.empty-warn{background:#fff3f3!important}
 .score-inp.red-score{color:var(--red)}
-.comment-inp{width:100%;border:none;background:transparent;font-family:Noto Serif TC,serif;font-size:12px;color:var(--ink);outline:none;padding:8px;resize:vertical;height:88px;min-height:72px;line-height:1.7;overflow-y:auto}
+.comment-inp{width:100%;border:none;background:transparent;font-family:Noto Serif TC,serif;font-size:14px;color:var(--ink);outline:none;padding:8px;resize:vertical;height:88px;min-height:72px;line-height:1.7;overflow-y:auto}
 .comment-inp:focus{background:var(--gold-bg)}
 .jst-row-a td{background:#fff5f5!important}
 
@@ -848,7 +848,7 @@ tbody td{color:var(--ink)!important}
 
       <!-- 管理員/教師/學生登入（主要，放上方） -->
       <div style="font-family:\'DM Mono\',monospace;font-size:8px;letter-spacing:2px;color:var(--muted);margin-bottom:12px;text-transform:uppercase">管理員 / 教師 / 學生登入</div>
-      <div class="lf"><label>帳號</label><input id="l-user" type="text" placeholder="學號 / 帳號" autocomplete="username"></div>
+      <div class="lf"><label>帳號</label><input id="l-user" type="text" placeholder="帳號" autocomplete="username"></div>
       <div class="lf"><label>密碼</label><input id="l-pass" type="password" placeholder="預設：000" autocomplete="current-password"></div>
       <div class="login-err" id="l-err"></div>
       <button class="login-btn" id="l-btn" onclick="if(typeof window.doLogin==='function'){window.doLogin();}else{alert('系統尚未初始化，請重新整理頁面');}">登入系統</button>
@@ -1146,7 +1146,7 @@ tbody td{color:var(--ink)!important}
 
     <!-- ══ STUDENT: SCORES ══ -->
     <div class="pg" id="pg-scores">
-      <div class="ph"><h1>成績查閱</h1><span>My Results</span></div>
+      <div class="ph"><h1>評語</h1><span>My Comments</span></div>
       <div id="scores-body"></div>
     </div>
 
@@ -1511,12 +1511,12 @@ tbody td{color:var(--ink)!important}
           <div id="jury-name-disp" style="font-family:\'DM Mono\',monospace;font-size:14px;color:var(--gold)">—</div>
         </div>
       </div>
-      <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:14px;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-b btn-sm" onclick="checkJuryBeforeSubmit()">✔ 填寫完畢確認</button>
-        <button class="btn btn-g btn-sm" onclick="submitJuryAll()">↑ 送出全部評分</button>
+      <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:14px;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-b" style="font-size:16px;padding:12px 24px;font-weight:700;min-height:48px" onclick="checkJuryBeforeSubmit()">✔ 填寫完畢確認</button>
+        <button class="btn btn-g" style="font-size:17px;padding:12px 28px;font-weight:700;min-height:48px;letter-spacing:.5px" onclick="submitJuryAll()">↑ 送出全部評分</button>
       </div>
       <div class="check-warn" id="jury-check-warn"></div>
-      <div style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--muted);margin-bottom:8px;padding:6px 12px;background:var(--cream);border-radius:var(--r);border-left:3px solid var(--orange)">
+      <div style="font-family:'DM Mono',monospace;font-size:11px;color:#444;margin-bottom:8px;padding:8px 14px;background:var(--cream);border-radius:var(--r);border-left:3px solid var(--orange);font-weight:600">
         ★ 提示：若某項目不予評分，請按數字鍵盤中的「＊」鍵，系統計分時將自動排除該筆評審之此項目。
       </div>
       <div class="jury-sticky-wrap">
@@ -1539,9 +1539,9 @@ tbody td{color:var(--ink)!important}
         </table>
       </div>
       <!-- ★ 底部送出按鈕 -->
-      <div style="display:flex;align-items:center;justify-content:flex-end;margin-top:16px;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-b btn-sm" onclick="checkJuryBeforeSubmit()">✔ 填寫完畢確認</button>
-        <button class="btn btn-g btn-sm" onclick="submitJuryAll()">↑ 送出全部評分</button>
+      <div style="display:flex;align-items:center;justify-content:flex-end;margin-top:20px;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-b" style="font-size:16px;padding:12px 24px;font-weight:700;min-height:48px" onclick="checkJuryBeforeSubmit()">✔ 填寫完畢確認</button>
+        <button class="btn btn-g" style="font-size:17px;padding:12px 28px;font-weight:700;min-height:48px;letter-spacing:.5px" onclick="submitJuryAll()">↑ 送出全部評分</button>
       </div>
     </div>
 
@@ -2169,6 +2169,20 @@ tbody td{color:var(--ink)!important}
         <label>班級</label>
         <select id="result-class" onchange="renderResults()" style="padding:7px 12px;border:1px solid var(--border);background:var(--paper);font-family:Noto Serif TC,serif;font-size:14px;outline:none;border-radius:var(--r)"><option value="">全部班級</option></select>
         <button class="btn btn-d btn-sm" id="result-remark-filter-btn" onclick="toggleRemarkFilter()" title="顯示有備註（疑似需扣分）的學生">⚠ 疑似扣分篩選</button>
+      </div>
+      <!-- ★ 管理員：刪除某評審成績控制列 -->
+      <div id="results-delete-juror-bar" style="display:none;margin-bottom:10px;margin-top:10px">
+        <div style="background:#fff3f0;border:1px solid var(--rust);border-left:4px solid var(--rust);border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--rust);font-weight:700;flex-shrink:0">🗑 刪除指定評審之全部成績</span>
+          <select id="del-juror-room" onchange="updateDelJurorList()" style="padding:6px 12px;border:1px solid var(--border);background:var(--paper);font-family:Noto Serif TC,serif;font-size:14px;outline:none;border-radius:var(--r)">
+            <option value="">選擇考場</option>
+          </select>
+          <select id="del-juror-id" style="padding:6px 12px;border:1px solid var(--border);background:var(--paper);font-family:Noto Serif TC,serif;font-size:14px;outline:none;border-radius:var(--r);min-width:200px">
+            <option value="">— 先選考場 —</option>
+          </select>
+          <button class="btn btn-d" style="font-size:14px;padding:8px 18px" onclick="deleteJurorScores()">確認刪除此評審所有成績</button>
+          <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">⚠ 刪除後無法復原</span>
+        </div>
       </div>
       <div id="results-body"></div>
     </div>
@@ -3164,7 +3178,7 @@ function launchApp(){
 const NAV_MAP = {
   student:[
     {label:'曲目填寫',page:'rep'},
-    {label:'成績查閱',page:'scores'},
+    {label:'評語',page:'scores'},
     {label:'考試順序',page:'stu-schedule'},
     {label:'考試規則',page:'exam-rules'},
     {label:'成績總表',page:'live-results'},
@@ -4753,9 +4767,12 @@ function getJuryEntries(){
       const atKey=snap.type==='elective'?'elec_at':(snap.type+'_at');
       const fcKey=snap.type==='elective'?'elec_fc':(snap.type+'_fc');
       const ftKey=snap.type==='elective'?'elec_ft':(snap.type+'_ft');
-      // ★ 曲目欄位強制從 DB.users 讀取（不 fallback 到快照舊值）
-      //   避免清除曲目後現場評分仍顯示舊曲目
+      // ★ Bug8：動態從 DB.users 補 instName（快照的 instName 可能是舊的或空的）
+      const instKey=snap.type==='elective'?'elective':snap.type;
+      const freshInstId=stu[instKey]||snap.instId||'';
+      const freshInstName=freshInstId?iname(freshInstId):snap.instName||'—';
       return {...snap,
+        instId:freshInstId, instName:freshInstName,
         ac:stu[acKey]??'',at:stu[atKey]??'',
         fc:stu[fcKey]??'',ft:stu[ftKey]??'',
         catOrder:snap.catOrder??99,typeOrder:{major:0,minor:1,elective:2}[snap.type]??99,
@@ -4975,29 +4992,26 @@ function toggleAbsent(i,roomId,entryKey){
   if(!DB.juryScores[roomId][entryKey][myId])DB.juryScores[roomId][entryKey][myId]={};
   DB.juryScores[roomId][entryKey][myId].absent=absent;
   const r1=document.getElementById(`jr-${i}`);
+  // ★ Bug3：動態取得考場所有評分欄位（不寫死 scale/assigned/free）
+  const fields=getRoomFields(roomId).map(f=>f.id);
   if(absent){
-    ['scale','assigned','free'].forEach(f=>{const inp=document.getElementById(`js-${f}-${i}`);if(inp){inp.value='0';inp.disabled=true;}});
+    fields.forEach(f=>{const inp=document.getElementById(`js-${f}-${i}`);if(inp){inp.value='0';inp.disabled=true;}});
     const ta=document.getElementById(`jco-${i}`);if(ta){ta.disabled=true;}
     if(r1)r1.classList.add('jst-row-a');
-    ['scale','assigned','free'].forEach(f=>saveJCell(i,roomId,entryKey,f,'0'));
+    fields.forEach(f=>saveJCell(i,roomId,entryKey,f,'0'));
   }else{
-    ['scale','assigned','free'].forEach(f=>{const inp=document.getElementById(`js-${f}-${i}`);if(inp){inp.value='';inp.disabled=false;inp.classList.add('empty-warn');}});
+    fields.forEach(f=>{const inp=document.getElementById(`js-${f}-${i}`);if(inp){inp.value='';inp.disabled=false;inp.classList.add('empty-warn');}});
     const ta=document.getElementById(`jco-${i}`);if(ta){ta.disabled=false;}
     if(r1)r1.classList.remove('jst-row-a');
   }
 }
 
 function saveJCell(i,roomId,entryKey,field,val){
-  // ★ Bug6 修正：管理員角色為唯讀，禁止寫入評分（避免產生無姓名的幽靈評審）
-  if(ST.role==='admin'){
-    showToast('管理員模式為唯讀，無法參與評分','warn');
-    // 恢復輸入欄位原值
+  // ★ Bug6/9：管理員及監考員角色為唯讀，禁止寫入評分
+  if(ST.role==='admin'||ST.role==='invigilator'){
+    if(ST.role==='admin')showToast('管理員模式為唯讀，無法參與評分','warn');
     const inp=document.getElementById(`js-${field}-${i}`);
-    if(inp){
-      const cur=DB.juryScores[roomId]?.[entryKey];
-      // 不修改資料，直接還原
-      inp.value=inp.defaultValue||'';
-    }
+    if(inp)inp.value=inp.defaultValue||'';
     return;
   }
   const myId=ST.juryId||ST.user?.id||'admin';
@@ -5451,6 +5465,19 @@ async function submitJuryAll(){
     document.getElementById('ty-text-el').textContent=DB.config.tyText||'';
     showSyncStatus('ok','全部已同步 ✓');
     openOverlay('ty-modal');
+    // ★ Bug7：送出後重新讀取此考場的 juryScores，確保管理員介面立即看到最新成績
+    const submitRoomId=ST.juryRoom?.id||DB.rooms[0]?.id||'';
+    if(submitRoomId&&window._FB){
+      try{
+        const fresh=await window._FB.loadCollection('juryScores/'+submitRoomId+'/entries');
+        if(fresh&&fresh.length){
+          if(!DB.juryScores[submitRoomId])DB.juryScores[submitRoomId]={};
+          fresh.forEach(d=>{const{id,...rest}=d;DB.juryScores[submitRoomId][id]=rest;});
+          if(typeof renderResults==='function')renderResults();
+          if(typeof renderAdminResults==='function')renderAdminResults();
+        }
+      }catch(e){console.warn('[Bug7] reload juryScores failed',e);}
+    }
   }finally{
     setTimeout(()=>{window._submittingJury=false;},2000);
   }
@@ -8068,7 +8095,7 @@ window.saveRoomFields=saveRoomFields;
 function renderAccessControl(){
   const studentPages=[
     {id:'rep',label:'曲目填寫'},
-    {id:'scores',label:'成績查閱'},
+    {id:'scores',label:'評語'},
     {id:'stu-schedule',label:'考試順序查詢'},
     {id:'exam-rules',label:'考試規則與指定曲'},
     {id:'live-results',label:'📊 現場評分成績總表'},
@@ -8132,6 +8159,8 @@ function setAccess(configKey,pageId,val){
   DB.config[configKey][pageId]=val;
   fbSaveConfig();renderAccessControl();
   updateJurySignupTabVisibility();
+  // ★ Bug10：重建導覽列，讓學生/教師介面立即看到開放/關閉的頁面
+  buildNav();renderAll();
   const label={true:'公開',pending:'尚未開放',false:'關閉'}[val]||'關閉';
   showToast(`已設為「${label}」`,'ok');
 }
@@ -8542,6 +8571,85 @@ function _getEntriesForRoom(roomId, allSched){
 }
 window._getEntriesForRoom=_getEntriesForRoom;
 
+// ════════════════════════════════════════════════
+// 管理員：刪除某考場某評審的所有成績
+// ════════════════════════════════════════════════
+function updateDelJurorList(){
+  const roomId=document.getElementById('del-juror-room')?.value||'';
+  const jurorSel=document.getElementById('del-juror-id');
+  if(!jurorSel)return;
+  jurorSel.innerHTML='<option value="">— 選擇評審 —</option>';
+  if(!roomId)return;
+
+  // 蒐集此考場所有出現過的評審 id
+  const jurorMap={};// id -> {name, count}
+  Object.entries(DB.juryScores[roomId]||{}).forEach(([entryKey,scores])=>{
+    Object.entries(scores||{}).forEach(([jid,data])=>{
+      if(jid.startsWith('_'))return;
+      if(!jurorMap[jid]){jurorMap[jid]={name:data._jurorName||'',count:0};}
+      jurorMap[jid].count++;
+    });
+  });
+
+  const entries=Object.entries(jurorMap).sort(([a],[b])=>a.localeCompare(b));
+  if(!entries.length){
+    jurorSel.innerHTML='<option value="">（此考場尚無評分資料）</option>';
+    return;
+  }
+  entries.forEach(([jid,{name,count}],idx)=>{
+    const label=name?`評審${idx+1} — ${name}（${count} 筆）`:`評審${idx+1}（${count} 筆成績，無姓名）`;
+    jurorSel.appendChild(new Option(label,jid));
+  });
+}
+window.updateDelJurorList=updateDelJurorList;
+
+function deleteJurorScores(){
+  if(ST.role!=='admin'){showToast('僅管理員可執行此操作','err');return;}
+  const roomId=document.getElementById('del-juror-room')?.value||'';
+  const jurorId=document.getElementById('del-juror-id')?.value||'';
+  if(!roomId){showToast('請先選擇考場','err');return;}
+  if(!jurorId){showToast('請選擇要刪除的評審','err');return;}
+
+  const roomName=DB.rooms.find(r=>r.id===roomId)?.name||roomId;
+  const jurorName=DB.juryScores[roomId]
+    ? Object.values(DB.juryScores[roomId]).map(s=>s[jurorId]?._jurorName).find(Boolean)||jurorId
+    : jurorId;
+
+  // 計算要刪除的筆數
+  const affected=Object.keys(DB.juryScores[roomId]||{}).filter(ek=>DB.juryScores[roomId][ek]?.[jurorId]);
+  if(!affected.length){showToast('此評審在此考場沒有任何成績資料','warn');return;}
+
+  if(!confirm(`確定要刪除「${roomName}」中「${jurorName}」的所有成績？\n\n共 ${affected.length} 位學生的成績將被刪除，此操作無法復原。`))return;
+  if(!confirm(`⚠ 再次確認：永久刪除「${roomName}」—「${jurorName}」共 ${affected.length} 筆成績？`))return;
+
+  let done=0;
+  // 清除評審排序快取（刪除後需重建）
+  if(DB._jurorOrderCache)delete DB._jurorOrderCache[roomId];
+
+  affected.forEach(entryKey=>{
+    // 從記憶體刪除
+    if(DB.juryScores[roomId]?.[entryKey]?.[jurorId]){
+      delete DB.juryScores[roomId][entryKey][jurorId];
+    }
+    // 從 Firebase 刪除（使用 fbSet 寫入不含此評審的物件）
+    const remaining=DB.juryScores[roomId][entryKey]||{};
+    fbSet('juryScores/'+roomId+'/entries',entryKey,remaining);
+    done++;
+  });
+
+  // 重置選單
+  document.getElementById('del-juror-id').innerHTML='<option value="">— 選擇評審 —</option>';
+  document.getElementById('del-juror-room').value='';
+
+  // 重新渲染
+  if(DB._jurorOrderCache)DB._jurorOrderCache={};
+  renderResults();
+  if(typeof renderAdminResults==='function')renderAdminResults();
+
+  showToast(`已刪除「${roomName}」—「${jurorName}」共 ${done} 筆成績 ✓`,'ok');
+}
+window.deleteJurorScores=deleteJurorScores;
+
 function renderResults(){
   const el=document.getElementById('results-body');if(!el)return;
   // ★ Bug7：每次渲染成績前清除評審排序快取，確保使用最新資料
@@ -8553,6 +8661,17 @@ function renderResults(){
   if(publishBar){
     publishBar.style.display=(ST.role==='admin')?'block':'none';
     if(ST.role==='admin')_updatePublishBarUI();
+  }
+  // ★ 管理員顯示刪除評審成績列，並更新考場下拉
+  const delBar=document.getElementById('results-delete-juror-bar');
+  if(delBar){
+    delBar.style.display=(ST.role==='admin')?'block':'none';
+    if(ST.role==='admin'){
+      const delRoomSel=document.getElementById('del-juror-room');
+      if(delRoomSel&&delRoomSel.options.length<=1){
+        DB.rooms.forEach(r=>delRoomSel.appendChild(new Option(r.name,r.id)));
+      }
+    }
   }
   const roomId=document.getElementById('result-room')?.value||'';
   const classF=document.getElementById('result-class')?.value||'';
@@ -8953,7 +9072,7 @@ function publishResults(){
   // 更新 config 中的發佈旗標
   fbSet('resultsPublish','main',{published:true,publishedAt:DB.config.resultsPublishedAt});
   _updatePublishBarUI();
-  buildNav(); // 重建導覽讓 live-results 頁顯示
+  buildNav();renderAll(); // ★ Bug10：重建導覽並刷新所有頁面
   showToast('成績已發佈，學生及教師現在可查看 ✓','ok');
 }
 window.publishResults=publishResults;
@@ -8967,7 +9086,7 @@ function unpublishResults(){
   fbSaveConfig();
   fbSet('resultsPublish','main',{published:false,publishedAt:null});
   _updatePublishBarUI();
-  buildNav();
+  buildNav();renderAll(); // ★ Bug10
   showToast('成績已收回，學生及教師無法查看','warn');
 }
 window.unpublishResults=unpublishResults;
@@ -9298,6 +9417,86 @@ function _buildAdminResultsData(roomIdFilter,classFFilter){
   return entries;
 }
 window._buildAdminResultsData=_buildAdminResultsData;
+
+// ════════════════════════════════════════════════
+// 管理員：刪除某考場某評審的所有成績
+// ════════════════════════════════════════════════
+function renderDeleteJurorBar(){
+  const bar=document.getElementById('delete-juror-bar');
+  if(!bar||ST.role!=='admin')return;
+  const roomId=document.getElementById('result-room')?.value||'';
+  if(!roomId){bar.style.display='none';return;}
+
+  // 蒐集此考場所有出現過的評審 id 及其名稱
+  const jurorMap={};
+  Object.entries(DB.juryScores[roomId]||{}).forEach(([entryKey,entryData])=>{
+    Object.entries(entryData||{}).forEach(([jid,jData])=>{
+      if(jid.startsWith('_'))return;
+      if(!jurorMap[jid])jurorMap[jid]={name:jData._jurorName||'',entryCount:0};
+      jurorMap[jid].entryCount++;
+      if(jData._jurorName&&!jurorMap[jid].name)jurorMap[jid].name=jData._jurorName;
+    });
+  });
+
+  const jurorIds=Object.keys(jurorMap).sort();
+  if(!jurorIds.length){bar.style.display='none';return;}
+
+  const roomName=DB.rooms.find(r=>r.id===roomId)?.name||roomId;
+  const jurorBadges=jurorIds.map((jid,ji)=>{
+    const info=jurorMap[jid];
+    const label=info.name?`評審${ji+1}（${info.name}）`:`評審${ji+1}`;
+    const safeLbl=label.replace(/'/g,'').replace(/"/g,'');
+    return `<span style="display:inline-flex;align-items:center;gap:6px;background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:5px 10px;margin:3px">
+      <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--ink)">${label}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">${info.entryCount} 筆</span>
+      <button class="btn btn-d btn-xs" style="padding:2px 8px;font-size:11px" onclick="deleteJurorFromRoom('${roomId}','${jid}','${safeLbl}')">🗑 刪除此評審所有成績</button>
+    </span>`;
+  }).join('');
+
+  bar.style.display='block';
+  bar.innerHTML=`<div style="background:#fff3f3;border:1px solid #f5c6cb;border-left:4px solid var(--red);border-radius:var(--r);padding:12px 16px">
+    <div style="margin-bottom:10px">
+      <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;letter-spacing:2px;color:var(--red)">🗑 刪除考場評審成績｜${roomName}</div>
+      <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-top:3px">選擇要刪除的評審 — 將移除該評審對本考場所有學生的評分及評語，刪除後無法還原</div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:0">${jurorBadges}</div>
+  </div>`;
+}
+window.renderDeleteJurorBar=renderDeleteJurorBar;
+
+async function deleteJurorFromRoom(roomId,jurorId,jurorLabel){
+  if(ST.role!=='admin'){showToast('僅管理員可執行此操作','err');return;}
+  const roomName=DB.rooms.find(r=>r.id===roomId)?.name||roomId;
+  if(!confirm(`確定要刪除「${roomName}」中「${jurorLabel}」的所有評分資料？\n\n此操作不可還原。`))return;
+  if(!confirm(`再次確認：刪除「${jurorLabel}」在「${roomName}」的全部評分及評語？`))return;
+
+  const entries=DB.juryScores[roomId]||{};
+  const entryKeys=Object.keys(entries).filter(k=>entries[k]&&entries[k][jurorId]);
+  if(!entryKeys.length){showToast('此考場找不到該評審的成績','warn');return;}
+
+  showToast(`正在刪除 ${jurorLabel} 的 ${entryKeys.length} 筆評分...`,'sync');
+
+  for(const entryKey of entryKeys){
+    delete DB.juryScores[roomId][entryKey][jurorId];
+    const updatedEntry={...DB.juryScores[roomId][entryKey]};
+    try{
+      // ★ 用 fbSet 整筆更新（移除此評審 key 後重寫），確保 Firebase 同步
+      await new Promise((res,rej)=>{
+        try{fbSet('juryScores/'+roomId+'/entries',entryKey,updatedEntry);setTimeout(res,60);}
+        catch(e){rej(e);}
+      });
+    }catch(e){console.warn('[deleteJuror] failed:',entryKey,e);}
+  }
+
+  // 清除評審排序快取
+  if(DB._jurorOrderCache)delete DB._jurorOrderCache[roomId];
+
+  renderResults();
+  renderDeleteJurorBar();
+  if(typeof renderAdminResults==='function')renderAdminResults();
+  showToast(`已刪除 ${jurorLabel} 的 ${entryKeys.length} 筆評分 ✓`,'ok');
+}
+window.deleteJurorFromRoom=deleteJurorFromRoom;
 
 function renderAdminResults(){
   const el=document.getElementById('ar-body');if(!el)return;
@@ -10632,7 +10831,7 @@ const _expose = [
   'checkJuryBeforeSubmit','submitJuryAll','confirmSubmitJury','toggleAbsent','saveJCell',
   'generateSchedule','exportScheduleCSV','publishSchedule','schResetFilters','schResetToRoomDefaults','schSaveSchedule','schLoadSchedule','schInitSortBar','schAddExcludeRule','schRemoveExcludeRule','renderSchExcludeUI','schToggleSortKey','openDisqModal','saveDisq','removeDisq','importDisqCSV','exportDisqCSV','downloadDisqSample','renderDisqList','onSchRoomChange','schRoomCatToggle','schRoomInstToggle','openSchAddModal','schAddSearch','schAddEntry','schRestoreEntry','schRemoveEntry','schAddCurrentFilter',
   'openAddDisqIndividual','adimSearch','adimSelect','saveDisqIndividual',
-  'renderTeaSchedulePage','teaSchSelectRoom','renderLiveResults','renderTeaJuryComments','renderAdminResults','exportAdminResultsCSV',
+  'renderTeaSchedulePage','teaSchSelectRoom','renderLiveResults','renderTeaJuryComments','renderAdminResults','exportAdminResultsCSV','renderDeleteJurorBar','deleteJurorFromRoom',
   'swAdminTab','swUserTab',
   'showAddUser','editUser','resetUserPwd','deleteUser','bulkDeleteUsers','toggleAllCheck','updateBulkBar','importCSV','downloadSample','importTeaStudentsCSV','downloadTeaStudentsSample','sortTeaList','adminStuFilterClass',
   'addCategory','renameCategory','delCategory','addInstrument','renameInst','delInst',
@@ -10641,7 +10840,7 @@ const _expose = [
   'addClass','renameClass','delClass',
   'saveTiming','saveAnnounce','saveBulletin','renderBulletin','saveWeights','addTrim','saveTrimRules','fbSaveConfig',
   'setAccess','saveRepHint','saveTyText','clearData','saveTeaScheduleMsg',
-  'publishResults','unpublishResults','renderAdminInstChangeNotices','markInstChangeRead','markAllInstChangesRead',
+  'publishResults','unpublishResults','renderAdminInstChangeNotices','markInstChangeRead','markAllInstChangesRead','updateDelJurorList','deleteJurorScores',
   'erShowTab','erAdminTab','erCmd','erInsertTable','erInsertImage','erSave','erInitAdminEditors',
   'switchExamRulesTab','switchErAdminTab','saveExamRules','renderExamRulesPage','initExamRulesEditor','erExec','erMarkDirty','erHandleTab','erInsertTable','erInsertImage',
   'npKey','npDel','npConfirm','npBg','npStar',
@@ -10656,7 +10855,7 @@ const _expose = [
   'renderJsupAdminPanel','renderJsupOptsList','addJsupOption','jsupUpdateOptLabel','jsupUpdateOptFlag','jsupDelOption','saveJurySignupConfig','saveJsupOptions','renderJsupAdminTable','exportJsupCSV',
 ];
 // ★ 安全暴露到 window（不用 eval，改用函數名對照表）
-const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schResetToRoomDefaults,schSaveSchedule,schLoadSchedule,schInitSortBar,schAddExcludeRule,schRemoveExcludeRule,renderSchExcludeUI,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,renderLiveResults,renderTeaJuryComments,renderAdminResults,exportAdminResultsCSV,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,openStuRoomModal,saveStuRoomModal,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,rfAddRule,rfRemoveRule,rfReadRulesFromDOM,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveBulletin,renderBulletin,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,publishResults,unpublishResults,renderAdminInstChangeNotices,markInstChangeRead,markAllInstChangesRead,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,erShowTab,erAdminTab,erCmd,erInsertTable,erInsertImage,erSave,erInitAdminEditors,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,teaInlineToggle,teaInlineEdit,teaInlineSave,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,_renderJsupSubmittedSummary,_jsupReopenForm,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,saveJsupOptions,renderJsupAdminTable,exportJsupCSV};
+const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schResetToRoomDefaults,schSaveSchedule,schLoadSchedule,schInitSortBar,schAddExcludeRule,schRemoveExcludeRule,renderSchExcludeUI,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,renderLiveResults,renderTeaJuryComments,renderAdminResults,exportAdminResultsCSV,renderDeleteJurorBar,deleteJurorFromRoom,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,openStuRoomModal,saveStuRoomModal,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,rfAddRule,rfRemoveRule,rfReadRulesFromDOM,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveBulletin,renderBulletin,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,publishResults,unpublishResults,renderAdminInstChangeNotices,markInstChangeRead,markAllInstChangesRead,updateDelJurorList,deleteJurorScores,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,erShowTab,erAdminTab,erCmd,erInsertTable,erInsertImage,erSave,erInitAdminEditors,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,teaInlineToggle,teaInlineEdit,teaInlineSave,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,_renderJsupSubmittedSummary,_jsupReopenForm,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,saveJsupOptions,renderJsupAdminTable,exportJsupCSV};
 Object.keys(_fnMap).forEach(function(name){ window[name] = _fnMap[name]; });
 
 // ★ 頁面載入後立即從 Firebase 同步 users，讓登入時帳密是最新狀態
