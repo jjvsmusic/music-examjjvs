@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <link rel="icon" href="data:,">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>音樂術科期末考評量系統</title>
 <!-- manifest 由 JS 動態建立為 blob URL，無需靜態檔案 -->
 <meta name="theme-color" content="#b5892a">
@@ -852,6 +852,9 @@ tbody td{color:var(--ink)!important}
       <div class="lf"><label>密碼</label><input id="l-pass" type="password" placeholder="預設：000" autocomplete="current-password"></div>
       <div class="login-err" id="l-err"></div>
       <button class="login-btn" id="l-btn" onclick="if(typeof window.doLogin==='function'){window.doLogin();}else{alert('系統尚未初始化，請重新整理頁面');}">登入系統</button>
+      <div style="text-align:center;margin-top:8px;font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">
+        ❓ 忘記密碼請聯絡管理員協助重設
+      </div>
 
       <hr class="login-sep">
 
@@ -2169,6 +2172,7 @@ tbody td{color:var(--ink)!important}
         <label>班級</label>
         <select id="result-class" onchange="renderResults()" style="padding:7px 12px;border:1px solid var(--border);background:var(--paper);font-family:Noto Serif TC,serif;font-size:14px;outline:none;border-radius:var(--r)"><option value="">全部班級</option></select>
         <button class="btn btn-d btn-sm" id="result-remark-filter-btn" onclick="toggleRemarkFilter()" title="顯示有備註（疑似需扣分）的學生">⚠ 疑似扣分篩選</button>
+        <button class="btn btn-b btn-sm" onclick="reloadJuryScores()" title="從 Firebase 重新載入最新成績" style="margin-left:auto">↻ 重新載入</button>
       </div>
       <!-- ★ 管理員：刪除某評審成績控制列 -->
       <div id="results-delete-juror-bar" style="display:none;margin-bottom:10px;margin-top:10px">
@@ -2198,6 +2202,37 @@ function __init__(){
 // ════════════════════════════════════════════════
 // DATA
 // ════════════════════════════════════════════════
+// ════════════════════════════════════════════════
+// ★ 安全 helper（XSS 防護 + 權限驗證）
+// ════════════════════════════════════════════════
+// ★ C2：DEBUG 模式判斷（localhost 或加上 ?debug=1 才開啟 console.log）
+const DEBUG = (location.hostname==='localhost'||location.hostname==='127.0.0.1'||location.search.includes('debug=1'));
+if(!DEBUG){
+  // 生產環境：保留 warn/error，靜音 log（避免敏感資料外洩）
+  const _origLog=console.log;
+  console.log=()=>{};
+  window._enableLog=()=>{console.log=_origLog;console.log('[DEBUG] log 已啟用');};
+}
+window.DEBUG=DEBUG;
+
+// XSS 防護：所有使用者輸入插入 innerHTML 前都應該 escape
+function escHtml(s){
+  if(s==null)return '';
+  return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+window.escHtml=escHtml;
+
+// 權限驗證：寫入操作前呼叫，非法時阻擋並提示
+function requireRole(...allowedRoles){
+  if(!allowedRoles.includes(ST.role)){
+    if(typeof showToast==='function')showToast('權限不足，無法執行此操作','err');
+    console.warn('[權限攔截] role='+ST.role+' 嘗試執行需要 '+allowedRoles.join('/')+' 權限的操作');
+    return false;
+  }
+  return true;
+}
+window.requireRole=requireRole;
+
 const DB = {
   classes: ['甲班','乙班','丙班'],
   instruments: {
@@ -2424,26 +2459,35 @@ function doLogin(){
   errEl.textContent='';
 
   function _tryLogin(){
-    // ★ 修正 #F3：用 _passVerify（向下相容明文）
-    const u=DB.users.find(u=>u.account===acc&&_passVerify(pass,u.pass,u.id));
-    if(!u){
-      const accExists=DB.users.find(u=>u.account===acc);
-      if(accExists){errEl.textContent='密碼錯誤';return;}
-      errEl.textContent='帳號不存在或密碼錯誤';return;
+    // ★ S1：先嘗試同步驗證（向下相容舊密碼），失敗再嘗試 async SHA-256
+    const candidate=DB.users.find(u=>u.account===acc);
+    if(!candidate){errEl.textContent='帳號不存在或密碼錯誤';return;}
+    const tryProceed=u=>{
+      ST.user=u;ST.role=u.role;
+      if(u.role==='admin'){
+        try{sessionStorage.setItem('_adminSession',JSON.stringify({id:u.id,role:u.role}));}catch(e){}
+      }
+      launchApp();
+      if(pass==='000'&&u.role!=='jury'){
+        setTimeout(()=>{
+          document.getElementById('fl-new').value='';
+          document.getElementById('fl-confirm').value='';
+          document.getElementById('fl-err').textContent='';
+          openOverlay('first-login-modal');
+        },600);
+      }
+    };
+    // 新版 SHA-256 ($S$) 必須走 async
+    if(typeof candidate.pass==='string'&&candidate.pass.startsWith('$S$')){
+      _passVerifyAsync(pass,candidate.pass,candidate.id).then(ok=>{
+        if(ok)tryProceed(candidate);
+        else errEl.textContent='密碼錯誤';
+      });
+      return;
     }
-    ST.user=u;ST.role=u.role;
-    if(u.role==='admin'){
-      try{sessionStorage.setItem('_adminSession',JSON.stringify({id:u.id,role:u.role}));}catch(e){}
-    }
-    launchApp();
-    if(pass==='000'&&u.role!=='jury'){
-      setTimeout(()=>{
-        document.getElementById('fl-new').value='';
-        document.getElementById('fl-confirm').value='';
-        document.getElementById('fl-err').textContent='';
-        openOverlay('first-login-modal');
-      },600);
-    }
+    // 舊版 $X$ 或明文走同步
+    if(_passVerify(pass,candidate.pass,candidate.id))tryProceed(candidate);
+    else errEl.textContent='密碼錯誤';
   }
 
   // ★ 若 preloadUsersForLogin 已同步 users（DB.users 有資料）就直接比對，省掉一次 fetch
@@ -2705,6 +2749,11 @@ function doLogout(){
       Object.values(window._pollTimers).forEach(t=>{if(t.id)clearInterval(t.id);});
       window._pollTimers={};
     }
+    // ★ C3：清理所有 debounce timer（評分輸入的 800ms 寫入）
+    if(window._jcDebounce){
+      Object.values(window._jcDebounce).forEach(t=>clearTimeout(t));
+      window._jcDebounce={};
+    }
   }catch(e){}
   ST.user=null;ST.role=null;ST.juryRoom=null;ST.juryName='';ST.juryId='';ST.invigRoom=null;ST.invigName='';
   try{sessionStorage.removeItem('_adminSession');}catch(e){}
@@ -2730,15 +2779,15 @@ function openChPwd(){
 }
 window.openChPwd=openChPwd;
 
-function saveFirstPassword(){
+async function saveFirstPassword(){
   const newVal=document.getElementById('fl-new').value;
   const cfmVal=document.getElementById('fl-confirm').value;
   const errEl=document.getElementById('fl-err');
   if(!newVal||newVal.length<1){errEl.textContent='請輸入新密碼';return;}
   if(newVal==='000'){errEl.textContent='新密碼不可與預設密碼相同';return;}
   if(newVal===cfmVal){}else{errEl.textContent='兩次輸入不一致';return;}
-  // ★ 修正 #F3：混淆儲存
-  const encoded=_passEncode(newVal,ST.user.id);
+  // ★ S1：用 SHA-256 加密
+  const encoded=await _passEncodeAsync(newVal,ST.user.id);
   ST.user.pass=encoded;
   fbSet('users',ST.user.id,{pass:encoded});
   closeOverlay('first-login-modal');
@@ -2746,17 +2795,18 @@ function saveFirstPassword(){
 }
 window.saveFirstPassword=saveFirstPassword;
 
-function doChangePassword(){
+async function doChangePassword(){
   const oldVal=document.getElementById('chpwd-old').value;
   const newVal=document.getElementById('chpwd-new').value;
   const cfmVal=document.getElementById('chpwd-confirm').value;
   const errEl=document.getElementById('chpwd-err');
   if(!ST.user){errEl.textContent='請先登入';return;}
-  // ★ 修正 #F3：用 _passVerify 比對舊密碼
-  if(!_passVerify(oldVal,ST.user.pass,ST.user.id)){errEl.textContent='舊密碼錯誤';return;}
+  // ★ S1：用 async verify（支援 SHA-256 + 向下相容）
+  const oldOk=await _passVerifyAsync(oldVal,ST.user.pass,ST.user.id);
+  if(!oldOk){errEl.textContent='舊密碼錯誤';return;}
   if(!newVal){errEl.textContent='新密碼不可為空';return;}
   if(newVal!==cfmVal){errEl.textContent='兩次密碼不一致';return;}
-  const encoded=_passEncode(newVal,ST.user.id);
+  const encoded=await _passEncodeAsync(newVal,ST.user.id);
   ST.user.pass=encoded;
   fbSet('users',ST.user.id,{pass:encoded});
   closeOverlay('chpwd-modal');
@@ -2819,11 +2869,34 @@ function fbLoad(col, cb){
 // ════════════════════════════════════════════════
 // ★ 修正 #F3：密碼混淆（不是強加密，但避免明文存於 Firestore）
 // ════════════════════════════════════════════════
+// ★ S1 安全升級：密碼改用 SHA-256 雜湊（瀏覽器原生 crypto.subtle）
+//   - 新格式：'$S$' + base64(sha256(plain + '|' + salt))
+//   - 向下相容：仍可驗證舊的 '$X$'（Base64）和明文密碼
+async function _sha256Hex(text){
+  const buf=new TextEncoder().encode(text);
+  const hash=await crypto.subtle.digest('SHA-256',buf);
+  return btoa(String.fromCharCode(...new Uint8Array(hash)));
+}
+async function _passEncodeAsync(plainPass,userId){
+  if(plainPass==null||plainPass==='')return '';
+  if(typeof plainPass==='string'&&(plainPass.startsWith('$S$')||plainPass.startsWith('$X$')))return plainPass;
+  const salt='mep_v2_'+(userId||'').slice(-6);
+  try{
+    const hashed=await _sha256Hex(String(plainPass)+'|'+salt);
+    return '$S$'+hashed;
+  }catch(e){
+    // crypto.subtle 不可用時 fallback 到舊 Base64
+    return _passEncode(plainPass,userId);
+  }
+}
+window._passEncodeAsync=_passEncodeAsync;
+
+// 舊版 Base64 編碼（保留以驗證舊密碼）
 function _passEncode(plainPass, userId){
   if(plainPass===undefined||plainPass===null)return '';
   if(plainPass==='')return '';
   // 已混淆的不再重複處理
-  if(typeof plainPass==='string'&&plainPass.startsWith('$X$'))return plainPass;
+  if(typeof plainPass==='string'&&(plainPass.startsWith('$X$')||plainPass.startsWith('$S$')))return plainPass;
   try{
     const salt='mep_'+(userId||'').slice(-4);
     const raw=String(plainPass)+'|'+salt;
@@ -2832,14 +2905,33 @@ function _passEncode(plainPass, userId){
 }
 function _passVerify(input,stored,userId){
   if(stored===undefined||stored===null||stored==='')return input===''||input===undefined;
-  // 向下相容：若是明文（沒有 $X$ 前綴）直接比對
-  if(typeof stored!=='string'||!stored.startsWith('$X$'))return input===stored;
-  try{
-    return _passEncode(input,userId)===stored;
-  }catch(e){return false;}
+  // 新版 SHA-256：同步無法驗證，需要呼叫 _passVerifyAsync
+  if(typeof stored==='string'&&stored.startsWith('$S$')){
+    console.warn('[passVerify] $S$ 格式必須使用 _passVerifyAsync 驗證');
+    return false;
+  }
+  // 舊版 $X$ Base64
+  if(typeof stored==='string'&&stored.startsWith('$X$')){
+    try{return _passEncode(input,userId)===stored;}catch(e){return false;}
+  }
+  // 明文（最舊版）
+  return input===stored;
+}
+async function _passVerifyAsync(input,stored,userId){
+  if(stored===undefined||stored===null||stored==='')return input===''||input===undefined;
+  // 新版 $S$ SHA-256
+  if(typeof stored==='string'&&stored.startsWith('$S$')){
+    try{
+      const hashed=await _passEncodeAsync(input,userId);
+      return hashed===stored;
+    }catch(e){return false;}
+  }
+  // 向下相容：$X$ Base64 或明文
+  return _passVerify(input,stored,userId);
 }
 window._passEncode=_passEncode;
 window._passVerify=_passVerify;
+window._passVerifyAsync=_passVerifyAsync;
 
 function preloadUsersForLogin(){
   if(!window._FB){return;}
@@ -3202,8 +3294,9 @@ function launchApp(){
             }catch(e){console.warn('[jury] 歷史分數載入失敗',e);}
           },800);
         }
-        // ★ Bug1：學生角色也需要載入 juryScores（所有考場，因為不知道在哪場）
-        if(ST.role==='student'&&window._FB){
+        // ★ Bug1+問題2：學生及教師角色都需要載入 juryScores（所有考場）
+        //   學生看自己評語、教師看自己學生的評語都依賴 DB.juryScores
+        if((ST.role==='student'||ST.role==='teacher')&&window._FB){
           setTimeout(async()=>{
             try{
               const roomIds=(DB.rooms||[]).map(r=>r.id).filter(Boolean);
@@ -3219,9 +3312,10 @@ function launchApp(){
                   snap.forEach(ed=>{const raw=ed.data();const j={};Object.keys(raw).forEach(k=>{if(!k.startsWith('_'))j[k]=raw[k];});DB.juryScores[roomId][ed.id]=j;});
                 }
               }));
-              renderScoresPage();
-              console.log('[student] juryScores 載入完成');
-            }catch(e){console.warn('[student] juryScores 載入失敗',e);}
+              if(ST.role==='student'&&typeof renderScoresPage==='function')renderScoresPage();
+              if(ST.role==='teacher'&&typeof renderTeaJuryComments==='function')renderTeaJuryComments();
+              console.log('['+ST.role+'] juryScores 載入完成，考場數：',Object.keys(DB.juryScores).length);
+            }catch(e){console.warn('['+ST.role+'] juryScores 載入失敗',e);}
           },800);
         }
         // ★ 修正 #O2：進入頁面時若已連線且有 pending，主動 sync 一次
@@ -3399,8 +3493,12 @@ function initDropdowns(){
 }
 
 function filterRepInst(type){
-  const catId=document.getElementById('r-'+type+'-cat').value;
-  const sel=document.getElementById('r-'+type+'-inst');
+  // ★ 修正：'elective' 在 HTML 中縮寫為 'elec'，需做 id 對照
+  const idPrefix=type==='elective'?'r-elec':('r-'+type);
+  const catEl=document.getElementById(idPrefix+'-cat');
+  const sel=document.getElementById(idPrefix+'-inst');
+  if(!catEl||!sel){console.warn('[filterRepInst] 找不到元素 type=',type);return;}
+  const catId=catEl.value;
   sel.innerHTML='';sel.appendChild(new Option('— 請選 —',''));
   if(catId){
     const restrict=DB.config.instRestrict?.[type]||[];
@@ -4157,6 +4255,8 @@ function renderScoresPage(){
     const scoreArr=Object.values(jurorData).filter(s=>!s.absent);
     const result=scoreArr.length?calcFinal(scoreArr,roomId):{finalScore:null,fS:null,fA:null,fF:null,fieldAvgs:{}};
     const fs=result.finalScore;
+    // ★ H1：成績未發佈時隱藏分數區，只顯示評語
+    const resultsPublished=!!DB.config.resultsPublished;
 
     // ① 老師平時評語（不顯示分數）
     const tc=DB.teacherComments[u.id]?.[t.type];
@@ -4180,13 +4280,15 @@ function renderScoresPage(){
     return `<div class="isb">
       <div class="isb-h">
         <div>
-          <span style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:2px;color:rgba(181,137,42,.7)">${typeName(t.type)} · </span>
-          <span class="isb-h-name">${iname(t.inst)}</span>
+          <span style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:2px;color:rgba(181,137,42,.7)">${escHtml(typeName(t.type))} · </span>
+          <span class="isb-h-name">${escHtml(iname(t.inst))}</span>
         </div>
-        <div class="isb-h-score ${fs!==null&&fs<60?'red-score':''}">${fs!==null?fs.toFixed(2):'—'}</div>
+        ${resultsPublished
+          ? `<div class="isb-h-score ${fs!==null&&fs<60?'red-score':''}">${fs!==null?fs.toFixed(2):'—'}</div>`
+          : `<div style="font-family:'DM Mono',monospace;font-size:9px;color:rgba(181,137,42,.6);letter-spacing:1px">成績待發佈</div>`}
       </div>
       <div class="isb-b">
-        <div class="g3" style="margin-bottom:14px">
+        ${resultsPublished?`<div class="g3" style="margin-bottom:14px">
           <div>
             <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">音階/視奏</div>
             <div style="font-family:Cormorant Garamond,serif;font-size:28px;color:var(--ink)" class="${result.fS!==null&&result.fS<60?'red-score':''}">${result.fS!==null?result.fS.toFixed(1):'—'}</div>
@@ -4194,19 +4296,19 @@ function renderScoresPage(){
           <div>
             <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">指定曲</div>
             <div style="font-family:Cormorant Garamond,serif;font-size:28px" class="${result.fA!==null&&result.fA<60?'red-score':''}">${result.fA!==null?result.fA.toFixed(1):'—'}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:3px">${t.ac||''} — ${t.at||''}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px">${escHtml(t.ac||'')} — ${escHtml(t.at||'')}</div>
           </div>
           <div>
             <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">自選曲</div>
             <div style="font-family:Cormorant Garamond,serif;font-size:28px" class="${result.fF!==null&&result.fF<60?'red-score':''}">${result.fF!==null?result.fF.toFixed(1):'—'}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:3px">${t.fc||''} — ${t.ft||''}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px">${escHtml(t.fc||'')} — ${escHtml(t.ft||'')}</div>
           </div>
-        </div>
+        </div>`:''}
 
         <!-- ① 老師的平時評語（不顯示分數） -->
         <div style="background:var(--cream);border-left:3px solid var(--steel);border-radius:0 var(--r) var(--r) 0;padding:10px 14px;margin-bottom:10px">
           <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--steel);margin-bottom:5px">評語 ① 指導老師平時評語</div>
-          <div style="font-size:13px;line-height:1.9;color:var(--ink)">${teacherComment||'（老師尚未填寫評語）'}</div>
+          <div style="font-size:13px;line-height:1.9;color:var(--ink);white-space:pre-wrap">${escHtml(teacherComment)||'（老師尚未填寫評語）'}</div>
         </div>
 
         <!-- ② 現場評審期末評語（只顯示自己） -->
@@ -4216,7 +4318,7 @@ function renderScoresPage(){
             ? juryComments.map(j=>`
                 <div style="margin-bottom:${j===juryComments[juryComments.length-1]?'0':'8px'}">
                   <span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-right:6px">評審 ${j.idx}</span>
-                  <span style="font-size:13px;line-height:1.9;color:var(--ink)">${j.comment}</span>
+                  <span style="font-size:13px;line-height:1.9;color:var(--ink);white-space:pre-wrap">${escHtml(j.comment)}</span>
                 </div>`).join('')
             : '<div style="font-size:12px;color:var(--muted)">（尚無評審評語）</div>'
           }
@@ -4309,14 +4411,14 @@ function renderStuSchedule(filter){
 
   tbody.innerHTML=shown.map(e=>`<tr>
     <td style="font-family:'DM Mono',monospace;color:var(--ink);font-weight:600">${e.order}</td>
-    <td style="color:var(--ink)">${e.roomName}</td>
-    <td style="color:var(--ink);font-family:'DM Mono',monospace;font-size:11px">${e.roomLocation||'—'}</td>
-    <td style="color:var(--ink)">${e.class}</td>
-    <td style="color:var(--ink);font-weight:600">${e.name}</td>
-    <td style="color:var(--ink)">${e.instName}</td>
+    <td style="color:var(--ink)">${escHtml(e.roomName)}</td>
+    <td style="color:var(--ink);font-family:'DM Mono',monospace;font-size:11px">${escHtml(e.roomLocation||'—')}</td>
+    <td style="color:var(--ink)">${escHtml(e.class)}</td>
+    <td style="color:var(--ink);font-weight:600">${escHtml(e.name)}</td>
+    <td style="color:var(--ink)">${escHtml(e.instName)}</td>
     <td>${typeBadge(e.type)}</td>
-    <td style="font-size:12px;color:var(--ink)">${e.ac?e.ac+' — <em>'+e.at+'</em>':'—'}</td>
-    <td style="font-size:12px;color:var(--ink)">${e.fc?e.fc+' — <em>'+e.ft+'</em>':'—'}</td>
+    <td style="font-size:12px;color:var(--ink)">${e.ac?escHtml(e.ac)+' — <em>'+escHtml(e.at)+'</em>':'—'}</td>
+    <td style="font-size:12px;color:var(--ink)">${e.fc?escHtml(e.fc)+' — <em>'+escHtml(e.ft)+'</em>':'—'}</td>
   </tr>`).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;font-family:\'DM Mono\',monospace;font-size:12px">查無資料</td></tr>';
 }
 function doLookup(){renderStuSchedule({name:document.getElementById('lookup-name').value,inst:document.getElementById('lookup-inst').value,room:document.getElementById('lookup-room').value});}
@@ -5190,25 +5292,30 @@ function saveJCell(i,roomId,entryKey,field,val){
   // ── 2. 標記 pending ──
   markPending(lsKey);
 
-  // ── 3. 若有網路，即時寫入 Firestore ──
+  // ── 3. 若有網路，即時寫入 Firestore（debounce 800ms 合併連續修改） ──
   if(ST.isOnline&&window._FB){
     showSyncStatus('sync','正在同步...');
-    const {db,serverTimestamp}=window._FB;
-    const entryRef=db.collection('juryScores').doc(roomId)
-      .collection('entries').doc(entryKey);
-    const patch={};
-    const jurorData={...DB.juryScores[roomId][entryKey][myId]};
-    if(ST.juryName)jurorData._jurorName=ST.juryName;
-    patch[myId]=jurorData;
-    patch['_updatedAt']=serverTimestamp();
-    entryRef.set(patch,{merge:true})
-      .then(()=>{
-        // ★ 修正 #A1：只在 LS 內容仍為當前快照時才 unmarkPending
-        const cur=localStorage.getItem(lsKey);
-        if(cur===snapshot){unmarkPending(lsKey);showSyncStatus('ok','已同步 ✓');}
-        else{showSyncStatus('sync','...');} // 已有更新版本，等下一次寫入完成
-      })
-      .catch(()=>showSyncStatus('pend','離線暫存'));
+    if(!window._jcDebounce)window._jcDebounce={};
+    const dbKey=roomId+'_'+entryKey+'_'+myId;
+    if(window._jcDebounce[dbKey])clearTimeout(window._jcDebounce[dbKey]);
+    window._jcDebounce[dbKey]=setTimeout(()=>{
+      const {db,serverTimestamp}=window._FB;
+      const entryRef=db.collection('juryScores').doc(roomId)
+        .collection('entries').doc(entryKey);
+      const patch={};
+      const jurorData={...DB.juryScores[roomId][entryKey][myId]};
+      if(ST.juryName)jurorData._jurorName=ST.juryName;
+      patch[myId]=jurorData;
+      patch['_updatedAt']=serverTimestamp();
+      entryRef.set(patch,{merge:true})
+        .then(()=>{
+          const cur=localStorage.getItem(lsKey);
+          if(cur===JSON.stringify(DB.juryScores[roomId][entryKey][myId])){unmarkPending(lsKey);showSyncStatus('ok','已同步 ✓');}
+          else{showSyncStatus('sync','...');}
+        })
+        .catch(()=>showSyncStatus('pend','離線暫存'));
+      delete window._jcDebounce[dbKey];
+    },800);
   } else {
     showSyncStatus('pend','離線暫存 — 連線後自動同步');
   }
@@ -5462,6 +5569,33 @@ window.addEventListener('online',()=>{
   document.getElementById('off-bar').classList.remove('show');
   showToast('已重新連線，正在同步...','ok');
   setTimeout(syncPendingToFirebase,800);
+});
+
+// ★ U2：頁面關閉/重整前 flush pending Firebase 寫入
+window.addEventListener('beforeunload',()=>{
+  // 立即執行所有 debounce 中的寫入
+  if(window._jcDebounce){
+    Object.entries(window._jcDebounce).forEach(([k,timerId])=>{
+      clearTimeout(timerId);
+      // 注意：beforeunload 只有 ~5ms，async 寫入可能無法完成
+      // 但已先存到 localStorage，下次連線會 sync
+    });
+  }
+  // 嘗試同步 pending 資料（瀏覽器可能阻擋 fetch，但已有 LS 備份）
+  if(navigator.onLine&&window._FB&&typeof syncPendingToFirebase==='function'){
+    try{syncPendingToFirebase();}catch(e){}
+  }
+});
+
+// ★ 頁面隱藏時也 flush（更可靠，因為 beforeunload 在 mobile 不一定觸發）
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden'&&navigator.onLine&&window._FB){
+    if(window._jcDebounce){
+      Object.values(window._jcDebounce).forEach(t=>clearTimeout(t));
+      window._jcDebounce={};
+    }
+    if(typeof syncPendingToFirebase==='function')syncPendingToFirebase();
+  }
 });
 
 // ★ 管理員後台現場評分 - 考場切換按鈕 + 下拉選單
@@ -8304,6 +8438,7 @@ function renderAccessControl(){
   }
 }
 function setAccess(configKey,pageId,val){
+  if(!requireRole('admin'))return;
   DB.config[configKey][pageId]=val;
   fbSaveConfig();renderAccessControl();
   updateJurySignupTabVisibility();
@@ -8525,6 +8660,7 @@ window.saveRepConfirmMsg=saveRepConfirmMsg;
 // ADMIN - DANGER: CLEAR DATA
 // ════════════════════════════════════════════════
 function clearData(type){
+  if(!requireRole('admin'))return;
   const labels={rep:'學生曲目填報',teacher:'教師平時成績',jury:'考試成績與評語',jurySignup:'教師期末考評分報名',all:'全部考試資料'};
   if(!confirm(`確定要清除「${labels[type]}」？此操作不可復原。`))return;
   // ★ 修正 R8：二次確認 + 預估筆數
@@ -8784,6 +8920,45 @@ async function cleanGhostJurors(){
 window.cleanGhostJurors=cleanGhostJurors;
 
 // ════════════════════════════════════════════════
+// H6：手動重新載入評分資料（管理員用）
+// ════════════════════════════════════════════════
+async function reloadJuryScores(){
+  if(!requireRole('admin','teacher','student'))return;
+  showToast('正在重新載入...','sync');
+  try{
+    if(typeof _loadJuryScores==='function'){
+      await _loadJuryScores();
+    } else {
+      // fallback：直接讀
+      const roomIds=(DB.rooms||[]).map(r=>r.id).filter(Boolean);
+      DB.juryScores={};
+      await Promise.all(roomIds.map(async roomId=>{
+        if(window._FB?._rest){
+          const docs=await window._FB._list('juryScores/'+roomId+'/entries').catch(()=>[]);
+          if(!docs||!docs.length)return;
+          DB.juryScores[roomId]={};
+          docs.forEach(d=>{const{id,_updatedAt,...j}=d;if(id)DB.juryScores[roomId][id]=j;});
+        } else if(window._FB?.db){
+          DB.juryScores[roomId]={};
+          const snap=await window._FB.db.collection('juryScores').doc(roomId).collection('entries').get();
+          snap.forEach(ed=>{const raw=ed.data();const j={};Object.keys(raw).forEach(k=>{if(!k.startsWith('_'))j[k]=raw[k];});DB.juryScores[roomId][ed.id]=j;});
+        }
+      }));
+    }
+    if(DB._jurorOrderCache)DB._jurorOrderCache={};
+    if(typeof renderResults==='function')renderResults();
+    if(typeof renderAdminResults==='function')renderAdminResults();
+    if(typeof renderLiveResults==='function')renderLiveResults();
+    if(typeof renderScoresPage==='function')renderScoresPage();
+    showToast('已更新最新成績 ✓','ok');
+  }catch(e){
+    console.warn('[reloadJuryScores]',e);
+    showToast('重新載入失敗','err');
+  }
+}
+window.reloadJuryScores=reloadJuryScores;
+
+// ════════════════════════════════════════════════
 // 管理員：刪除某考場某評審的所有成績
 // ════════════════════════════════════════════════
 function updateDelJurorList(){
@@ -9022,32 +9197,37 @@ function _buildResultCard(e,ei,getEntryRemarks,showRoom){
   const isBlack=!!(DB.blackSign[useRoomId]?.[entryKey]);
   const remarksList=getEntryRemarks(useRoomId,entryKey);
   const hasRemarks=remarksList.length>0;
-  // ★ Bug7 修正：評審排列順序一致化
-  //   取得此考場所有 entries 中出現過的評審 id 的聯集，依字典序固定排列
-  //   讓所有學生的「評審1/評審2/...」對應到同一位評審
-  const _getConsistentJurorIds=(roomId,jData)=>{
-    // 蒐集本考場所有 entries 的評審 key，取聯集後排序
+  // ★ 問題1 修正：評審清單統一使用考場全域清單，並過濾幽靈評審
+  const _getConsistentJurorIds=(roomId,_jData)=>{
     if(!DB._jurorOrderCache)DB._jurorOrderCache={};
     if(!DB._jurorOrderCache[roomId]){
-      const allIds=new Set();
+      const validIds=new Set();
+      const fieldList=(typeof getRoomFields==='function'?getRoomFields(roomId):[{id:'scale'},{id:'assigned'},{id:'free'}]).map(f=>f.id);
       Object.values(DB.juryScores[roomId]||{}).forEach(entry=>{
-        Object.keys(entry||{}).forEach(k=>{if(!k.startsWith('_'))allIds.add(k);});
+        Object.entries(entry||{}).forEach(([k,data])=>{
+          if(k.startsWith('_'))return;
+          if(!data||typeof data!=='object')return;
+          if(data._jurorName){validIds.add(k);return;}
+          const hasScore=fieldList.some(f=>{const v=data[f];return v!==undefined&&v!==''&&v!==null&&v!=='*';});
+          const hasComment=data.comment&&String(data.comment).trim();
+          if(hasScore||hasComment)validIds.add(k);
+        });
       });
-      // 固定字典序排序，確保所有學生的評審編號一致
-      DB._jurorOrderCache[roomId]=[...allIds].sort();
+      DB._jurorOrderCache[roomId]=[...validIds].sort();
     }
-    const globalOrder=DB._jurorOrderCache[roomId];
-    const localIds=Object.keys(jData);
-    // 依全域順序排列本學生有的評審
-    const sorted=globalOrder.filter(id=>localIds.includes(id));
-    // 加上本學生有但全域沒有的（理論上不應發生，安全起見）
-    localIds.forEach(id=>{if(!sorted.includes(id))sorted.push(id);});
-    return sorted;
+    return DB._jurorOrderCache[roomId];
   };
   const jurorIds=_getConsistentJurorIds(useRoomId,jurorData);
   const buildJurorRows=(field)=>{
     return jurorIds.map((jid,ji)=>{
       const s=jurorData[jid];
+      // ★ 該評審未評分此學生：顯示「未評」並淡化
+      if(!s){
+        return `<div class="rjs-item" style="opacity:.4">
+          <span style="color:var(--muted)">評審 ${ji+1}</span>
+          <span style="color:var(--muted);font-size:11px">— 未評 —</span>
+        </div>`;
+      }
       const isSkip=s[field]==='*'||s[field+'_skip']===true;
       const val=s.absent?0:(isSkip?null:parseFloat(s[field])||0);
       const isRemoved=!isSkip&&result.detail?.[field]?.removed?.includes(val);
@@ -9099,9 +9279,12 @@ function _buildResultCard(e,ei,getEntryRemarks,showRoom){
           <span>評語彙整（共 ${jurorIds.length} 位評審）</span><span class="cf-arrow">▼</span>
         </div>
         <div class="comment-folder-b">
-          ${jurorIds.map((jid,ji)=>{const s=jurorData[jid];
+          ${jurorIds.map((jid,ji)=>{
+            const s=jurorData[jid];
+            if(!s)return '';
             const nameTag=(ST.role==='admin'&&_showRealJurorNames&&s._jurorName)?'評審 '+(ji+1)+' ('+s._jurorName+')':'評審 '+(ji+1);
-            return s.comment?`<div style="margin-bottom:8px;padding:8px 10px;background:var(--cream);border-radius:var(--r)"><div style="font-family:DM Mono,monospace;font-size:8px;color:var(--muted);margin-bottom:4px">${nameTag}</div><div style="font-size:13px;line-height:1.8">${s.comment}</div></div>`:''}).join('')||'<div style="color:var(--muted);font-size:12px">尚無評語</div>'}
+            return s.comment?`<div style="margin-bottom:8px;padding:8px 10px;background:var(--cream);border-radius:var(--r)"><div style="font-family:DM Mono,monospace;font-size:8px;color:var(--muted);margin-bottom:4px">${escHtml(nameTag)}</div><div style="font-size:13px;line-height:1.8;white-space:pre-wrap">${escHtml(s.comment)}</div></div>`:'';
+          }).join('')||'<div style="color:var(--muted);font-size:12px">尚無評語</div>'}
         </div>
       </div>
     </div>
@@ -9274,6 +9457,7 @@ function _updatePublishBarUI(){
 window._updatePublishBarUI=_updatePublishBarUI;
 
 function publishResults(){
+  if(!requireRole('admin'))return;
   if(!confirm('確定要發佈成績？學生及教師將可看到完整術科成績（含扣分及評語）。'))return;
   DB.config.resultsPublished=true;
   DB.config.resultsPublishedAt=new Date().toISOString();
@@ -9290,6 +9474,7 @@ function publishResults(){
 window.publishResults=publishResults;
 
 function unpublishResults(){
+  if(!requireRole('admin'))return;
   if(!confirm('確定要收回成績發佈？學生及教師將無法查看成績總表。'))return;
   DB.config.resultsPublished=false;
   DB.config.resultsPublishedAt=null;
@@ -9343,11 +9528,26 @@ function renderLiveResults(){
   const _getRoomJurorIds=(rId)=>{
     if(!DB._jurorOrderCache)DB._jurorOrderCache={};
     if(!DB._jurorOrderCache[rId]){
-      const allIds=new Set();
+      // ★ 問題1：只列出「實際有評分內容」的評審
+      //   過濾掉：無姓名 + 所有分數欄位皆空 的幽靈記錄
+      const validIds=new Set();
+      const fieldList=(typeof getRoomFields==='function'?getRoomFields(rId):[{id:'scale'},{id:'assigned'},{id:'free'}]).map(f=>f.id);
       Object.values(DB.juryScores[rId]||{}).forEach(ed=>{
-        Object.keys(ed||{}).forEach(k=>{if(!k.startsWith('_'))allIds.add(k);});
+        Object.entries(ed||{}).forEach(([k,data])=>{
+          if(k.startsWith('_'))return;
+          if(!data||typeof data!=='object'){return;}
+          // 有姓名就保留
+          if(data._jurorName){validIds.add(k);return;}
+          // 無姓名但有實際分數或評語才保留
+          const hasScore=fieldList.some(f=>{
+            const v=data[f];
+            return v!==undefined&&v!==''&&v!==null&&v!=='*';
+          });
+          const hasComment=data.comment&&data.comment.trim();
+          if(hasScore||hasComment)validIds.add(k);
+        });
       });
-      DB._jurorOrderCache[rId]=[...allIds].sort();
+      DB._jurorOrderCache[rId]=[...validIds].sort();
     }
     return DB._jurorOrderCache[rId];
   };
@@ -9458,14 +9658,14 @@ function renderLiveResults(){
 
       rows+=`<tr class="${rowClass}">
         <td class="st-seq" style="${tdNum}">${String(e.order||ei+1).padStart(2,'0')}</td>
-        <td class="st-name" style="${tdLeft};font-weight:600">${e.name}${self?' ★':''}</td>
-        <td style="${tdBase}">${e.class||'—'}</td>
-        <td style="${tdBase}">${e.seat||'—'}</td>
-        <td style="${tdLeft}">${typeName(e.type)} ${e.instName}</td>
+        <td class="st-name" style="${tdLeft};font-weight:600">${escHtml(e.name)}${self?' ★':''}</td>
+        <td style="${tdBase}">${escHtml(e.class||'—')}</td>
+        <td style="${tdBase}">${escHtml(e.seat||'—')}</td>
+        <td style="${tdLeft}">${escHtml(typeName(e.type))} ${escHtml(e.instName)}</td>
         ${scoresCells}
         <td style="${tdNum};color:var(--rust)">${dedAmt}</td>
         <td style="${tdNum};${finalColor}">${finalDisp}</td>
-        <td style="${tdLeft};font-size:11px;color:var(--rust)">${violation}</td>
+        <td style="${tdLeft};font-size:11px;color:var(--rust)">${escHtml(violation)}</td>
         <td style="${tdBase};font-size:16px">${rankDisp}</td>
       </tr>`;
     });
@@ -9475,9 +9675,9 @@ function renderLiveResults(){
     const top3Html=top3.map((item,i)=>`
       <span style="display:inline-flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border:1px solid var(--border);border-radius:20px;margin:3px 3px 3px 0">
         <span style="font-size:16px">${rankMedal[i]}</span>
-        <strong style="font-size:13px">${item.name}</strong>
-        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">${item.class}·座${item.seat}</span>
-        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--steel)">${typeName(item.type)} ${item.instName}</span>
+        <strong style="font-size:13px">${escHtml(item.name)}</strong>
+        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">${escHtml(item.class)}·座${escHtml(item.seat)}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--steel)">${escHtml(typeName(item.type))} ${escHtml(item.instName)}</span>
         <span style="font-family:Cormorant Garamond,serif;font-size:16px;color:var(--gold);font-weight:600">${item.score.toFixed(2)}</span>
       </span>`).join('');
 
@@ -9530,9 +9730,20 @@ function renderTeaJuryComments(){
   const _getRoomJurorIds=(rId)=>{
     if(!DB._jurorOrderCache)DB._jurorOrderCache={};
     if(!DB._jurorOrderCache[rId]){
-      const allIds=new Set();
-      Object.values(DB.juryScores[rId]||{}).forEach(ed=>{Object.keys(ed||{}).forEach(k=>{if(!k.startsWith('_'))allIds.add(k);});});
-      DB._jurorOrderCache[rId]=[...allIds].sort();
+      // ★ 問題1：只列出「實際有評分內容」的評審，過濾幽靈
+      const validIds=new Set();
+      const fieldList=(typeof getRoomFields==='function'?getRoomFields(rId):[{id:'scale'},{id:'assigned'},{id:'free'}]).map(f=>f.id);
+      Object.values(DB.juryScores[rId]||{}).forEach(ed=>{
+        Object.entries(ed||{}).forEach(([k,data])=>{
+          if(k.startsWith('_'))return;
+          if(!data||typeof data!=='object')return;
+          if(data._jurorName){validIds.add(k);return;}
+          const hasScore=fieldList.some(f=>{const v=data[f];return v!==undefined&&v!==''&&v!==null&&v!=='*';});
+          const hasComment=data.comment&&String(data.comment).trim();
+          if(hasScore||hasComment)validIds.add(k);
+        });
+      });
+      DB._jurorOrderCache[rId]=[...validIds].sort();
     }
     return DB._jurorOrderCache[rId];
   };
@@ -9569,7 +9780,7 @@ function renderTeaJuryComments(){
       if(!comments.length){
         return `<div style="background:var(--cream);border-radius:var(--r);padding:10px 14px;margin-top:6px;display:flex;align-items:center;gap:10px">
           ${typeBadge(e.type)}
-          <span style="font-size:13px;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px">${iname(stu[e.type]||'')||e.instName||'—'}</span>
+          <span style="font-size:13px;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px">${escHtml(iname(stu[e.type]||'')||e.instName||'—')}</span>
           <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:auto">（尚無評語）</span>
         </div>`;
       }
@@ -9577,14 +9788,14 @@ function renderTeaJuryComments(){
       return `<div style="border:1px solid var(--border);border-left:3px solid var(--gold);border-radius:0 var(--r) var(--r) 0;padding:12px 16px;margin-top:8px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
           ${typeBadge(e.type)}
-          <span style="font-size:13px;color:var(--ink)">${iname(stu[e.type]||'')||e.instName||'—'}</span>
-          <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">${e.roomName||''}</span>
+          <span style="font-size:13px;color:var(--ink)">${escHtml(iname(stu[e.type]||'')||e.instName||'—')}</span>
+          <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">${escHtml(e.roomName||'')}</span>
           <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:auto">${comments.length} 位評審評語</span>
         </div>
         ${comments.map(c=>`
           <div style="margin-bottom:${c===comments[comments.length-1]?'0':'10px'};padding-left:10px;border-left:2px solid var(--cream)">
             <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1px;color:var(--muted);margin-bottom:3px">評審 ${c.idx}</div>
-            <div style="font-size:13px;line-height:1.9;color:var(--ink)">${c.text}</div>
+            <div style="font-size:13px;line-height:1.9;color:var(--ink);white-space:pre-wrap">${escHtml(c.text)}</div>
           </div>`).join('')}
       </div>`;
     }).join('');
@@ -9593,9 +9804,9 @@ function renderTeaJuryComments(){
 
     html+=`<div class="card" style="margin-bottom:12px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
-        <strong style="font-size:15px">${stu.name}</strong>
-        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">${stu.class||''}·座${stu.seat||''}</span>
-        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">${iname(stu.major)||''}</span>
+        <strong style="font-size:15px">${escHtml(stu.name)}</strong>
+        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">${escHtml(stu.class||'')}·座${escHtml(stu.seat||'')}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">${escHtml(iname(stu.major)||'')}</span>
       </div>
       ${entryCards}
     </div>`;
@@ -9727,9 +9938,20 @@ function renderAdminResults(){
   const _getRoomJurorIds=(rId)=>{
     if(!DB._jurorOrderCache)DB._jurorOrderCache={};
     if(!DB._jurorOrderCache[rId]){
-      const allIds=new Set();
-      Object.values(DB.juryScores[rId]||{}).forEach(ed=>{Object.keys(ed||{}).forEach(k=>{if(!k.startsWith('_'))allIds.add(k);});});
-      DB._jurorOrderCache[rId]=[...allIds].sort();
+      // ★ 問題1：只列出「實際有評分內容」的評審，過濾幽靈
+      const validIds=new Set();
+      const fieldList=(typeof getRoomFields==='function'?getRoomFields(rId):[{id:'scale'},{id:'assigned'},{id:'free'}]).map(f=>f.id);
+      Object.values(DB.juryScores[rId]||{}).forEach(ed=>{
+        Object.entries(ed||{}).forEach(([k,data])=>{
+          if(k.startsWith('_'))return;
+          if(!data||typeof data!=='object')return;
+          if(data._jurorName){validIds.add(k);return;}
+          const hasScore=fieldList.some(f=>{const v=data[f];return v!==undefined&&v!==''&&v!==null&&v!=='*';});
+          const hasComment=data.comment&&String(data.comment).trim();
+          if(hasScore||hasComment)validIds.add(k);
+        });
+      });
+      DB._jurorOrderCache[rId]=[...validIds].sort();
     }
     return DB._jurorOrderCache[rId];
   };
@@ -9838,20 +10060,20 @@ function renderAdminResults(){
       if(_showRealJurorNames&&jurorIds.length){
         jurorIds.forEach(jid=>{
           const name=(DB.juryScores[e.roomId]?.[ek]?.[jid]?._jurorName)||'—';
-          jurorNameCells+=`<td style="${tdLeft};font-size:10px;background:rgba(39,174,96,.07)">${name}</td>`;
+          jurorNameCells+=`<td style="${tdLeft};font-size:10px;background:rgba(39,174,96,.07)">${escHtml(name)}</td>`;
         });
       }
 
       rows+=`<tr>
         <td class="st-seq" style="${tdNum}">${String(e.order||ei+1).padStart(2,'0')}</td>
-        <td class="st-name" style="${tdLeft};font-weight:600">${e.name}</td>
-        <td style="${tdBase}">${e.class||'—'}</td>
-        <td style="${tdBase}">${e.seat||'—'}</td>
-        <td style="${tdLeft}">${typeName(e.type)} ${e.instName}</td>
+        <td class="st-name" style="${tdLeft};font-weight:600">${escHtml(e.name)}</td>
+        <td style="${tdBase}">${escHtml(e.class||'—')}</td>
+        <td style="${tdBase}">${escHtml(e.seat||'—')}</td>
+        <td style="${tdLeft}">${escHtml(typeName(e.type))} ${escHtml(e.instName)}</td>
         ${scoresCells}
         <td style="${tdNum};color:var(--rust)">${dedAmt}</td>
         <td style="${tdNum};${finalColor}">${finalDisp}</td>
-        <td style="${tdLeft};font-size:11px;color:var(--rust)">${violation}</td>
+        <td style="${tdLeft};font-size:11px;color:var(--rust)">${escHtml(violation)}</td>
         <td style="${tdBase};font-size:16px">${rankDisp}</td>
         ${jurorNameCells}
       </tr>`;
@@ -9862,9 +10084,9 @@ function renderAdminResults(){
     const top3Html=top3.map((item,i)=>`
       <span style="display:inline-flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border:1px solid var(--border);border-radius:20px;margin:3px 3px 3px 0">
         <span style="font-size:16px">${rankMedal[i]}</span>
-        <strong style="font-size:13px">${item.name}</strong>
-        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">${item.class}·座${item.seat}</span>
-        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--steel)">${typeName(item.type)} ${item.instName}</span>
+        <strong style="font-size:13px">${escHtml(item.name)}</strong>
+        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">${escHtml(item.class)}·座${escHtml(item.seat)}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--steel)">${escHtml(typeName(item.type))} ${escHtml(item.instName)}</span>
         <span style="font-family:Cormorant Garamond,serif;font-size:16px;color:var(--gold);font-weight:600">${item.score.toFixed(2)}</span>
       </span>`).join('');
 
@@ -9907,9 +10129,20 @@ function exportAdminResultsCSV(allRooms,forceRoomId){
   const _getRoomJurorIds=(rId)=>{
     if(!DB._jurorOrderCache)DB._jurorOrderCache={};
     if(!DB._jurorOrderCache[rId]){
-      const allIds=new Set();
-      Object.values(DB.juryScores[rId]||{}).forEach(ed=>{Object.keys(ed||{}).forEach(k=>{if(!k.startsWith('_'))allIds.add(k);});});
-      DB._jurorOrderCache[rId]=[...allIds].sort();
+      // ★ 問題1：只列出「實際有評分內容」的評審，過濾幽靈
+      const validIds=new Set();
+      const fieldList=(typeof getRoomFields==='function'?getRoomFields(rId):[{id:'scale'},{id:'assigned'},{id:'free'}]).map(f=>f.id);
+      Object.values(DB.juryScores[rId]||{}).forEach(ed=>{
+        Object.entries(ed||{}).forEach(([k,data])=>{
+          if(k.startsWith('_'))return;
+          if(!data||typeof data!=='object')return;
+          if(data._jurorName){validIds.add(k);return;}
+          const hasScore=fieldList.some(f=>{const v=data[f];return v!==undefined&&v!==''&&v!==null&&v!=='*';});
+          const hasComment=data.comment&&String(data.comment).trim();
+          if(hasScore||hasComment)validIds.add(k);
+        });
+      });
+      DB._jurorOrderCache[rId]=[...validIds].sort();
     }
     return DB._jurorOrderCache[rId];
   };
@@ -10037,14 +10270,14 @@ function teaSchSelectRoom(roomId,btn){
 
   tbody.innerHTML=entries.map(e=>`<tr>
     <td style="font-family:'DM Mono',monospace;color:var(--ink);font-weight:600">${e._displayOrder}</td>
-    <td style="color:var(--ink)">${e._roomName}</td>
-    <td style="color:var(--ink);font-family:'DM Mono',monospace;font-size:11px">${e._roomLoc||'—'}</td>
-    <td style="color:var(--ink)">${e.class}</td>
-    <td style="color:var(--ink);font-weight:600">${e.name}</td>
-    <td style="color:var(--ink)">${e.instName}</td>
+    <td style="color:var(--ink)">${escHtml(e._roomName)}</td>
+    <td style="color:var(--ink);font-family:'DM Mono',monospace;font-size:11px">${escHtml(e._roomLoc||'—')}</td>
+    <td style="color:var(--ink)">${escHtml(e.class)}</td>
+    <td style="color:var(--ink);font-weight:600">${escHtml(e.name)}</td>
+    <td style="color:var(--ink)">${escHtml(e.instName)}</td>
     <td>${typeBadge(e.type)}</td>
-    <td style="font-size:12px;color:var(--ink)">${e.ac?e.ac+' — <em>'+e.at+'</em>':'—'}</td>
-    <td style="font-size:12px;color:var(--ink)">${e.fc?e.fc+' — <em>'+e.ft+'</em>':'—'}</td>
+    <td style="font-size:12px;color:var(--ink)">${e.ac?escHtml(e.ac)+' — <em>'+escHtml(e.at)+'</em>':'—'}</td>
+    <td style="font-size:12px;color:var(--ink)">${e.fc?escHtml(e.fc)+' — <em>'+escHtml(e.ft)+'</em>':'—'}</td>
   </tr>`).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;font-family:\'DM Mono\',monospace;font-size:12px">查無資料（請確認管理員已存檔排程）</td></tr>';
 }
 window.teaSchSelectRoom=teaSchSelectRoom;
@@ -10460,7 +10693,7 @@ function _renderJsupSubmittedSummary(tid){
         <button class="btn btn-s btn-sm" style="margin-left:auto" onclick="_jsupReopenForm()">✏ 修改報名內容</button>
       </div>
       <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--sage);margin-bottom:10px">
-        您已報名的考場（共 ${selectedRooms.length} 場）
+        您已報名的考場：<strong style="font-size:13px;color:var(--gold)">${selectedRooms.length}</strong> / 共 ${DB.rooms.length} 個考場
       </div>
       <div style="display:flex;flex-direction:column;gap:10px">
         ${roomCards||'<div style="font-size:13px;color:var(--muted)">尚無勾選任何考場</div>'}
