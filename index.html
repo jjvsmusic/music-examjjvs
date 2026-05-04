@@ -2868,38 +2868,51 @@ function loadAllFromFirebase(done, lightMode){
   });
 
   // ── 並行讀取所有需要的集合 ──
-  // ★ 根本修正：juryScores 直接納入 tasks，確保 allSettled 等待成績讀完才 done()
+  // ★ juryScores 在 allSettled.then 後串行讀取（確保 DB.rooms 已載入後才執行）
   const _loadJuryScores=async ()=>{
     if(lightMode||!window._FB)return;
     DB.juryScores={};
     try{
       if(window._FB._rest){
-        const roomDocs=await window._FB._list('juryScores').catch(()=>[]);
-        await Promise.all((roomDocs||[]).map(async roomDoc=>{
-          const roomId=roomDoc.id||Object.keys(roomDoc).find(k=>k!=='_updatedAt'&&!k.startsWith('_'));
-          if(!roomId)return;
+        // ★ 此時 allSettled 已完成，DB.rooms 已載入，直接用 roomId 讀 entries
+        const roomIds=(DB.rooms||[]).map(r=>r.id).filter(Boolean);
+        if(!roomIds.length){console.warn('[juryScores] DB.rooms 空，無法讀取成績');return;}
+        await Promise.all(roomIds.map(async roomId=>{
           const entryDocs=await window._FB._list('juryScores/'+roomId+'/entries').catch(()=>[]);
+          if(!entryDocs||!entryDocs.length)return;
           DB.juryScores[roomId]={};
-          (entryDocs||[]).forEach(ed=>{
+          entryDocs.forEach(ed=>{
             const{id,_updatedAt,...jurors}=ed;
             if(id)DB.juryScores[roomId][id]=jurors;
           });
         }));
       } else {
+        // SDK 模式：collection().get() 可正常列出所有 roomId 文件（即使無欄位）
         const db=window._FB.db;
-        const roomSnap=await db.collection('juryScores').get();
-        await Promise.all(roomSnap.docs.map(async roomDoc=>{
-          const roomId=roomDoc.id;
-          DB.juryScores[roomId]={};
-          const entrySnap=await db.collection('juryScores').doc(roomId).collection('entries').get();
-          entrySnap.forEach(ed=>{
-            const raw=ed.data();const jurors={};
-            Object.keys(raw).forEach(k=>{if(!k.startsWith('_'))jurors[k]=raw[k];});
-            DB.juryScores[roomId][ed.id]=jurors;
-          });
+        // 同時用 DB.rooms 補充（防止 Firestore 沒有父文件的 roomId）
+        const roomIds=new Set();
+        try{
+          const roomSnap=await db.collection('juryScores').get();
+          roomSnap.docs.forEach(d=>roomIds.add(d.id));
+        }catch(e){}
+        (DB.rooms||[]).forEach(r=>r.id&&roomIds.add(r.id));
+        await Promise.all([...roomIds].map(async roomId=>{
+          try{
+            DB.juryScores[roomId]={};
+            const entrySnap=await db.collection('juryScores').doc(roomId).collection('entries').get();
+            entrySnap.forEach(ed=>{
+              const raw=ed.data();const jurors={};
+              Object.keys(raw).forEach(k=>{if(!k.startsWith('_'))jurors[k]=raw[k];});
+              DB.juryScores[roomId][ed.id]=jurors;
+            });
+          }catch(e){delete DB.juryScores[roomId];}
         }));
       }
-      console.log('[juryScores] 載入完成，考場數：',Object.keys(DB.juryScores).length,
+      // 清理沒有成績的考場
+      Object.keys(DB.juryScores).forEach(r=>{
+        if(!Object.keys(DB.juryScores[r]).length)delete DB.juryScores[r];
+      });
+      console.log('[juryScores] 載入完成 ✓ 考場數：',Object.keys(DB.juryScores).length,
         '總成績筆數：',Object.values(DB.juryScores).reduce((s,r)=>s+Object.keys(r).length,0));
     }catch(e){console.warn('[juryScores] 載入失敗',e);}
   };
@@ -2922,8 +2935,7 @@ function loadAllFromFirebase(done, lightMode){
     deductions: lightMode ? Promise.resolve([]) : load('deductions'),
     blackSign: lightMode ? Promise.resolve([]) : load('blackSign'),
     users: load('users'),
-    // ★ juryScores：直接納入 tasks，與所有集合並行且確保等待完成
-    juryScores: _loadJuryScores(),
+    // juryScores 在 allSettled.then 後才讀（確保 DB.rooms 已載入）
   };
 
   // ★ 修正 #A3：用 allSettled 確保單一集合失敗不影響其他集合
@@ -3101,9 +3113,10 @@ function loadAllFromFirebase(done, lightMode){
       }
     }catch(e){console.warn('[snapshot] 去重失敗',e);}
 
-    // — juryScores 已在 tasks 中並行載入，此處不需再做任何事 —
+    // ★ 其他集合已全部載入；接著讀 juryScores（此時 DB.rooms 已有資料）
     clearTimeout(_forceTimer);
-    forceDone();
+    // ★ 在所有其他集合載入完後，才讀 juryScores（確保 DB.rooms 已有資料）
+    _loadJuryScores().finally(()=>forceDone());
 
   }).catch(e=>{
     console.warn('[loadAll] Promise.all 失敗',e);
@@ -3293,15 +3306,13 @@ function showPage(id){
 // DROPDOWNS INIT
 // ════════════════════════════════════════════════
 function initDropdowns(){
-  // Rep instrument selects
+  // Rep instrument selects — 注意選修的 id 是 r-elec-cat 不是 r-elective-cat
+  const catIds={major:'r-major-cat', minor:'r-minor-cat', elective:'r-elec-cat'};
   ['major','minor','elective'].forEach(t=>{
-    const s=document.getElementById('r-'+t+'-cat');if(!s)return;
+    const s=document.getElementById(catIds[t]);if(!s)return;
     while(s.options.length>1)s.remove(1);
     DB.instruments.categories.sort((a,b)=>a.order-b.order).forEach(c=>s.appendChild(new Option(c.name,c.id)));
   });
-  // minor cat
-  const mc=document.getElementById('r-minor-cat');
-  if(mc){while(mc.options.length>1)mc.remove(1);DB.instruments.categories.forEach(c=>mc.appendChild(new Option(c.name,c.id)));}
   // Lookup
   const li=document.getElementById('lookup-inst');
   if(li){li.innerHTML='<option value="">全部樂器</option>';DB.instruments.items.forEach(i=>li.appendChild(new Option(i.name,i.id)));}
@@ -3816,7 +3827,7 @@ function editRep(){
     if(inst){
       // ★ 確保 r-elec-cat 的 options 已填入
       const catSel=document.getElementById('r-elec-cat');
-      if(catSel&&catSel.options.length<=1){
+      if(catSel&&![...catSel.options].some(o=>o.value===inst.cat)){
         DB.instruments.categories.sort((a,b)=>a.order-b.order)
           .forEach(c=>catSel.appendChild(new Option(c.name,c.id)));
       }
@@ -4017,9 +4028,9 @@ function _autoFillRepInstruments(){
     document.getElementById('r-elec-area').style.display='block';
     const inst=DB.instruments.items.find(i=>i.id===u.elective);
     if(inst){
-      // ★ 修正：確保 r-elec-cat 選單 options 已填入（避免 initDropdowns 尚未執行時 setV 失效）
+      // ★ 確保 r-elec-cat 選單已有此大項的 option（防止 initDropdowns 還沒跑完）
       const catSel=document.getElementById('r-elec-cat');
-      if(catSel&&catSel.options.length<=1){
+      if(catSel&&![...catSel.options].some(o=>o.value===inst.cat)){
         DB.instruments.categories.sort((a,b)=>a.order-b.order)
           .forEach(c=>catSel.appendChild(new Option(c.name,c.id)));
       }
