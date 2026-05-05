@@ -3615,14 +3615,20 @@ function launchApp(){
               if(!needScores&&!needComments){
                 // ── 兩者都命中快取：完全從 localStorage 還原，零 Firebase 讀取 ──
                 const cached=getCachedDataset('scores')||getCachedDataset('comments');
-                if(cached){
+                // ★ 修正：若快取是空的（沒有任何考場），仍走 fresh load 路徑
+                const cacheHasContent=cached&&cached.juryScores&&Object.keys(cached.juryScores||{}).some(rid=>{
+                  const room=cached.juryScores[rid];
+                  return room&&Object.keys(room).length>0;
+                });
+                if(cacheHasContent){
                   DB.juryScores=cached.juryScores||{};
                   console.log('['+ST.role+'] juryScores 命中快取（version='+(remoteVersions.scores||'?')+'），跳過 Firebase 讀取');
                   if(ST.role==='student'&&typeof renderScoresPage==='function')renderScoresPage();
                   if(ST.role==='teacher'&&typeof renderTeaJuryComments==='function')renderTeaJuryComments();
-                  // ★ 同時觸發 live-results（成績總表）渲染，避免使用者切換到此頁時沒資料
                   if(typeof renderLiveResults==='function')renderLiveResults();
                   return;
+                } else {
+                  console.log('['+ST.role+'] 快取為空或不存在，改走 Firebase 讀取');
                 }
               }
 
@@ -3641,14 +3647,19 @@ function launchApp(){
                 }
               }));
               // 寫回快取，更新版本號
-              const snapshot={juryScores:DB.juryScores};
-              setCachedDataset('scores',snapshot);
-              setCachedDataset('comments',snapshot);
-              const local=getLocalCacheVersions();
-              // ★ 即使遠端沒有版本號（管理員未公告），也更新本地版本，避免反覆 fresh load
-              local.scores=remoteVersions.scores||('local-'+Date.now());
-              local.comments=remoteVersions.comments||local.scores;
-              setLocalCacheVersions(local);
+              const totalEntries=Object.values(DB.juryScores||{}).reduce((s,r)=>s+Object.keys(r||{}).length,0);
+              if(totalEntries>0){
+                const snapshot={juryScores:DB.juryScores};
+                setCachedDataset('scores',snapshot);
+                setCachedDataset('comments',snapshot);
+                const local=getLocalCacheVersions();
+                local.scores=remoteVersions.scores||('local-'+Date.now());
+                local.comments=remoteVersions.comments||local.scores;
+                setLocalCacheVersions(local);
+                console.log('['+ST.role+'] 寫入快取，總成績筆數：',totalEntries);
+              } else {
+                console.log('['+ST.role+'] Firebase 也沒有成績資料，不寫入快取');
+              }
 
               if(ST.role==='student'&&typeof renderScoresPage==='function')renderScoresPage();
               if(ST.role==='teacher'&&typeof renderTeaJuryComments==='function')renderTeaJuryComments();
@@ -9335,6 +9346,8 @@ function updateDelJurorList(){
   Object.entries(DB.juryScores[roomId]||{}).forEach(([entryKey,scores])=>{
     Object.entries(scores||{}).forEach(([jid,data])=>{
       if(jid.startsWith('_'))return;
+      // ★ 過濾 null/非物件評審記錄（殘留的幽靈資料）
+      if(!data||typeof data!=='object')return;
       if(!jurorMap[jid]){jurorMap[jid]={name:data._jurorName||'',count:0};}
       jurorMap[jid].count++;
     });
@@ -9352,8 +9365,8 @@ function updateDelJurorList(){
 }
 window.updateDelJurorList=updateDelJurorList;
 
-function deleteJurorScores(){
-  if(ST.role!=='admin'){showToast('僅管理員可執行此操作','err');return;}
+async function deleteJurorScores(){
+  if(!requireRole('admin'))return;
   const roomId=document.getElementById('del-juror-room')?.value||'';
   const jurorId=document.getElementById('del-juror-id')?.value||'';
   if(!roomId){showToast('請先選擇考場','err');return;}
@@ -9364,27 +9377,54 @@ function deleteJurorScores(){
     ? Object.values(DB.juryScores[roomId]).filter(s=>s&&typeof s==='object').map(s=>s[jurorId]?._jurorName).find(Boolean)||jurorId
     : jurorId;
 
-  // 計算要刪除的筆數
   const affected=Object.keys(DB.juryScores[roomId]||{}).filter(ek=>DB.juryScores[roomId][ek]?.[jurorId]);
   if(!affected.length){showToast('此評審在此考場沒有任何成績資料','warn');return;}
 
   if(!confirm(`確定要刪除「${roomName}」中「${jurorName}」的所有成績？\n\n共 ${affected.length} 位學生的成績將被刪除，此操作無法復原。`))return;
   if(!confirm(`⚠ 再次確認：永久刪除「${roomName}」—「${jurorName}」共 ${affected.length} 筆成績？`))return;
 
-  let done=0;
-  // 清除評審排序快取（刪除後需重建）
   if(DB._jurorOrderCache)delete DB._jurorOrderCache[roomId];
+  showToast('正在刪除...','sync');
 
-  affected.forEach(entryKey=>{
-    // 從記憶體刪除
+  const isRest=window._FB?._rest;
+  const db=window._FB?.db;
+  const st=window._FB?.serverTimestamp;
+  let done=0;
+
+  // ★ 改為 async：每筆都用「先刪除文件再寫入剩餘評審」確保乾淨
+  for(const entryKey of affected){
     if(DB.juryScores[roomId]?.[entryKey]?.[jurorId]){
       delete DB.juryScores[roomId][entryKey][jurorId];
     }
-    // 從 Firebase 刪除（使用 fbSet 寫入不含此評審的物件）
-    const remaining=DB.juryScores[roomId][entryKey]||{};
-    fbSet('juryScores/'+roomId+'/entries',entryKey,remaining);
-    done++;
-  });
+    const remaining={...DB.juryScores[roomId][entryKey]};
+    Object.keys(remaining).forEach(k=>{if(k.startsWith('_'))delete remaining[k];});
+
+    try{
+      if(Object.keys(remaining).length===0){
+        // 如果該 entry 沒有剩餘評審，直接刪除整個文件
+        if(isRest){
+          await window._FB._delete('juryScores/'+roomId+'/entries/'+entryKey).catch(()=>{});
+        } else if(db){
+          await db.collection('juryScores').doc(roomId).collection('entries').doc(entryKey).delete();
+        }
+      } else {
+        // 還有其他評審：完整覆寫文件（不用 merge，避免 jurorId 殘留）
+        remaining._updatedAt=st?.()??new Date().toISOString();
+        if(isRest){
+          // REST 先刪除整個文件再 set，徹底清除舊欄位
+          await window._FB._delete('juryScores/'+roomId+'/entries/'+entryKey).catch(()=>{});
+          await window._FB._set('juryScores/'+roomId+'/entries/'+entryKey,remaining);
+        } else if(db){
+          await db.collection('juryScores').doc(roomId).collection('entries').doc(entryKey).set(remaining);
+        }
+      }
+      done++;
+    }catch(e){console.warn('[deleteJurorScores]',entryKey,e);}
+  }
+
+  // 推送 snapshot 版本，學生/教師下次登入會更新快取
+  await publishSnapshot('scores');
+  await publishSnapshot('comments');
 
   // 重置選單
   document.getElementById('del-juror-id').innerHTML='<option value="">— 選擇評審 —</option>';
@@ -9394,6 +9434,7 @@ function deleteJurorScores(){
   if(DB._jurorOrderCache)DB._jurorOrderCache={};
   renderResults();
   if(typeof renderAdminResults==='function')renderAdminResults();
+  if(typeof renderLiveResults==='function')renderLiveResults();
 
   showToast(`已刪除「${roomName}」—「${jurorName}」共 ${done} 筆成績 ✓`,'ok');
 }
@@ -10270,7 +10311,7 @@ function _renderResultsTable(opts){
           const color=(v!=='—'&&v!=='缺考'&&parseFloat(v)<60)?'color:var(--red)':'';
           scoresCells+=`<td style="${tdNum};${color}">${v}</td>`;
         });
-        const avg=result.fieldAvgs?.[f.id]?.avg??null;
+        const avg=result.fieldAvgs?.[f.id]??null;
         const avgDisp=isAbsent?'0':(avg!==null?avg.toFixed(2):'—');
         const avgColor=avg!==null&&avg<60?'color:var(--red)':'';
         scoresCells+=`<td style="${tdNum};font-weight:700;background:rgba(181,137,42,.08);${avgColor}">${avgDisp}</td>`;
@@ -10416,7 +10457,7 @@ function exportAdminResultsCSV(allRooms,forceRoomId){
         const v=s?(s.absent?0:(s[f.id]!==undefined&&s[f.id]!=='*'?parseFloat(s[f.id]):'')):'' ;
         row[`${f.label}_評審${ji+1}`]=v;
       });
-      const avg=result.fieldAvgs?.[f.id]?.avg??null;
+      const avg=result.fieldAvgs?.[f.id]??null;
       row[`${f.label}_平均`]=isAbsent?0:(avg!==null?avg.toFixed(2):'');
     });
     row['扣分']=ded.amount||0;
