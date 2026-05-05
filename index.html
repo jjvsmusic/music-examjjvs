@@ -2222,6 +2222,14 @@ function escHtml(s){
 }
 window.escHtml=escHtml;
 
+// ★ 過濾 null/非物件評審記錄的 helper（防 Firebase delete 殘留導致 .absent 等存取錯誤）
+function _safeJurors(jurorData){
+  if(!jurorData)return [];
+  return Object.values(jurorData).filter(s=>s&&typeof s==='object');
+}
+window._safeJurors=_safeJurors;
+
+
 // 權限驗證：寫入操作前呼叫，非法時阻擋並提示
 function requireRole(...allowedRoles){
   if(!allowedRoles.includes(ST.role)){
@@ -3038,7 +3046,11 @@ function loadAllFromFirebase(done, lightMode){
           DB.juryScores[roomId]={};
           entryDocs.forEach(ed=>{
             const{id,_updatedAt,...jurors}=ed;
-            if(id)DB.juryScores[roomId][id]=jurors;
+            if(!id)return;
+            // ★ 過濾 null/非物件評審 key（FieldValue.delete() 在 REST 模式下殘留）
+            const cleanJurors={};
+            Object.entries(jurors).forEach(([k,v])=>{if(v&&typeof v==='object')cleanJurors[k]=v;});
+            DB.juryScores[roomId][id]=cleanJurors;
           });
         }));
       } else {
@@ -3057,7 +3069,10 @@ function loadAllFromFirebase(done, lightMode){
             const entrySnap=await db.collection('juryScores').doc(roomId).collection('entries').get();
             entrySnap.forEach(ed=>{
               const raw=ed.data();const jurors={};
-              Object.keys(raw).forEach(k=>{if(!k.startsWith('_'))jurors[k]=raw[k];});
+              Object.keys(raw).forEach(k=>{
+                if(k.startsWith('_'))return;
+                if(raw[k]&&typeof raw[k]==='object')jurors[k]=raw[k];
+              });
               DB.juryScores[roomId][ed.id]=jurors;
             });
           }catch(e){delete DB.juryScores[roomId];}
@@ -3359,11 +3374,11 @@ function launchApp(){
                   const docs=await _fsList('juryScores/'+roomId+'/entries').catch(()=>[]);
                   if(!docs||!docs.length)return;
                   if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
-                  docs.forEach(d=>{const{id,_updatedAt,...jurors}=d;if(id)DB.juryScores[roomId][id]=jurors;});
+                  docs.forEach(d=>{const{id,_updatedAt,...jurors}=d;if(!id)return;const cj={};Object.entries(jurors).forEach(([k,v])=>{if(v&&typeof v==='object')cj[k]=v;});DB.juryScores[roomId][id]=cj;});
                 } else if(window._FB.db){
                   if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
                   const snap=await window._FB.db.collection('juryScores').doc(roomId).collection('entries').get();
-                  snap.forEach(ed=>{const raw=ed.data();const j={};Object.keys(raw).forEach(k=>{if(!k.startsWith('_'))j[k]=raw[k];});DB.juryScores[roomId][ed.id]=j;});
+                  snap.forEach(ed=>{const raw=ed.data();const j={};Object.keys(raw).forEach(k=>{if(k.startsWith('_'))return;if(raw[k]&&typeof raw[k]==='object')j[k]=raw[k];});DB.juryScores[roomId][ed.id]=j;});
                 }
               }));
               if(ST.role==='student'&&typeof renderScoresPage==='function')renderScoresPage();
@@ -4306,7 +4321,7 @@ function renderScoresPage(){
     const entryKey=u.id+'_'+t.type;
     const roomId=_findRoomForCat(DB.instruments.items.find(i=>i.id===t.inst)?.cat)?.id||'';
     const jurorData=DB.juryScores[roomId]?.[entryKey]||{};
-    const scoreArr=Object.values(jurorData).filter(s=>!s.absent);
+    const scoreArr=_safeJurors(jurorData).filter(s=>!s.absent);
     const result=scoreArr.length?calcFinal(scoreArr,roomId):{finalScore:null,fS:null,fA:null,fF:null,fieldAvgs:{}};
     const fs=result.finalScore;
     // ★ H1：成績未發佈時隱藏分數區，只顯示評語
@@ -8545,7 +8560,7 @@ function adminCommentLoadType(){
   const entryKey=sid+'_'+type;
   const roomId=room?.id||'';
   const jurorData=roomId&&DB.juryScores[roomId]?.[entryKey]?{}:null;
-  const existing=jurorData?Object.values(jurorData).filter(j=>!j.absent&&j.comment).map(j=>j.comment).join('\n\n'):'';
+  const existing=jurorData?_safeJurors(jurorData).filter(j=>!j.absent&&j.comment).map(j=>j.comment).join('\n\n'):'';
   const ta=document.getElementById('admin-comment-text');
   if(ta&&!ta.value)ta.value=existing;
   const status=document.getElementById('admin-comment-status');
@@ -8991,11 +9006,11 @@ async function reloadJuryScores(){
           const docs=await window._FB._list('juryScores/'+roomId+'/entries').catch(()=>[]);
           if(!docs||!docs.length)return;
           DB.juryScores[roomId]={};
-          docs.forEach(d=>{const{id,_updatedAt,...j}=d;if(id)DB.juryScores[roomId][id]=j;});
+          docs.forEach(d=>{const{id,_updatedAt,...j}=d;if(!id)return;const cj={};Object.entries(j).forEach(([k,v])=>{if(v&&typeof v==='object')cj[k]=v;});DB.juryScores[roomId][id]=cj;});
         } else if(window._FB?.db){
           DB.juryScores[roomId]={};
           const snap=await window._FB.db.collection('juryScores').doc(roomId).collection('entries').get();
-          snap.forEach(ed=>{const raw=ed.data();const j={};Object.keys(raw).forEach(k=>{if(!k.startsWith('_'))j[k]=raw[k];});DB.juryScores[roomId][ed.id]=j;});
+          snap.forEach(ed=>{const raw=ed.data();const j={};Object.keys(raw).forEach(k=>{if(k.startsWith('_'))return;if(raw[k]&&typeof raw[k]==='object')j[k]=raw[k];});DB.juryScores[roomId][ed.id]=j;});
         }
       }));
     }
@@ -9053,7 +9068,7 @@ function deleteJurorScores(){
 
   const roomName=DB.rooms.find(r=>r.id===roomId)?.name||roomId;
   const jurorName=DB.juryScores[roomId]
-    ? Object.values(DB.juryScores[roomId]).map(s=>s[jurorId]?._jurorName).find(Boolean)||jurorId
+    ? Object.values(DB.juryScores[roomId]).filter(s=>s&&typeof s==='object').map(s=>s[jurorId]?._jurorName).find(Boolean)||jurorId
     : jurorId;
 
   // 計算要刪除的筆數
@@ -9129,7 +9144,10 @@ function renderResults(){
   const getEntryRemarks=(rId,entryKey)=>{
     const jd=DB.juryScores[rId]?.[entryKey]||{};
     const remarks=[];
-    Object.values(jd).forEach(j=>{if(j._remark)remarks.push({label:j._remark,text:j._remarkText||'',jurorName:j._jurorName||''});});
+    Object.values(jd).forEach(j=>{
+      if(!j||typeof j!=='object')return;
+      if(j._remark)remarks.push({label:j._remark,text:j._remarkText||'',jurorName:j._jurorName||''});
+    });
     return remarks;
   };
 
@@ -9197,10 +9215,22 @@ function renderResults(){
     if(classF)entries=entries.filter(e=>e.class===classF);
     entries=entries.slice().sort((a,b)=>(a.order||0)-(b.order||0));
     entries.forEach((e,i)=>e._resultOrder=i+1);
+    console.log('[renderResults] roomId=',roomId,'classF=',classF||'(全部)','entries 數=',entries.length);
     if(!entries.length){el.innerHTML='<p style="color:var(--muted);font-family:\'DM Mono\',monospace;font-size:12px;padding:14px">此考場尚無符合資料</p>';return;}
   }
 
-  el.innerHTML=entries.map((e,ei)=>_buildResultCard(e,ei,getEntryRemarks)).join('');
+  el.innerHTML=entries.map((e,ei)=>{
+    try{
+      return _buildResultCard(e,ei,getEntryRemarks);
+    }catch(err){
+      console.error('[renderResults] entry 渲染失敗：',e,err);
+      return `<div class="card" style="margin-bottom:14px;border-left:3px solid var(--red);padding:12px 16px">
+        <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--red);letter-spacing:1px">⚠ 此筆資料渲染失敗</div>
+        <div style="margin-top:6px;font-size:13px">${escHtml(e.name||'?')} ・ ${escHtml(e.class||'?')}・座${escHtml(e.seat||'?')}</div>
+        <div style="margin-top:4px;font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">錯誤：${escHtml(String(err.message||err))}</div>
+      </div>`;
+    }
+  }).join('');
 }
 
 // ── 班級彙整模式渲染 ──
@@ -9227,7 +9257,7 @@ function _renderResultsByClass(el,entries,getEntryRemarks){
           <span class="badge b-major">主修</span>
           <span style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted)">${g.major.length} 人</span>
         </div>`;
-      g.major.forEach((e,ei)=>{html+=_buildResultCard(e,ei,getEntryRemarks,true);});
+      g.major.forEach((e,ei)=>{try{html+=_buildResultCard(e,ei,getEntryRemarks,true);}catch(err){console.error('[byClass major]',e,err);html+='<div class="card" style="border-left:3px solid var(--red);padding:8px 12px;margin-bottom:8px"><span style="font-size:11px;color:var(--red)">⚠ 渲染失敗：'+(e.name||'?')+'</span></div>';}});
       html+='</div>';
     }
     // 副修
@@ -9237,7 +9267,7 @@ function _renderResultsByClass(el,entries,getEntryRemarks){
           <span class="badge b-minor">副修</span>
           <span style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted)">${g.minor.length} 人</span>
         </div>`;
-      g.minor.forEach((e,ei)=>{html+=_buildResultCard(e,ei,getEntryRemarks,true);});
+      g.minor.forEach((e,ei)=>{try{html+=_buildResultCard(e,ei,getEntryRemarks,true);}catch(err){console.error('[byClass minor]',e,err);html+='<div class="card" style="border-left:3px solid var(--red);padding:8px 12px;margin-bottom:8px"><span style="font-size:11px;color:var(--red)">⚠ 渲染失敗：'+(e.name||'?')+'</span></div>';}});
       html+='</div>';
     }
     // 選修
@@ -9247,7 +9277,7 @@ function _renderResultsByClass(el,entries,getEntryRemarks){
           <span class="badge b-elective">選修</span>
           <span style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted)">${g.elective.length} 人</span>
         </div>`;
-      g.elective.forEach((e,ei)=>{html+=_buildResultCard(e,ei,getEntryRemarks,true);});
+      g.elective.forEach((e,ei)=>{try{html+=_buildResultCard(e,ei,getEntryRemarks,true);}catch(err){console.error('[byClass elective]',e,err);html+='<div class="card" style="border-left:3px solid var(--red);padding:8px 12px;margin-bottom:8px"><span style="font-size:11px;color:var(--red)">⚠ 渲染失敗：'+(e.name||'?')+'</span></div>';}});
       html+='</div>';
     }
     html+='</div>';
@@ -9260,7 +9290,7 @@ function _buildResultCard(e,ei,getEntryRemarks,showRoom){
   const useRoomId=e.roomId;
   const entryKey=e.studentId+'_'+e.type;
   const jurorData=DB.juryScores[useRoomId]?.[entryKey]||{};
-  const scoreArr=Object.values(jurorData);
+  const scoreArr=_safeJurors(jurorData);
   const result=scoreArr.length?calcFinal(scoreArr,useRoomId,e):{finalScore:null,fS:null,fA:null,fF:null,fieldAvgs:{},detail:{}};
   const ded=DB.deductions[entryKey]||{amount:0,reason:''};
   const finalWithDed=result.finalScore!==null?Math.max(0,result.finalScore-(ded.amount||0)):null;
@@ -9273,7 +9303,7 @@ function _buildResultCard(e,ei,getEntryRemarks,showRoom){
     if(!DB._jurorOrderCache[roomId]){
       const validIds=new Set();
       const fieldList=(typeof getRoomFields==='function'?getRoomFields(roomId):[{id:'scale'},{id:'assigned'},{id:'free'}]).map(f=>f.id);
-      Object.values(DB.juryScores[roomId]||{}).forEach(entry=>{
+      Object.values(DB.juryScores[roomId]||{}).filter(e=>e&&typeof e==='object').forEach(entry=>{
         Object.entries(entry||{}).forEach(([k,data])=>{
           if(k.startsWith('_'))return;
           if(!data||typeof data!=='object')return;
@@ -9425,7 +9455,7 @@ function exportResultsCSV(allClasses){
     const entryKey=e.studentId+'_'+e.type;
     const rId=e.roomId;
     const jurorData=DB.juryScores[rId]?.[entryKey]||{};
-    const scoreArr=Object.values(jurorData);
+    const scoreArr=_safeJurors(jurorData);
     const result=scoreArr.length?calcFinal(scoreArr):{finalScore:null,fS:null,fA:null,fF:null};
     const ded=DB.deductions[entryKey]||{amount:0,reason:''};
     const finalWithDed=result.finalScore!==null?Math.max(0,result.finalScore-(ded.amount||0)):null;
@@ -9637,7 +9667,7 @@ function renderLiveResults(){
     if(!roomGroups[e.roomId])roomGroups[e.roomId]=[];
     const ek=e.studentId+'_'+e.type;
     const jurorData=DB.juryScores[e.roomId]?.[ek]||{};
-    const scoreArr=Object.values(jurorData);
+    const scoreArr=_safeJurors(jurorData);
     const isAbsent=scoreArr.some(s=>s.absent);
     const result=scoreArr.length&&!isAbsent?calcFinal(scoreArr,e.roomId,e):{finalScore:null};
     const ded=DB.deductions[ek]||{amount:0};
@@ -9698,7 +9728,7 @@ function renderLiveResults(){
     roomEntries.forEach((e,ei)=>{
       const ek=e.studentId+'_'+e.type;
       const jurorData=DB.juryScores[e.roomId]?.[ek]||{};
-      const scoreArr=Object.values(jurorData);
+      const scoreArr=_safeJurors(jurorData);
       const isAbsent=scoreArr.some(s=>s.absent);
       const result=scoreArr.length?calcFinal(scoreArr,e.roomId,e):{finalScore:null,fS:null,fA:null,fF:null,fieldAvgs:{}};
       const ded=DB.deductions[ek]||{amount:0,reason:''};
@@ -10049,7 +10079,7 @@ function renderAdminResults(){
     if(!roomGroups[e.roomId])roomGroups[e.roomId]=[];
     const ek=e.studentId+'_'+e.type;
     const jurorData=DB.juryScores[e.roomId]?.[ek]||{};
-    const scoreArr=Object.values(jurorData);
+    const scoreArr=_safeJurors(jurorData);
     const isAbsent=scoreArr.some(s=>s.absent);
     const result=scoreArr.length&&!isAbsent?calcFinal(scoreArr,e.roomId,e):{finalScore:null};
     const ded=DB.deductions[ek]||{amount:0};
@@ -10109,7 +10139,7 @@ function renderAdminResults(){
     roomEntries.forEach((e,ei)=>{
       const ek=e.studentId+'_'+e.type;
       const jurorData=DB.juryScores[e.roomId]?.[ek]||{};
-      const scoreArr=Object.values(jurorData);
+      const scoreArr=_safeJurors(jurorData);
       const isAbsent=scoreArr.some(s=>s.absent);
       const result=scoreArr.length?calcFinal(scoreArr,e.roomId,e):{finalScore:null,fS:null,fA:null,fF:null,fieldAvgs:{}};
       const ded=DB.deductions[ek]||{amount:0,reason:''};
