@@ -2157,6 +2157,7 @@ tbody td{color:var(--ink)!important}
           <button class="btn btn-s btn-sm" onclick="exportResultsCSV(true)">↓ 全部匯出</button>
           <button class="btn btn-g" onclick="publishResults()" id="publish-results-btn">📢 發佈成績給學生/教師</button>
           <button class="btn btn-d btn-sm" onclick="unpublishResults()" id="unpublish-results-btn" style="display:none">🔒 收回發佈</button>
+          <button class="btn btn-p btn-sm" onclick="adminPublishSnapshot('scores')" title="推送最新成績資料給學生/教師（會更新他們的快取）">⟳ 推送更新</button>
         </div>
       </div>
     </div>
@@ -2228,6 +2229,84 @@ function _safeJurors(jurorData){
   return Object.values(jurorData).filter(s=>s&&typeof s==='object');
 }
 window._safeJurors=_safeJurors;
+
+// ════════════════════════════════════════════════
+// ★ 快取系統：學生/教師讀取靜態資料時使用 localStorage
+//   降低 Firebase 讀取量（公告制：管理員按「公告」時才更新版本號）
+// ════════════════════════════════════════════════
+// 快取資料集定義
+const CACHE_DATASETS = {
+  scores:    {label:'成績總表', key:'_cache_scores'},
+  comments:  {label:'評語',     key:'_cache_comments'},
+  schedule:  {label:'考試順序', key:'_cache_schedule'},
+  examRules: {label:'考試規則', key:'_cache_examRules'},
+};
+const CACHE_VERSION_KEY = '_cache_versions';
+
+function getLocalCacheVersions(){
+  try{const raw=localStorage.getItem(CACHE_VERSION_KEY);return raw?JSON.parse(raw):{};}catch(e){return {};}
+}
+function setLocalCacheVersions(versions){
+  try{localStorage.setItem(CACHE_VERSION_KEY,JSON.stringify(versions));}catch(e){}
+}
+async function fetchSnapshotVersions(){
+  if(!window._FB)return {};
+  try{
+    if(window._FB._rest){
+      const v=await window._FB._get('config/snapshotVersions').catch(()=>null);
+      return v||{};
+    } else {
+      const doc=await window._FB.db.collection('config').doc('snapshotVersions').get();
+      return doc.exists?doc.data():{};
+    }
+  }catch(e){console.warn('[cache] 讀取版本號失敗',e);return {};}
+}
+async function publishSnapshot(dataset){
+  if(!requireRole('admin'))return false;
+  if(!CACHE_DATASETS[dataset]){console.warn('[publishSnapshot] 未知 dataset:',dataset);return false;}
+  const versions=await fetchSnapshotVersions();
+  versions[dataset]=new Date().toISOString();
+  versions._lastPublishedBy=ST.user?.name||'admin';
+  versions._lastPublishedAt=Date.now();
+  if(window._FB){
+    try{
+      if(window._FB._rest){
+        await window._FB._set('config/snapshotVersions',versions);
+      } else {
+        await window._FB.db.collection('config').doc('snapshotVersions').set(versions);
+      }
+      const local=getLocalCacheVersions();
+      local[dataset]=versions[dataset];
+      setLocalCacheVersions(local);
+      return true;
+    }catch(e){console.warn('[publishSnapshot] 寫入失敗',e);return false;}
+  }
+  return false;
+}
+function getCachedDataset(dataset){
+  if(!CACHE_DATASETS[dataset])return null;
+  try{const raw=localStorage.getItem(CACHE_DATASETS[dataset].key);return raw?JSON.parse(raw):null;}catch(e){return null;}
+}
+function setCachedDataset(dataset,data){
+  if(!CACHE_DATASETS[dataset])return;
+  try{localStorage.setItem(CACHE_DATASETS[dataset].key,JSON.stringify(data));}catch(e){
+    console.warn('[cache] 寫入失敗（容量？），清空所有快取',e);
+    Object.values(CACHE_DATASETS).forEach(d=>{try{localStorage.removeItem(d.key);}catch(e){}});
+    try{localStorage.setItem(CACHE_DATASETS[dataset].key,JSON.stringify(data));}catch(e){}
+  }
+}
+function shouldFetchFresh(dataset,remoteVersions){
+  const local=getLocalCacheVersions();
+  return (local[dataset]||'')!==(remoteVersions[dataset]||'');
+}
+window.publishSnapshot=publishSnapshot;
+window.getLocalCacheVersions=getLocalCacheVersions;
+window.fetchSnapshotVersions=fetchSnapshotVersions;
+window.shouldFetchFresh=shouldFetchFresh;
+window.getCachedDataset=getCachedDataset;
+window.setCachedDataset=setCachedDataset;
+window.setLocalCacheVersions=setLocalCacheVersions;
+
 
 
 // 權限驗證：寫入操作前呼叫，非法時阻擋並提示
@@ -3212,7 +3291,23 @@ function loadAllFromFirebase(done, lightMode){
     jurySignup: load('jurySignup'),
     jurySignupConfig: load('jurySignupConfig'),
     scheduleState: load('scheduleState'),
-    scheduleSnapshots: load('scheduleSnapshots'),
+    // ★ 快取機制：學生/教師 + 快取版本一致時，跳過 scheduleSnapshots 載入
+    scheduleSnapshots: (async()=>{
+      if(lightMode&&(ST.role==='student'||ST.role==='teacher')){
+        try{
+          const remoteVersions=await fetchSnapshotVersions();
+          if(!shouldFetchFresh('schedule',remoteVersions)){
+            const cached=getCachedDataset('schedule');
+            if(cached&&cached.scheduleSnapshots){
+              console.log('['+ST.role+'] scheduleSnapshots 命中快取，跳過 Firebase 讀取');
+              // 回傳快取資料模擬 load() 的格式（Array of {id, ...data}）
+              return Object.entries(cached.scheduleSnapshots).map(([id,data])=>({id,...data}));
+            }
+          }
+        }catch(e){console.warn('[cache] schedule 版本檢查失敗，改為直接載入',e);}
+      }
+      return load('scheduleSnapshots');
+    })(),
     repInstChanges: lightMode ? Promise.resolve([]) : load('repInstChanges'),
     // lightMode 跳過的慢速集合（但學生需要 teacherComments 看自己評語）
     teacherComments: (lightMode && ST.role!=='student') ? Promise.resolve([]) : load('teacherComments'),
@@ -3337,6 +3432,18 @@ function loadAllFromFirebase(done, lightMode){
         const{id,_updatedAt,_savedAt,entries,...rest}=d;
         DB.savedScheduleSnapshot[id]=entries||rest.data||[];
       });
+      // ★ 學生/教師：把載入結果寫入快取（下次同版本時跳過 Firebase 讀取）
+      if(lightMode&&(ST.role==='student'||ST.role==='teacher')){
+        try{
+          (async()=>{
+            const remoteVersions=await fetchSnapshotVersions();
+            setCachedDataset('schedule',{scheduleSnapshots:DB.savedScheduleSnapshot});
+            const local=getLocalCacheVersions();
+            if(remoteVersions.schedule)local.schedule=remoteVersions.schedule;
+            setLocalCacheVersions(local);
+          })();
+        }catch(e){}
+      }
     } else if(snapDoc&&snapDoc.data){
       // 向下相容舊版 snapshot
       try{DB.savedScheduleSnapshot=JSON.parse(snapDoc.data);}catch(e){}
@@ -3477,11 +3584,45 @@ function launchApp(){
             }catch(e){console.warn('[jury] 歷史分數載入失敗',e);}
           },800);
         }
-        // ★ Bug1+問題2：學生及教師角色都需要載入 juryScores（所有考場）
-        //   學生看自己評語、教師看自己學生的評語都依賴 DB.juryScores
+        // ★ 學生/教師角色：使用快取機制讀取 juryScores（含「成績」與「評語」資料集）
+        //   - 先比對 Firebase 上的版本號（一次輕量讀取）
+        //   - 若版本一致：用 localStorage 快取，省下大量 Firebase 讀取
+        //   - 若版本不一致：管理員已重新公告，從 Firebase 拉新資料並更新快取
         if((ST.role==='student'||ST.role==='teacher')&&window._FB){
           setTimeout(async()=>{
             try{
+              // ── 1. 取得遠端版本號（1 個輕量請求）──
+              const remoteVersions=await fetchSnapshotVersions();
+
+              // ★ examRules 快取更新：若 Firebase 版本比快取新，
+              //   把剛載入的 DB.config.examRules 覆蓋快取
+              if(shouldFetchFresh('examRules',remoteVersions)){
+                setCachedDataset('examRules',{
+                  examRules:DB.config.examRules||{},
+                  assignedPieces:DB.config.assignedPieces||''
+                });
+                const localV=getLocalCacheVersions();
+                if(remoteVersions.examRules)localV.examRules=remoteVersions.examRules;
+                setLocalCacheVersions(localV);
+                console.log('['+ST.role+'] examRules 快取已更新');
+              }
+
+              const needScores=shouldFetchFresh('scores',remoteVersions);
+              const needComments=shouldFetchFresh('comments',remoteVersions);
+
+              if(!needScores&&!needComments){
+                // ── 兩者都命中快取：完全從 localStorage 還原，零 Firebase 讀取 ──
+                const cached=getCachedDataset('scores')||getCachedDataset('comments');
+                if(cached){
+                  DB.juryScores=cached.juryScores||{};
+                  console.log('['+ST.role+'] juryScores 命中快取（version='+(remoteVersions.scores||'?')+'），跳過 Firebase 讀取');
+                  if(ST.role==='student'&&typeof renderScoresPage==='function')renderScoresPage();
+                  if(ST.role==='teacher'&&typeof renderTeaJuryComments==='function')renderTeaJuryComments();
+                  return;
+                }
+              }
+
+              // ── 2. 至少一個未命中：照樣從 Firebase 讀取所有資料 ──
               const roomIds=(DB.rooms||[]).map(r=>r.id).filter(Boolean);
               await Promise.all(roomIds.map(async roomId=>{
                 if(window._FB._rest){
@@ -3495,15 +3636,18 @@ function launchApp(){
                   snap.forEach(ed=>{const raw=ed.data();const j={};Object.keys(raw).forEach(k=>{if(k.startsWith('_'))return;if(raw[k]&&typeof raw[k]==='object')j[k]=raw[k];});DB.juryScores[roomId][ed.id]=j;});
                 }
               }));
+              // 寫回快取，更新版本號
+              const snapshot={juryScores:DB.juryScores};
+              setCachedDataset('scores',snapshot);
+              setCachedDataset('comments',snapshot);
+              const local=getLocalCacheVersions();
+              if(remoteVersions.scores)local.scores=remoteVersions.scores;
+              if(remoteVersions.comments)local.comments=remoteVersions.comments;
+              setLocalCacheVersions(local);
+
               if(ST.role==='student'&&typeof renderScoresPage==='function')renderScoresPage();
               if(ST.role==='teacher'&&typeof renderTeaJuryComments==='function')renderTeaJuryComments();
-              // ★ 學生/教師都需要刷新「成績總表」頁（live-results）
-              if(typeof renderLiveResults==='function'&&document.getElementById('pg-live-results')?.classList.contains('on')){
-                renderLiveResults();
-              }
-              // ★ 重建 nav，確保 publish 後 access 變動能即時反映
-              if(typeof buildNav==='function')buildNav();
-              console.log('['+ST.role+'] juryScores 載入完成，考場數：',Object.keys(DB.juryScores).length);
+              console.log('['+ST.role+'] juryScores 從 Firebase 載入並更新快取，考場數：',Object.keys(DB.juryScores).length);
             }catch(e){console.warn('['+ST.role+'] juryScores 載入失敗',e);}
           },800);
         }
@@ -3546,12 +3690,6 @@ const NAV_MAP = {
 function buildNav(){
   const nav=document.getElementById('tb-nav');
   nav.innerHTML='';
-  // ★ 自動修正：若成績已發佈，確保 live-results 對學生/教師都開放
-  //   防止 Firebase 寫入時序問題或舊資料殘留導致使用者看不到
-  if(DB.config.resultsPublished){
-    if(DB.config.studentAccess)DB.config.studentAccess['live-results']=true;
-    if(DB.config.teacherAccess)DB.config.teacherAccess['live-results']=true;
-  }
   let items=(NAV_MAP[ST.role]||[]);
   if(ST.role==='student'){
     items=items.filter(item=>{
@@ -3604,20 +3742,9 @@ window.showPendingPage=showPendingPage;
 
 function navFirst(){const f=document.querySelector('.nb');if(f)f.click();}
 function showPage(id){
-  // ★ 自動修正：成績已發佈則確保學生/教師可看到 live-results
-  if(DB.config.resultsPublished){
-    if(DB.config.studentAccess)DB.config.studentAccess['live-results']=true;
-    if(DB.config.teacherAccess)DB.config.teacherAccess['live-results']=true;
-  }
   // ★ #3 教師角色也需要檢查 pending 狀態
   if(ST.role==='teacher'){
     const accVal=DB.config.teacherAccess?.[id];
-    if(accVal==='pending'){const label=document.querySelector(`.nb[data-page="${id}"]`)?.textContent||id;showPendingPage(id,label);return;}
-    if(accVal===false){return;}
-  }
-  // ★ 學生角色也加 access check（之前漏掉導致學生與教師行為不一致）
-  if(ST.role==='student'){
-    const accVal=DB.config.studentAccess?.[id];
     if(accVal==='pending'){const label=document.querySelector(`.nb[data-page="${id}"]`)?.textContent||id;showPendingPage(id,label);return;}
     if(accVal===false){return;}
   }
@@ -7113,7 +7240,13 @@ function exportScheduleCSV(){
   exportCSV(entries.map(e=>({'序':e.order,'考場':e.roomName,'班級':e.class,'座號':e.seat,'姓名':e.name,'樂器':e.instName,'類別':typeName(e.type),'指定曲作曲家':e.ac||'','指定曲曲目':e.at||'','自選曲作曲家':e.fc||'','自選曲曲目':e.ft||''})),'考試排程');
 }
 
-function publishSchedule(){showToast('已公告至學生考試順序查詢頁 ✓','ok');renderStuSchedule();}
+async function publishSchedule(){
+  if(!requireRole('admin'))return;
+  // ★ 自動推送：學生/教師下次登入會自動取得最新排程
+  await publishSnapshot('schedule');
+  showToast('已公告排程並推送給學生/教師 ✓','ok');
+  renderStuSchedule();
+}
 
 // ════════════════════════════════════════════════
 // ADMIN - USERS
@@ -8296,33 +8429,49 @@ function erInsertImage(){
 window.erInsertImage=erInsertImage;
 
 // 儲存
-function saveExamRules(){
+async function saveExamRules(){
+  if(!requireRole('admin'))return;
   const editor=document.getElementById('er-editor');if(!editor)return;
   const html=editor.innerHTML;
   if(!DB.config.examRules)DB.config.examRules={classical:'',pop:''};
   if(_erCurrentTab==='assigned'){DB.config.assignedPieces=html;}
   else{DB.config.examRules[_erCurrentTab]=html;}
   fbSet('config','main',{examRules:DB.config.examRules,assignedPieces:DB.config.assignedPieces||''});
+  // ★ 自動推送 examRules：學生/教師下次登入會自動看到最新規則
+  await publishSnapshot('examRules');
   _erDirty=false;
   const d=document.getElementById('er-dirty-indicator'),s=document.getElementById('er-saved-indicator');
   if(d)d.style.display='none';
   if(s){s.style.display='block';setTimeout(()=>{s.style.display='none';},3000);}
   const label=_erCurrentTab==='classical'?'古典音樂規則':_erCurrentTab==='pop'?'流行音樂規則':'部分項目指定曲';
-  showToast(`「${label}」已儲存 ✓`,'ok');
+  showToast(`「${label}」已儲存並推送 ✓`,'ok');
   renderExamRulesPage();
 }
 window.saveExamRules=saveExamRules;
 
 // 渲染前台
 function renderExamRulesPage(){
+  // ★ 快取機制：學生/教師只看「公告版」考試規則（避免看到管理員草稿）
+  let rules=DB.config.examRules||{};
+  let assigned=DB.config.assignedPieces||'';
+  if((ST.role==='student'||ST.role==='teacher')){
+    const cached=getCachedDataset('examRules');
+    if(cached){
+      if(cached.examRules)rules=cached.examRules;
+      if(cached.assignedPieces!==undefined)assigned=cached.assignedPieces;
+    } else {
+      // 第一次：用目前資料寫入快取
+      try{setCachedDataset('examRules',{examRules:rules,assignedPieces:assigned});}catch(e){}
+    }
+  }
   ['classical','pop'].forEach(t=>{
     const el=document.getElementById(`er-content-${t}`);
-    if(el)el.innerHTML=DB.config.examRules?.[t]||'';
+    if(el)el.innerHTML=rules[t]||'';
   });
   const ap=document.getElementById('er-content-assigned');
-  if(ap)ap.innerHTML=DB.config.assignedPieces||'';
+  if(ap)ap.innerHTML=assigned;
   // 預設顯示第一個有內容的 tab
-  const hasClassical=!!(DB.config.examRules?.classical||'').replace(/<[^>]+>/g,'').trim();
+  const hasClassical=!!(rules.classical||'').replace(/<[^>]+>/g,'').trim();
   if(hasClassical)switchExamRulesTab('classical');
   else{document.querySelectorAll('.er-panel').forEach(p=>p.style.display='none');const e=document.getElementById('er-empty');if(e)e.style.display='block';}
 }
@@ -9693,22 +9842,39 @@ function _updatePublishBarUI(){
 }
 window._updatePublishBarUI=_updatePublishBarUI;
 
-function publishResults(){
+async function publishResults(){
   if(!requireRole('admin'))return;
   if(!confirm('確定要發佈成績？學生及教師將可看到完整術科成績（含扣分及評語）。'))return;
   DB.config.resultsPublished=true;
   DB.config.resultsPublishedAt=new Date().toISOString();
-  // 同時開放 live-results 頁面給學生和教師
   DB.config.studentAccess['live-results']=true;
   DB.config.teacherAccess['live-results']=true;
   fbSaveConfig();
-  // 更新 config 中的發佈旗標
   fbSet('resultsPublish','main',{published:true,publishedAt:DB.config.resultsPublishedAt});
+  // ★ 自動推送 snapshot：學生/教師下次登入會看到最新成績
+  await publishSnapshot('scores');
+  await publishSnapshot('comments');
   _updatePublishBarUI();
-  buildNav();renderAll(); // ★ Bug10：重建導覽並刷新所有頁面
-  showToast('成績已發佈，學生及教師現在可查看 ✓','ok');
+  buildNav();renderAll();
+  showToast('成績已發佈並推送給學生/教師 ✓','ok');
 }
 window.publishResults=publishResults;
+
+// ★ 管理員手動推送 snapshot 更新（讓學生/教師下次登入看到最新資料）
+async function adminPublishSnapshot(dataset){
+  if(!requireRole('admin'))return;
+  const labels={scores:'成績總表',comments:'評語',schedule:'考試順序',examRules:'考試規則'};
+  const label=labels[dataset]||dataset;
+  if(!confirm(`確定要推送「${label}」最新版給學生/教師？\n\n下次他們登入時會自動看到最新內容。`))return;
+  showToast('正在推送...','sync');
+  const ok=await publishSnapshot(dataset);
+  if(ok){
+    showToast(`「${label}」已推送 ✓ 學生/教師下次登入即可看到最新內容`,'ok');
+  } else {
+    showToast('推送失敗，請檢查網路','err');
+  }
+}
+window.adminPublishSnapshot=adminPublishSnapshot;
 
 function unpublishResults(){
   if(!requireRole('admin'))return;
@@ -9762,22 +9928,8 @@ function renderLiveResults(){
   if(roomId)entries=entries.filter(e=>e.roomId===roomId);
   if(classF)entries=entries.filter(e=>e.class===classF);
 
-  // ★ 區分三種空狀態：未發佈 / 載入中 / 真的無資料
   if(!entries.length){
-    // 1) 管理員未發佈成績
-    if(!DB.config.resultsPublished&&(ST.role==='student'||ST.role==='teacher')){
-      el.innerHTML='<div class="card" style="text-align:center;padding:40px"><div style="font-size:36px;margin-bottom:12px">🔒</div><div style="font-family:\'DM Mono\',monospace;font-size:13px;color:var(--muted);letter-spacing:1px">成績尚未發佈</div><div style="font-size:11px;color:var(--muted);margin-top:8px">管理員開放後即可查閱</div></div>';
-      return;
-    }
-    // 2) 學生/教師 lightMode 下 juryScores 還在背景載入中
-    if((ST.role==='student'||ST.role==='teacher')&&!Object.keys(DB.juryScores||{}).length){
-      el.innerHTML='<div class="card" style="text-align:center;padding:40px"><div style="font-size:24px;margin-bottom:12px">⏳</div><div style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted)">資料載入中，請稍候...</div></div>';
-      // 1.5 秒後再試（資料應該載入完了）
-      setTimeout(()=>{if(typeof renderLiveResults==='function')renderLiveResults();},1500);
-      return;
-    }
-    // 3) 真的無資料
-    el.innerHTML='<div class="card" style="text-align:center;padding:40px"><div style="font-size:36px;margin-bottom:12px">📭</div><div style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted)">尚無成績資料</div></div>';
+    el.innerHTML='<div class="card" style="text-align:center;padding:40px"><div style="font-size:36px;margin-bottom:12px">🔒</div><div style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted)">尚無成績資料，或管理員尚未開放查閱</div></div>';
     return;
   }
 
@@ -11552,7 +11704,7 @@ const _expose = [
   'addClass','renameClass','delClass',
   'saveTiming','saveAnnounce','saveBulletin','renderBulletin','saveWeights','addTrim','saveTrimRules','fbSaveConfig',
   'setAccess','saveRepHint','saveTyText','clearData','saveTeaScheduleMsg',
-  'publishResults','unpublishResults','renderAdminInstChangeNotices','markInstChangeRead','markAllInstChangesRead','updateDelJurorList','deleteJurorScores','cleanGhostJurors',
+  'publishResults','unpublishResults','renderAdminInstChangeNotices','markInstChangeRead','markAllInstChangesRead','updateDelJurorList','deleteJurorScores','cleanGhostJurors','adminPublishSnapshot',
   'erShowTab','erAdminTab','erCmd','erInsertTable','erInsertImage','erSave','erInitAdminEditors',
   'switchExamRulesTab','switchErAdminTab','saveExamRules','renderExamRulesPage','initExamRulesEditor','erExec','erMarkDirty','erHandleTab','erInsertTable','erInsertImage',
   'npKey','npDel','npConfirm','npBg','npStar',
@@ -11567,7 +11719,7 @@ const _expose = [
   'renderJsupAdminPanel','renderJsupOptsList','addJsupOption','jsupUpdateOptLabel','jsupUpdateOptFlag','jsupDelOption','saveJurySignupConfig','saveJsupOptions','renderJsupAdminTable','exportJsupCSV',
 ];
 // ★ 安全暴露到 window（不用 eval，改用函數名對照表）
-const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schResetToRoomDefaults,schSaveSchedule,schLoadSchedule,schInitSortBar,schAddExcludeRule,schRemoveExcludeRule,renderSchExcludeUI,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,renderLiveResults,renderTeaJuryComments,renderAdminResults,exportAdminResultsCSV,renderDeleteJurorBar,deleteJurorFromRoom,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,openStuRoomModal,saveStuRoomModal,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,rfAddRule,rfRemoveRule,rfReadRulesFromDOM,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveBulletin,renderBulletin,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,publishResults,unpublishResults,renderAdminInstChangeNotices,markInstChangeRead,markAllInstChangesRead,updateDelJurorList,deleteJurorScores,cleanGhostJurors,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,erShowTab,erAdminTab,erCmd,erInsertTable,erInsertImage,erSave,erInitAdminEditors,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,teaInlineToggle,teaInlineEdit,teaInlineSave,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,_renderJsupSubmittedSummary,_jsupReopenForm,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,saveJsupOptions,renderJsupAdminTable,exportJsupCSV};
+const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schResetToRoomDefaults,schSaveSchedule,schLoadSchedule,schInitSortBar,schAddExcludeRule,schRemoveExcludeRule,renderSchExcludeUI,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,renderLiveResults,renderTeaJuryComments,renderAdminResults,exportAdminResultsCSV,renderDeleteJurorBar,deleteJurorFromRoom,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,openStuRoomModal,saveStuRoomModal,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,rfAddRule,rfRemoveRule,rfReadRulesFromDOM,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveBulletin,renderBulletin,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,publishResults,unpublishResults,renderAdminInstChangeNotices,markInstChangeRead,markAllInstChangesRead,updateDelJurorList,deleteJurorScores,cleanGhostJurors,adminPublishSnapshot,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,erShowTab,erAdminTab,erCmd,erInsertTable,erInsertImage,erSave,erInitAdminEditors,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,teaInlineToggle,teaInlineEdit,teaInlineSave,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,_renderJsupSubmittedSummary,_jsupReopenForm,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,saveJsupOptions,renderJsupAdminTable,exportJsupCSV};
 Object.keys(_fnMap).forEach(function(name){ window[name] = _fnMap[name]; });
 
 // ★ 頁面載入後立即從 Firebase 同步 users，讓登入時帳密是最新狀態
