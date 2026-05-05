@@ -3112,8 +3112,33 @@ function loadAllFromFirebase(done, lightMode){
   // ── 並行讀取所有需要的集合 ──
   // ★ juryScores 在 allSettled.then 後串行讀取（確保 DB.rooms 已載入後才執行）
   const _loadJuryScores=async ()=>{
-    if(lightMode||!window._FB)return;
+    if(!window._FB)return;
     DB.juryScores={};
+
+    // ★ 學生快取機制：先嘗試從 localStorage 載入（避免 ~830 文件讀取）
+    if(lightMode&&ST.role==='student'){
+      try{
+        const remoteVersions=await fetchSnapshotVersions();
+        const needScores=shouldFetchFresh('scores',remoteVersions);
+        if(!needScores){
+          const cached=getCachedDataset('scores')||getCachedDataset('comments');
+          const cacheHasContent=cached&&cached.juryScores&&Object.keys(cached.juryScores||{}).some(rid=>{
+            const room=cached.juryScores[rid];
+            return room&&Object.keys(room).length>0;
+          });
+          if(cacheHasContent){
+            DB.juryScores=cached.juryScores||{};
+            console.log('[student] juryScores 命中快取（version='+(remoteVersions.scores||'?')+'），跳過 Firebase 讀取');
+            return;
+          }
+        }
+        // 快取未命中或無內容：往下走 fresh load + 寫入快取
+      }catch(e){console.warn('[student] 快取檢查失敗，改走 fresh load',e);}
+    } else if(lightMode){
+      // 評審/監考：不需要 juryScores
+      return;
+    }
+
     try{
       if(window._FB._rest){
         // ★ 此時 allSettled 已完成，DB.rooms 已載入，直接用 roomId 讀 entries
@@ -3171,6 +3196,24 @@ function loadAllFromFirebase(done, lightMode){
 
       console.log('[juryScores] 載入完成 ✓ 考場數：',Object.keys(DB.juryScores).length,
         '總成績筆數：',Object.values(DB.juryScores).reduce((s,r)=>s+Object.keys(r).length,0));
+
+      // ★ 學生：把 fresh-loaded 資料寫入快取，下次登入可用
+      if(lightMode&&ST.role==='student'){
+        const totalEntries=Object.values(DB.juryScores||{}).reduce((s,r)=>s+Object.keys(r||{}).length,0);
+        if(totalEntries>0){
+          try{
+            const remoteVersions=await fetchSnapshotVersions();
+            const snapshot={juryScores:DB.juryScores};
+            setCachedDataset('scores',snapshot);
+            setCachedDataset('comments',snapshot);
+            const local=getLocalCacheVersions();
+            local.scores=remoteVersions.scores||('local-'+Date.now());
+            local.comments=remoteVersions.comments||local.scores;
+            setLocalCacheVersions(local);
+            console.log('[student] 寫入快取，總成績筆數：',totalEntries);
+          }catch(e){console.warn('[student] 寫入快取失敗',e);}
+        }
+      }
     }catch(e){console.warn('[juryScores] 載入失敗',e);}
   };
 
@@ -3586,88 +3629,21 @@ function launchApp(){
             }catch(e){console.warn('[jury] 歷史分數載入失敗',e);}
           },800);
         }
-        // ★ 學生/教師角色：使用快取機制讀取 juryScores（含「成績」與「評語」資料集）
-        //   - 先比對 Firebase 上的版本號（一次輕量讀取）
-        //   - 若版本一致：用 localStorage 快取，省下大量 Firebase 讀取
-        //   - 若版本不一致：管理員已重新公告，從 Firebase 拉新資料並更新快取
-        if((ST.role==='student'||ST.role==='teacher')&&window._FB){
-          setTimeout(async()=>{
-            try{
-              // ── 1. 取得遠端版本號（1 個輕量請求）──
-              const remoteVersions=await fetchSnapshotVersions();
-
-              // ★ examRules 快取更新：若 Firebase 版本比快取新，
-              //   把剛載入的 DB.config.examRules 覆蓋快取
-              if(shouldFetchFresh('examRules',remoteVersions)){
-                setCachedDataset('examRules',{
-                  examRules:DB.config.examRules||{},
-                  assignedPieces:DB.config.assignedPieces||''
-                });
-                const localV=getLocalCacheVersions();
-                if(remoteVersions.examRules)localV.examRules=remoteVersions.examRules;
-                setLocalCacheVersions(localV);
-                console.log('['+ST.role+'] examRules 快取已更新');
-              }
-
-              const needScores=shouldFetchFresh('scores',remoteVersions);
-              const needComments=shouldFetchFresh('comments',remoteVersions);
-
-              if(!needScores&&!needComments){
-                // ── 兩者都命中快取：完全從 localStorage 還原，零 Firebase 讀取 ──
-                const cached=getCachedDataset('scores')||getCachedDataset('comments');
-                // ★ 修正：若快取是空的（沒有任何考場），仍走 fresh load 路徑
-                const cacheHasContent=cached&&cached.juryScores&&Object.keys(cached.juryScores||{}).some(rid=>{
-                  const room=cached.juryScores[rid];
-                  return room&&Object.keys(room).length>0;
-                });
-                if(cacheHasContent){
-                  DB.juryScores=cached.juryScores||{};
-                  console.log('['+ST.role+'] juryScores 命中快取（version='+(remoteVersions.scores||'?')+'），跳過 Firebase 讀取');
-                  if(ST.role==='student'&&typeof renderScoresPage==='function')renderScoresPage();
-                  if(ST.role==='teacher'&&typeof renderTeaJuryComments==='function')renderTeaJuryComments();
-                  if(typeof renderLiveResults==='function')renderLiveResults();
-                  return;
-                } else {
-                  console.log('['+ST.role+'] 快取為空或不存在，改走 Firebase 讀取');
-                }
-              }
-
-              // ── 2. 至少一個未命中：照樣從 Firebase 讀取所有資料 ──
-              const roomIds=(DB.rooms||[]).map(r=>r.id).filter(Boolean);
-              await Promise.all(roomIds.map(async roomId=>{
-                if(window._FB._rest){
-                  const docs=await _fsList('juryScores/'+roomId+'/entries').catch(()=>[]);
-                  if(!docs||!docs.length)return;
-                  if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
-                  docs.forEach(d=>{const{id,_updatedAt,...jurors}=d;if(!id)return;const cj={};Object.entries(jurors).forEach(([k,v])=>{if(v&&typeof v==='object')cj[k]=v;});DB.juryScores[roomId][id]=cj;});
-                } else if(window._FB.db){
-                  if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
-                  const snap=await window._FB.db.collection('juryScores').doc(roomId).collection('entries').get();
-                  snap.forEach(ed=>{const raw=ed.data();const j={};Object.keys(raw).forEach(k=>{if(k.startsWith('_'))return;if(raw[k]&&typeof raw[k]==='object')j[k]=raw[k];});DB.juryScores[roomId][ed.id]=j;});
-                }
-              }));
-              // 寫回快取，更新版本號
-              const totalEntries=Object.values(DB.juryScores||{}).reduce((s,r)=>s+Object.keys(r||{}).length,0);
-              if(totalEntries>0){
-                const snapshot={juryScores:DB.juryScores};
-                setCachedDataset('scores',snapshot);
-                setCachedDataset('comments',snapshot);
-                const local=getLocalCacheVersions();
-                local.scores=remoteVersions.scores||('local-'+Date.now());
-                local.comments=remoteVersions.comments||local.scores;
-                setLocalCacheVersions(local);
-                console.log('['+ST.role+'] 寫入快取，總成績筆數：',totalEntries);
-              } else {
-                console.log('['+ST.role+'] Firebase 也沒有成績資料，不寫入快取');
-              }
-
-              if(ST.role==='student'&&typeof renderScoresPage==='function')renderScoresPage();
-              if(ST.role==='teacher'&&typeof renderTeaJuryComments==='function')renderTeaJuryComments();
-              // ★ 同時觸發 live-results（成績總表）渲染
-              if(typeof renderLiveResults==='function')renderLiveResults();
-              console.log('['+ST.role+'] juryScores 從 Firebase 載入並更新快取，考場數：',Object.keys(DB.juryScores).length);
-            }catch(e){console.warn('['+ST.role+'] juryScores 載入失敗',e);}
-          },800);
+        // ★ 學生快取邏輯已整合進主流程 _loadJuryScores（見上方），此處只保留教師延遲載入評語
+        if(ST.role==='teacher'&&window._FB){
+          // 教師走完整載入，已在主流程中讀取 juryScores，此處不需要額外動作
+          // 但需要在資料就緒後重新渲染相關頁面
+          setTimeout(()=>{
+            if(typeof renderTeaJuryComments==='function')renderTeaJuryComments();
+            if(typeof renderLiveResults==='function')renderLiveResults();
+          },300);
+        }
+        if(ST.role==='student'&&window._FB){
+          // 學生主流程已透過 _loadJuryScores 讀取（含快取），此處只觸發頁面渲染
+          setTimeout(()=>{
+            if(typeof renderScoresPage==='function')renderScoresPage();
+            if(typeof renderLiveResults==='function')renderLiveResults();
+          },300);
         }
         // ★ 修正 #O2：進入頁面時若已連線且有 pending，主動 sync 一次
         setTimeout(()=>{
