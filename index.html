@@ -3082,10 +3082,124 @@ function loadAllFromFirebase(done, lightMode){
       Object.keys(DB.juryScores).forEach(r=>{
         if(!Object.keys(DB.juryScores[r]).length)delete DB.juryScores[r];
       });
+
+      // ★ 自動合併「同姓名的重複評審 ID」（根源解決幽靈評審）
+      //   情境：同一位評審用不同 juryId 進入考場（早期版本的隨機 ID + 後期穩定 ID 並存）
+      //   邏輯：以 _jurorName 為合併鍵，所有同名 ID 合併到「JN_{roomId}_{name}」標準 key
+      try{
+        await _autoMergeSameNameJurors();
+      }catch(e){console.warn('[juryScores] 自動合併失敗',e);}
+
       console.log('[juryScores] 載入完成 ✓ 考場數：',Object.keys(DB.juryScores).length,
         '總成績筆數：',Object.values(DB.juryScores).reduce((s,r)=>s+Object.keys(r).length,0));
     }catch(e){console.warn('[juryScores] 載入失敗',e);}
   };
+
+  // ★ 自動合併同名評審：在記憶體合併 + 寫回 Firebase
+  async function _autoMergeSameNameJurors(){
+    if(!window._FB)return;
+    let totalMerged=0,totalRoomsAffected=0;
+    const fv=window._FB?.FieldValue;
+    const db=window._FB?.db;
+    const st=window._FB?.serverTimestamp;
+    const isRest=window._FB?._rest;
+
+    for(const roomId of Object.keys(DB.juryScores)){
+      const room=DB.juryScores[roomId];
+      let roomDirty=false;
+      for(const entryKey of Object.keys(room)){
+        const entry=room[entryKey];
+        if(!entry||typeof entry!=='object')continue;
+        // 依姓名分組
+        const byName={};
+        const namelessIds=[]; // 無姓名的幽靈
+        Object.entries(entry).forEach(([jid,data])=>{
+          if(jid.startsWith('_'))return;
+          if(!data||typeof data!=='object')return;
+          const name=(data._jurorName||'').trim();
+          if(!name){namelessIds.push(jid);return;} // 收集無姓名的幽靈
+          if(!byName[name])byName[name]=[];
+          byName[name].push([jid,data]);
+        });
+
+        // 找出有重複的姓名
+        const patch={};let entryDirty=false;
+        for(const [name,records] of Object.entries(byName)){
+          if(records.length<=1)continue;
+          // 標準穩定 key
+          const stableId='JN_'+roomId+'_'+name.replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_\u4e00-\u9fff]/g,'');
+          // 取最新版本：依 _localUpdatedAt 排序，後來的覆蓋先前
+          records.sort((a,b)=>(a[1]._localUpdatedAt||0)-(b[1]._localUpdatedAt||0));
+          const merged={_jurorName:name};
+          records.forEach(([,data])=>{
+            Object.keys(data).forEach(k=>{
+              if(k==='_jurorName')return;
+              const v=data[k];
+              if(v!==undefined&&v!==null&&v!=='')merged[k]=v;
+            });
+          });
+          merged._localUpdatedAt=Date.now();
+
+          // 寫入記憶體
+          DB.juryScores[roomId][entryKey][stableId]=merged;
+          patch[stableId]=merged;
+
+          // 刪除舊 key（除了 stableId 本身）
+          records.forEach(([jid])=>{
+            if(jid===stableId)return;
+            delete DB.juryScores[roomId][entryKey][jid];
+            // Firebase: REST 模式用 null 標記刪除，SDK 用 FieldValue.delete()
+            if(isRest)patch[jid]=null;
+            else if(fv?.delete)patch[jid]=fv.delete();
+            else patch[jid]=null;
+            totalMerged++;
+          });
+          entryDirty=true;
+        }
+
+        // ★ 額外處理：刪除無姓名的幽靈評審（無法合併到任何人）
+        namelessIds.forEach(jid=>{
+          delete DB.juryScores[roomId][entryKey][jid];
+          if(isRest)patch[jid]=null;
+          else if(fv?.delete)patch[jid]=fv.delete();
+          else patch[jid]=null;
+          totalMerged++;
+          entryDirty=true;
+        });
+
+        // ★ 寫回 Firebase
+        //   策略：REST 模式無法真正刪除 field，會留下 nullValue，
+        //   改採「整個文件覆寫」確保 Firebase 也乾淨
+        if(entryDirty&&db){
+          const cleanData={...DB.juryScores[roomId][entryKey]};
+          // 移除頂層 _ 開頭的內部欄位
+          Object.keys(cleanData).forEach(k=>{if(k.startsWith('_'))delete cleanData[k];});
+          cleanData._updatedAt=st?.()??new Date().toISOString();
+          try{
+            if(isRest){
+              // REST：先刪除整個文件再 set，徹底清掉 null 欄位
+              await window._FB._delete('juryScores/'+roomId+'/entries/'+entryKey).catch(()=>{});
+              await db.collection('juryScores').doc(roomId)
+                .collection('entries').doc(entryKey)
+                .set(cleanData);
+            } else {
+              // SDK：set 不帶 merge 會整個覆寫
+              await db.collection('juryScores').doc(roomId)
+                .collection('entries').doc(entryKey)
+                .set(cleanData);
+            }
+            roomDirty=true;
+          }catch(e){console.warn('[autoMerge] 寫回失敗',entryKey,e);}
+        }
+      }
+      if(roomDirty)totalRoomsAffected++;
+    }
+    if(totalMerged>0){
+      // 清空評審順序快取（合併後需重建）
+      DB._jurorOrderCache={};
+      console.log('[autoMerge] ✓ 自動合併 '+totalMerged+' 筆同名重複/幽靈評審記錄，影響 '+totalRoomsAffected+' 個考場');
+    }
+  }
 
   const tasks={
     config:   load('config'),
@@ -3383,6 +3497,12 @@ function launchApp(){
               }));
               if(ST.role==='student'&&typeof renderScoresPage==='function')renderScoresPage();
               if(ST.role==='teacher'&&typeof renderTeaJuryComments==='function')renderTeaJuryComments();
+              // ★ 學生/教師都需要刷新「成績總表」頁（live-results）
+              if(typeof renderLiveResults==='function'&&document.getElementById('pg-live-results')?.classList.contains('on')){
+                renderLiveResults();
+              }
+              // ★ 重建 nav，確保 publish 後 access 變動能即時反映
+              if(typeof buildNav==='function')buildNav();
               console.log('['+ST.role+'] juryScores 載入完成，考場數：',Object.keys(DB.juryScores).length);
             }catch(e){console.warn('['+ST.role+'] juryScores 載入失敗',e);}
           },800);
@@ -3426,6 +3546,12 @@ const NAV_MAP = {
 function buildNav(){
   const nav=document.getElementById('tb-nav');
   nav.innerHTML='';
+  // ★ 自動修正：若成績已發佈，確保 live-results 對學生/教師都開放
+  //   防止 Firebase 寫入時序問題或舊資料殘留導致使用者看不到
+  if(DB.config.resultsPublished){
+    if(DB.config.studentAccess)DB.config.studentAccess['live-results']=true;
+    if(DB.config.teacherAccess)DB.config.teacherAccess['live-results']=true;
+  }
   let items=(NAV_MAP[ST.role]||[]);
   if(ST.role==='student'){
     items=items.filter(item=>{
@@ -3478,9 +3604,20 @@ window.showPendingPage=showPendingPage;
 
 function navFirst(){const f=document.querySelector('.nb');if(f)f.click();}
 function showPage(id){
+  // ★ 自動修正：成績已發佈則確保學生/教師可看到 live-results
+  if(DB.config.resultsPublished){
+    if(DB.config.studentAccess)DB.config.studentAccess['live-results']=true;
+    if(DB.config.teacherAccess)DB.config.teacherAccess['live-results']=true;
+  }
   // ★ #3 教師角色也需要檢查 pending 狀態
   if(ST.role==='teacher'){
     const accVal=DB.config.teacherAccess?.[id];
+    if(accVal==='pending'){const label=document.querySelector(`.nb[data-page="${id}"]`)?.textContent||id;showPendingPage(id,label);return;}
+    if(accVal===false){return;}
+  }
+  // ★ 學生角色也加 access check（之前漏掉導致學生與教師行為不一致）
+  if(ST.role==='student'){
+    const accVal=DB.config.studentAccess?.[id];
     if(accVal==='pending'){const label=document.querySelector(`.nb[data-page="${id}"]`)?.textContent||id;showPendingPage(id,label);return;}
     if(accVal===false){return;}
   }
@@ -9625,8 +9762,22 @@ function renderLiveResults(){
   if(roomId)entries=entries.filter(e=>e.roomId===roomId);
   if(classF)entries=entries.filter(e=>e.class===classF);
 
+  // ★ 區分三種空狀態：未發佈 / 載入中 / 真的無資料
   if(!entries.length){
-    el.innerHTML='<div class="card" style="text-align:center;padding:40px"><div style="font-size:36px;margin-bottom:12px">🔒</div><div style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted)">尚無成績資料，或管理員尚未開放查閱</div></div>';
+    // 1) 管理員未發佈成績
+    if(!DB.config.resultsPublished&&(ST.role==='student'||ST.role==='teacher')){
+      el.innerHTML='<div class="card" style="text-align:center;padding:40px"><div style="font-size:36px;margin-bottom:12px">🔒</div><div style="font-family:\'DM Mono\',monospace;font-size:13px;color:var(--muted);letter-spacing:1px">成績尚未發佈</div><div style="font-size:11px;color:var(--muted);margin-top:8px">管理員開放後即可查閱</div></div>';
+      return;
+    }
+    // 2) 學生/教師 lightMode 下 juryScores 還在背景載入中
+    if((ST.role==='student'||ST.role==='teacher')&&!Object.keys(DB.juryScores||{}).length){
+      el.innerHTML='<div class="card" style="text-align:center;padding:40px"><div style="font-size:24px;margin-bottom:12px">⏳</div><div style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted)">資料載入中，請稍候...</div></div>';
+      // 1.5 秒後再試（資料應該載入完了）
+      setTimeout(()=>{if(typeof renderLiveResults==='function')renderLiveResults();},1500);
+      return;
+    }
+    // 3) 真的無資料
+    el.innerHTML='<div class="card" style="text-align:center;padding:40px"><div style="font-size:36px;margin-bottom:12px">📭</div><div style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted)">尚無成績資料</div></div>';
     return;
   }
 
