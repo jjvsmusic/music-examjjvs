@@ -3440,7 +3440,8 @@ function loadAllFromFirebase(done, lightMode){
             const remoteVersions=await fetchSnapshotVersions();
             setCachedDataset('schedule',{scheduleSnapshots:DB.savedScheduleSnapshot});
             const local=getLocalCacheVersions();
-            if(remoteVersions.schedule)local.schedule=remoteVersions.schedule;
+            // ★ 即使遠端沒有版本（管理員未公告），也設本地版本以避免反覆 fresh load
+            local.schedule=remoteVersions.schedule||('local-'+Date.now());
             setLocalCacheVersions(local);
           })();
         }catch(e){}
@@ -3644,8 +3645,9 @@ function launchApp(){
               setCachedDataset('scores',snapshot);
               setCachedDataset('comments',snapshot);
               const local=getLocalCacheVersions();
-              if(remoteVersions.scores)local.scores=remoteVersions.scores;
-              if(remoteVersions.comments)local.comments=remoteVersions.comments;
+              // ★ 即使遠端沒有版本號（管理員未公告），也更新本地版本，避免反覆 fresh load
+              local.scores=remoteVersions.scores||('local-'+Date.now());
+              local.comments=remoteVersions.comments||local.scores;
               setLocalCacheVersions(local);
 
               if(ST.role==='student'&&typeof renderScoresPage==='function')renderScoresPage();
@@ -9927,14 +9929,42 @@ function renderLiveResults(){
       return ri!==0?ri:(a.order||0)-(b.order||0);
     });
   } else {
+    // ★ 沒有任何快照：完全用即時計算（從 DB.users + DB.rooms 推導排程）
     allSched=getScheduleEntries();
   }
   let entries=allSched;
   if(roomId)entries=entries.filter(e=>e.roomId===roomId);
   if(classF)entries=entries.filter(e=>e.class===classF);
 
+  // ★ 診斷 log（協助排查為何空白）
+  console.log('[renderLiveResults]',
+    'role=',ST.role,
+    'allSched=',allSched.length,
+    'filtered=',entries.length,
+    'savedSnap考場數=',Object.keys(snap).length,
+    'juryScores考場數=',Object.keys(DB.juryScores||{}).length,
+    'roomFilter=',roomId||'(全部)',
+    'classFilter=',classF||'(全部)');
+
   if(!entries.length){
-    el.innerHTML='<div class="card" style="text-align:center;padding:40px"><div style="font-size:36px;margin-bottom:12px">🔒</div><div style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted)">尚無成績資料，或管理員尚未開放查閱</div></div>';
+    // ★ 更精確的空狀態提示：依資料狀況給不同訊息
+    let msg='尚無成績資料';
+    let sub='';
+    const totalRooms=DB.rooms?.length||0;
+    const totalSnap=Object.keys(snap).length;
+    const totalScored=Object.keys(DB.juryScores||{}).length;
+    if(totalRooms===0){
+      msg='系統尚未設定考場';sub='請聯絡管理員';
+    } else if(totalSnap===0&&totalScored===0){
+      msg='管理員尚未公告排程，且評審未開始評分';sub='請待管理員公告後重新整理頁面';
+    } else if(totalSnap===0&&totalScored>0){
+      msg='有評分資料但沒有排程';sub='請聯絡管理員按「📢 公告學生」推送排程';
+    } else if(allSched.length===0){
+      msg='排程資料載入中或有問題';sub='請按 F5 重新整理；若仍無顯示請聯絡管理員';
+    } else if(roomId||classF){
+      msg='所選考場/班級沒有資料';sub='請改選其他考場或班級';
+    }
+    el.innerHTML='<div class="card" style="text-align:center;padding:40px"><div style="font-size:36px;margin-bottom:12px">📭</div><div style="font-size:14px;color:var(--ink);margin-bottom:6px">'+escHtml(msg)+'</div>'+(sub?'<div style="font-family:\'DM Mono\',monospace;font-size:11px;color:var(--muted)">'+escHtml(sub)+'</div>':'')+'</div>';
     return;
   }
 
