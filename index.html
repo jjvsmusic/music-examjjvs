@@ -9903,257 +9903,16 @@ window.unpublishResults=unpublishResults;
 //   含扣分及原因、各考場前三名、所有評審評語
 // ════════════════════════════════════════════════
 function renderLiveResults(){
-  const el=document.getElementById('lr-body');if(!el)return;
-  const roomId=document.getElementById('lr-room')?.value||'';
-  const classF=document.getElementById('lr-class')?.value||'';
-
-  // ── 取得排程 entries ──
-  const snap=DB.savedScheduleSnapshot||{};
-  const hasSnap=Object.values(snap).some(arr=>arr&&arr.length>0);
-  let allSched=[];
-  if(hasSnap){
-    Object.entries(snap).forEach(([snapRoomId,snaps])=>{
-      const room=DB.rooms.find(r=>r.id===snapRoomId);
-      (snaps||[]).forEach(e=>allSched.push({...e,roomId:snapRoomId,roomName:e.roomName||(room?.name||snapRoomId)}));
-    });
-    // ★ 補上「沒存快照但有評分資料」的考場
-    const snapRoomIds=new Set(Object.keys(snap).filter(k=>snap[k]&&snap[k].length));
-    const scoredRoomIds=Object.keys(DB.juryScores||{}).filter(rid=>Object.keys(DB.juryScores[rid]||{}).length>0);
-    const missing=scoredRoomIds.filter(rid=>!snapRoomIds.has(rid));
-    if(missing.length){
-      const liveAll=getScheduleEntries();
-      missing.forEach(rid=>liveAll.filter(e=>e.roomId===rid).forEach(e=>allSched.push(e)));
-    }
-    allSched.sort((a,b)=>{
-      const ri=DB.rooms.findIndex(r=>r.id===a.roomId)-DB.rooms.findIndex(r=>r.id===b.roomId);
-      return ri!==0?ri:(a.order||0)-(b.order||0);
-    });
-  } else {
-    // ★ 沒有任何快照：完全用即時計算（從 DB.users + DB.rooms 推導排程）
-    allSched=getScheduleEntries();
-  }
-  let entries=allSched;
-  if(roomId)entries=entries.filter(e=>e.roomId===roomId);
-  if(classF)entries=entries.filter(e=>e.class===classF);
-
-  // ★ 診斷 log（協助排查為何空白）
-  console.log('[renderLiveResults]',
-    'role=',ST.role,
-    'allSched=',allSched.length,
-    'filtered=',entries.length,
-    'savedSnap考場數=',Object.keys(snap).length,
-    'juryScores考場數=',Object.keys(DB.juryScores||{}).length,
-    'roomFilter=',roomId||'(全部)',
-    'classFilter=',classF||'(全部)');
-
-  if(!entries.length){
-    // ★ 更精確的空狀態提示：依資料狀況給不同訊息
-    let msg='尚無成績資料';
-    let sub='';
-    const totalRooms=DB.rooms?.length||0;
-    const totalSnap=Object.keys(snap).length;
-    const totalScored=Object.keys(DB.juryScores||{}).length;
-    if(totalRooms===0){
-      msg='系統尚未設定考場';sub='請聯絡管理員';
-    } else if(totalSnap===0&&totalScored===0){
-      msg='管理員尚未公告排程，且評審未開始評分';sub='請待管理員公告後重新整理頁面';
-    } else if(totalSnap===0&&totalScored>0){
-      msg='有評分資料但沒有排程';sub='請聯絡管理員按「📢 公告學生」推送排程';
-    } else if(allSched.length===0){
-      msg='排程資料載入中或有問題';sub='請按 F5 重新整理；若仍無顯示請聯絡管理員';
-    } else if(roomId||classF){
-      msg='所選考場/班級沒有資料';sub='請改選其他考場或班級';
-    }
-    el.innerHTML='<div class="card" style="text-align:center;padding:40px"><div style="font-size:36px;margin-bottom:12px">📭</div><div style="font-size:14px;color:var(--ink);margin-bottom:6px">'+escHtml(msg)+'</div>'+(sub?'<div style="font-family:\'DM Mono\',monospace;font-size:11px;color:var(--muted)">'+escHtml(sub)+'</div>':'')+'</div>';
-    return;
-  }
-
-  if(DB._jurorOrderCache)DB._jurorOrderCache={};
-
-  // ── 取得各考場一致評審順序 ──
-  const _getRoomJurorIds=(rId)=>{
-    if(!DB._jurorOrderCache)DB._jurorOrderCache={};
-    if(!DB._jurorOrderCache[rId]){
-      // ★ 問題1：只列出「實際有評分內容」的評審
-      //   過濾掉：無姓名 + 所有分數欄位皆空 的幽靈記錄
-      const validIds=new Set();
-      const fieldList=(typeof getRoomFields==='function'?getRoomFields(rId):[{id:'scale'},{id:'assigned'},{id:'free'}]).map(f=>f.id);
-      Object.values(DB.juryScores[rId]||{}).forEach(ed=>{
-        Object.entries(ed||{}).forEach(([k,data])=>{
-          if(k.startsWith('_'))return;
-          if(!data||typeof data!=='object'){return;}
-          // 有姓名就保留
-          if(data._jurorName){validIds.add(k);return;}
-          // 無姓名但有實際分數或評語才保留
-          const hasScore=fieldList.some(f=>{
-            const v=data[f];
-            return v!==undefined&&v!==''&&v!==null&&v!=='*';
-          });
-          const hasComment=data.comment&&data.comment.trim();
-          if(hasScore||hasComment)validIds.add(k);
-        });
-      });
-      DB._jurorOrderCache[rId]=[...validIds].sort();
-    }
-    return DB._jurorOrderCache[rId];
-  };
-
-  // ── 各考場前三名計算 ──
-  const roomRankMap={};
-  const roomGroups={};
-  entries.forEach(e=>{
-    if(!roomGroups[e.roomId])roomGroups[e.roomId]=[];
-    const ek=e.studentId+'_'+e.type;
-    const jurorData=DB.juryScores[e.roomId]?.[ek]||{};
-    const scoreArr=_safeJurors(jurorData);
-    const isAbsent=scoreArr.some(s=>s.absent);
-    const result=scoreArr.length&&!isAbsent?calcFinal(scoreArr,e.roomId,e):{finalScore:null};
-    const ded=DB.deductions[ek]||{amount:0};
-    const final=result.finalScore!==null?Math.max(0,result.finalScore-(ded.amount||0)):null;
-    // ★ 記錄完整資訊供前三名摘要列使用
-    if(final!==null)roomGroups[e.roomId].push({
-      ek,score:final,name:e.name,class:e.class,seat:e.seat,
-      instName:e.instName,type:e.type
-    });
+  // ★ 直接呼叫通用渲染函數，與管理員後台「成績總表」介面一致
+  //   學生/教師強制隱藏評審真實姓名（showRealNames:false）
+  return _renderResultsTable({
+    bodyId:'lr-body',
+    roomFilterId:'lr-room',
+    classFilterId:'lr-class',
+    allowRoles:['student','teacher','admin'],
+    showRealNames:false,  // 永遠隱藏真實姓名
+    showExportBtn:false,  // 學生/教師不能匯出
   });
-  Object.entries(roomGroups).forEach(([rId,arr])=>{
-    arr.sort((a,b)=>b.score-a.score);
-    arr.slice(0,3).forEach((item,i)=>{roomRankMap[rId+'_'+item.ek]=i+1;});
-  });
-  const rankMedal=['🥇','🥈','🥉'];
-
-  // ── 每個考場輸出一張表 ──
-  const roomsToShow=roomId?DB.rooms.filter(r=>r.id===roomId):DB.rooms;
-  let html='';
-
-  roomsToShow.forEach(room=>{
-    // ★ 需求2：各考場依考試序號（order）嚴格升冪排列
-    const roomEntries=entries.filter(e=>e.roomId===room.id)
-      .slice().sort((a,b)=>(a.order||0)-(b.order||0));
-    if(!roomEntries.length)return;
-
-    const roomFields=getRoomFields(room.id);
-    const jurorIds=_getRoomJurorIds(room.id);
-    const jurorCount=jurorIds.length;
-    const isSelf=(e)=>(ST.role==='student')&&(e.studentId===ST.user?.id);
-
-    const fieldColspan=jurorCount+1;
-    const thBase='padding:5px 6px;font-family:\'DM Mono\',monospace;font-size:8px;letter-spacing:1px;font-weight:500;white-space:nowrap;border:1px solid rgba(255,255,255,.15);text-align:center';
-    const thLeft='padding:5px 6px;font-family:\'DM Mono\',monospace;font-size:8px;letter-spacing:1px;font-weight:500;white-space:nowrap;border:1px solid rgba(255,255,255,.15);text-align:left';
-
-    let row1='';
-    row1+=`<th rowspan="2" class="st-seq" style="${thBase};min-width:32px">序</th>`;
-    row1+=`<th rowspan="2" class="st-name" style="${thLeft};min-width:100px">姓名</th>`;
-    row1+=`<th rowspan="2" style="${thBase};min-width:50px">班別</th>`;
-    row1+=`<th rowspan="2" style="${thBase};min-width:36px">座號</th>`;
-    row1+=`<th rowspan="2" style="${thLeft};min-width:80px">專長樂器</th>`;
-    roomFields.forEach(f=>{
-      row1+=`<th colspan="${fieldColspan}" style="${thBase};background:rgba(181,137,42,.18)">${f.label}</th>`;
-    });
-    row1+=`<th rowspan="2" style="${thBase}">扣分</th>`;
-    row1+=`<th rowspan="2" style="${thBase};background:rgba(181,137,42,.25)">總平均</th>`;
-    row1+=`<th rowspan="2" style="${thBase};min-width:100px">違規事宜</th>`;
-    row1+=`<th rowspan="2" style="${thBase};min-width:36px">排名</th>`;
-
-    let row2='';
-    roomFields.forEach(()=>{
-      for(let j=0;j<jurorCount;j++){row2+=`<th style="${thBase};opacity:.8">評審${j+1}</th>`;}
-      row2+=`<th style="${thBase};background:rgba(181,137,42,.2)">平均</th>`;
-    });
-
-    // ── 資料列（已按 order 排序）──
-    let rows='';
-    roomEntries.forEach((e,ei)=>{
-      const ek=e.studentId+'_'+e.type;
-      const jurorData=DB.juryScores[e.roomId]?.[ek]||{};
-      const scoreArr=_safeJurors(jurorData);
-      const isAbsent=scoreArr.some(s=>s.absent);
-      const result=scoreArr.length?calcFinal(scoreArr,e.roomId,e):{finalScore:null,fS:null,fA:null,fF:null,fieldAvgs:{}};
-      const ded=DB.deductions[ek]||{amount:0,reason:''};
-      const finalWithDed=result.finalScore!==null?Math.max(0,result.finalScore-(ded.amount||0)):null;
-      // ★ 只有前三名顯示獎牌，放最末欄
-      const rank=roomRankMap[room.id+'_'+ek];
-      const self=isSelf(e);
-      // ★ sticky 欄背景依行號與自己控制（CSS class 處理）
-      const rowBg=self?'background:#fffde7':((ei%2===0)?'background:var(--white)':'background:var(--cream)');
-      const rowClass=self?'self-row':'';
-
-      const tdBase=`padding:5px 7px;border:1px solid var(--border);font-size:12px;text-align:center;${rowBg}`;
-      const tdLeft=`padding:5px 7px;border:1px solid var(--border);font-size:12px;${rowBg}`;
-      const tdNum=`${tdBase};font-family:'DM Mono',monospace;font-size:11px`;
-
-      let scoresCells='';
-      roomFields.forEach(f=>{
-        jurorIds.forEach(jid=>{
-          const s=jurorData[jid];
-          const v=s?(s.absent?'缺考':(s[f.id]!==undefined&&s[f.id]!=='*'?parseFloat(s[f.id]).toFixed(1):'—')):'—';
-          const color=(v!=='—'&&v!=='缺考'&&parseFloat(v)<60)?'color:var(--red)':'';
-          scoresCells+=`<td style="${tdNum};${color}">${v}</td>`;
-        });
-        const avg=result.fieldAvgs?.[f.id]?.avg??null;
-        const avgDisp=isAbsent?'0':(avg!==null?avg.toFixed(2):'—');
-        const avgColor=avg!==null&&avg<60?'color:var(--red)':'';
-        scoresCells+=`<td style="${tdNum};font-weight:700;background:rgba(181,137,42,.08);${avgColor}">${avgDisp}</td>`;
-      });
-
-      const dedAmt=ded.amount?('-'+ded.amount):'';
-      const finalDisp=isAbsent?'0':(finalWithDed!==null?finalWithDed.toFixed(2):'—');
-      const finalColor=finalWithDed!==null&&finalWithDed<60?'color:var(--red);font-weight:700':'font-weight:700;color:var(--gold)';
-      const violation=ded.reason||(isAbsent?'缺考':'');
-      const rankDisp=rank?rankMedal[rank-1]:'';
-
-      rows+=`<tr class="${rowClass}">
-        <td class="st-seq" style="${tdNum}">${String(e.order||ei+1).padStart(2,'0')}</td>
-        <td class="st-name" style="${tdLeft};font-weight:600">${escHtml(e.name)}${self?' ★':''}</td>
-        <td style="${tdBase}">${escHtml(e.class||'—')}</td>
-        <td style="${tdBase}">${escHtml(e.seat||'—')}</td>
-        <td style="${tdLeft}">${escHtml(typeName(e.type))} ${escHtml(e.instName)}</td>
-        ${scoresCells}
-        <td style="${tdNum};color:var(--rust)">${dedAmt}</td>
-        <td style="${tdNum};${finalColor}">${finalDisp}</td>
-        <td style="${tdLeft};font-size:11px;color:var(--rust)">${escHtml(violation)}</td>
-        <td style="${tdBase};font-size:16px">${rankDisp}</td>
-      </tr>`;
-    });
-
-    // ★ 需求2：前三名摘要條（表格下方）
-    const top3=(roomGroups[room.id]||[]).slice(0,3);
-    const top3Html=top3.map((item,i)=>`
-      <span style="display:inline-flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border:1px solid var(--border);border-radius:20px;margin:3px 3px 3px 0">
-        <span style="font-size:16px">${rankMedal[i]}</span>
-        <strong style="font-size:13px">${escHtml(item.name)}</strong>
-        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">${escHtml(item.class)}·座${escHtml(item.seat)}</span>
-        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--steel)">${escHtml(typeName(item.type))} ${escHtml(item.instName)}</span>
-        <span style="font-family:Cormorant Garamond,serif;font-size:16px;color:var(--gold);font-weight:600">${item.score.toFixed(2)}</span>
-      </span>`).join('');
-
-    html+=`
-    <div style="margin-bottom:32px">
-      <div style="background:var(--ink);color:var(--gold);padding:12px 18px;border-radius:var(--r) var(--r) 0 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <span style="font-family:Cormorant Garamond,serif;font-size:22px;font-weight:300">${room.name}</span>
-        ${room.location?`<span style="font-family:'DM Mono',monospace;font-size:9px;opacity:.6">📍 ${room.location}</span>`:''}
-        <span style="font-family:'DM Mono',monospace;font-size:9px;opacity:.5;margin-left:auto">${roomEntries.length} 位出場・${jurorCount} 位評審</span>
-      </div>
-      <div class="score-table-wrap">
-        <table class="score-tbl">
-          <thead>
-            <tr>${row1}</tr>
-            <tr>${row2}</tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-      <div style="border:1px solid var(--border);border-top:2px solid var(--gold);border-radius:0 0 var(--r) var(--r);padding:10px 14px;background:var(--cream);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-        <span style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--gold);font-weight:700;flex-shrink:0">本考場名次</span>
-        ${top3.length?top3Html:'<span style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted)">尚無評分資料</span>'}
-      </div>
-      <div style="margin-top:4px;font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);padding:0 4px">
-        ★ 為您自己的成績列・表格依考試出場序號排列・名次依扣分後總平均排列
-      </div>
-    </div>`;
-  });
-
-  el.innerHTML=html||'<p style="color:var(--muted);font-family:\'DM Mono\',monospace;font-size:12px;padding:14px">無符合資料</p>';
 }
 window.renderLiveResults=renderLiveResults;
 
@@ -10376,14 +10135,28 @@ async function deleteJurorFromRoom(roomId,jurorId,jurorLabel){
 window.deleteJurorFromRoom=deleteJurorFromRoom;
 
 function renderAdminResults(){
-  const el=document.getElementById('ar-body');if(!el)return;
-  if(ST.role!=='admin'){el.innerHTML='';return;}
-  const roomId=document.getElementById('ar-room')?.value||'';
-  const classF=document.getElementById('ar-class')?.value||'';
+  return _renderResultsTable({
+    bodyId:'ar-body',
+    roomFilterId:'ar-room',
+    classFilterId:'ar-class',
+    allowRoles:['admin'],
+    showRealNames:_showRealJurorNames,  // 跟管理員的真實姓名 toggle 連動
+    showExportBtn:true,
+  });
+}
+window.renderAdminResults=renderAdminResults;
+
+// ★ 通用的成績總表渲染（管理員 + 學生 + 教師共用，差別在 DOM 容器和是否顯示真實姓名）
+function _renderResultsTable(opts){
+  const {bodyId,roomFilterId,classFilterId,allowRoles,showRealNames,showExportBtn}=opts;
+  const el=document.getElementById(bodyId);if(!el)return;
+  if(allowRoles&&!allowRoles.includes(ST.role)){el.innerHTML='';return;}
+  const roomId=document.getElementById(roomFilterId)?.value||'';
+  const classF=document.getElementById(classFilterId)?.value||'';
 
   const entries=_buildAdminResultsData(roomId,classF);
   if(!entries.length){
-    el.innerHTML='<p style="color:var(--muted);font-family:\'DM Mono\',monospace;font-size:12px;padding:14px">尚無排程資料（請先存檔排程）</p>';
+    el.innerHTML='<div class="card" style="text-align:center;padding:36px"><div style="font-size:36px;margin-bottom:10px">📭</div><div style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted)">尚無排程資料</div></div>';
     return;
   }
   if(DB._jurorOrderCache)DB._jurorOrderCache={};
@@ -10460,7 +10233,7 @@ function renderAdminResults(){
     row1+=`<th rowspan="2" style="${thBase};min-width:100px">違規事宜</th>`;
     row1+=`<th rowspan="2" style="${thBase};min-width:36px">排名</th>`;
     // 管理員額外欄：各評審姓名（真實）
-    if(_showRealJurorNames&&jurorIds.length){
+    if(showRealNames&&jurorIds.length){
       row1+=`<th colspan="${jurorIds.length}" style="${thBase};background:rgba(39,174,96,.2)">評審（真實姓名）</th>`;
     }
 
@@ -10469,7 +10242,7 @@ function renderAdminResults(){
       for(let j=0;j<jurorCount;j++){row2+=`<th style="${thBase};opacity:.8">評審${j+1}</th>`;}
       row2+=`<th style="${thBase};background:rgba(181,137,42,.2)">平均</th>`;
     });
-    if(_showRealJurorNames&&jurorIds.length){
+    if(showRealNames&&jurorIds.length){
       jurorIds.forEach((_,j)=>{row2+=`<th style="${thBase};background:rgba(39,174,96,.15)">J${j+1}</th>`;});
     }
 
@@ -10511,7 +10284,7 @@ function renderAdminResults(){
 
       // 管理員額外：評審真實姓名欄
       let jurorNameCells='';
-      if(_showRealJurorNames&&jurorIds.length){
+      if(showRealNames&&jurorIds.length){
         jurorIds.forEach(jid=>{
           const name=(DB.juryScores[e.roomId]?.[ek]?.[jid]?._jurorName)||'—';
           jurorNameCells+=`<td style="${tdLeft};font-size:10px;background:rgba(39,174,96,.07)">${escHtml(name)}</td>`;
@@ -10550,7 +10323,7 @@ function renderAdminResults(){
         <span style="font-family:Cormorant Garamond,serif;font-size:22px;font-weight:300">${room.name}</span>
         ${room.location?`<span style="font-family:'DM Mono',monospace;font-size:9px;opacity:.6">📍 ${room.location}</span>`:''}
         <span style="font-family:'DM Mono',monospace;font-size:9px;opacity:.5;margin-left:auto">${roomEntries.length} 位出場・${jurorCount} 位評審</span>
-        <button class="btn btn-b btn-xs" onclick="exportAdminResultsCSV(false,'${room.id}')">↓ 匯出此考場</button>
+        ${showExportBtn?`<button class="btn btn-b btn-xs" onclick="exportAdminResultsCSV(false,'${room.id}')">↓ 匯出此考場</button>`:''}
       </div>
       <div class="score-table-wrap">
         <table class="score-tbl">
