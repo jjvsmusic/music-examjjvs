@@ -3300,8 +3300,9 @@ function loadAllFromFirebase(done, lightMode){
             const cached=getCachedDataset('schedule');
             if(cached&&cached.scheduleSnapshots){
               console.log('['+ST.role+'] scheduleSnapshots 命中快取，跳過 Firebase 讀取');
-              // 回傳快取資料模擬 load() 的格式（Array of {id, ...data}）
-              return Object.entries(cached.scheduleSnapshots).map(([id,data])=>({id,...data}));
+              // ★ 回傳格式必須符合 load() 慣例：[{id, entries:[...], _updatedAt}]
+              //   下游程式碼 (r.scheduleSnapshots.forEach) 用 d.entries 取陣列
+              return Object.entries(cached.scheduleSnapshots).map(([id,arr])=>({id,entries:arr||[]}));
             }
           }
         }catch(e){console.warn('[cache] schedule 版本檢查失敗，改為直接載入',e);}
@@ -3618,6 +3619,8 @@ function launchApp(){
                   console.log('['+ST.role+'] juryScores 命中快取（version='+(remoteVersions.scores||'?')+'），跳過 Firebase 讀取');
                   if(ST.role==='student'&&typeof renderScoresPage==='function')renderScoresPage();
                   if(ST.role==='teacher'&&typeof renderTeaJuryComments==='function')renderTeaJuryComments();
+                  // ★ 同時觸發 live-results（成績總表）渲染，避免使用者切換到此頁時沒資料
+                  if(typeof renderLiveResults==='function')renderLiveResults();
                   return;
                 }
               }
@@ -3647,6 +3650,8 @@ function launchApp(){
 
               if(ST.role==='student'&&typeof renderScoresPage==='function')renderScoresPage();
               if(ST.role==='teacher'&&typeof renderTeaJuryComments==='function')renderTeaJuryComments();
+              // ★ 同時觸發 live-results（成績總表）渲染
+              if(typeof renderLiveResults==='function')renderLiveResults();
               console.log('['+ST.role+'] juryScores 從 Firebase 載入並更新快取，考場數：',Object.keys(DB.juryScores).length);
             }catch(e){console.warn('['+ST.role+'] juryScores 載入失敗',e);}
           },800);
