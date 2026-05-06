@@ -610,6 +610,21 @@ tbody td{color:var(--ink)!important}
     return results;
   }
 
+  // ★ 取得單一文件
+  async function _fsGet(path){
+    const token = await _getToken();
+    const headers = token ? {Authorization:'Bearer '+token} : {};
+    try {
+      const r = await fetch(`${FS_BASE}/${path}`, {headers});
+      if(!r.ok) return null;
+      const doc = await r.json();
+      if(!doc.fields) return null;
+      const obj={};
+      Object.keys(doc.fields).forEach(k=>{obj[k]=_fromFS(doc.fields[k]);});
+      return obj;
+    } catch(e) { return null; }
+  }
+
   async function _fsSet(path, data){
     const token = await _getToken();
     const headers = {'Content-Type':'application/json', ...(token?{Authorization:'Bearer '+token}:{})};
@@ -685,6 +700,7 @@ tbody td{color:var(--ink)!important}
 
     // list collection
     _list: _fsList,
+    _get: _fsGet,
     _set: _fsSet,
     _delete: _fsDelete,
   };
