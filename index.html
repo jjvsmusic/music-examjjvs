@@ -3266,14 +3266,14 @@ function loadAllFromFirebase(done, lightMode){
         // 依姓名分組
         const byName={};
         const namelessIds=[]; // 無姓名的幽靈
-        const noContentIds=[]; // 有姓名但無實際分數/評語的幽靈
         Object.entries(entry).forEach(([jid,data])=>{
           if(jid.startsWith('_'))return;
           if(!data||typeof data!=='object'){namelessIds.push(jid);return;}
           const name=(data._jurorName||'').trim();
           if(!name){namelessIds.push(jid);return;} // 無姓名的幽靈
-          // ★ 有姓名但無實際內容的也要清
-          if(!hasContent(data)){noContentIds.push(jid);return;}
+          // ★ 有姓名的評審一律保留參與合併（即使暫時沒分數），
+          //   避免誤刪剛登入但還沒打分的評審。
+          //   若要清「有姓名無分數」的殘留，請管理員手動按「清理幽靈評審」按鈕。
           if(!byName[name])byName[name]=[];
           byName[name].push([jid,data]);
         });
@@ -3322,15 +3322,8 @@ function loadAllFromFirebase(done, lightMode){
           entryDirty=true;
         });
 
-        // ★ 刪除「有姓名但無分數無評語」的殘留
-        noContentIds.forEach(jid=>{
-          delete DB.juryScores[roomId][entryKey][jid];
-          if(isRest)patch[jid]=null;
-          else if(fv?.delete)patch[jid]=fv.delete();
-          else patch[jid]=null;
-          totalMerged++;
-          entryDirty=true;
-        });
+        // ★ 自動執行不刪「有姓名但無分數」的評審（避免誤刪剛登入未打分的）
+        //   若有此類殘留需清理，請管理員手動執行「清理幽靈評審」按鈕
 
         // ★ 寫回 Firebase
         //   策略：REST 模式無法真正刪除 field，會留下 nullValue，
@@ -9775,16 +9768,18 @@ function _buildResultCard(e,ei,getEntryRemarks,showRoom){
           if(k.startsWith('_'))return;
           if(!data||typeof data!=='object')return;
           // ★ 必須「有實際分數或評語」才納入（光有姓名不算，因為刪除分數後姓名可能殘留）
-          // ★ 不依賴 fieldList（考場欄位定義可能變更導致比對不到舊資料）
-          //   改為：掃所有非系統欄位（不以 _ 開頭、非 comment/absent），若有任一實際值即算有分數
+          // ★ 條件：有姓名 OR 有實際分數 OR 有評語 才算有效評審
+          //   有姓名但沒分數的：可能是剛登入未打分的評審，仍需顯示在欄位（顯示「未評」）
+          //   光是 null 或無姓名無分數的幽靈才會被過濾
           const SYS_KEYS=new Set(['comment','absent']);
+          const hasName=data._jurorName&&String(data._jurorName).trim();
           const hasScore=Object.keys(data).some(fk=>{
             if(fk.startsWith('_')||SYS_KEYS.has(fk))return false;
             const v=data[fk];
             return v!==undefined&&v!==''&&v!==null&&v!=='*';
           });
           const hasComment=data.comment&&String(data.comment).trim();
-          if(hasScore||hasComment)validIds.add(k);
+          if(hasName||hasScore||hasComment)validIds.add(k);
         });
       });
       DB._jurorOrderCache[roomId]=[...validIds].sort();
@@ -10124,16 +10119,18 @@ function renderTeaJuryComments(){
           if(k.startsWith('_'))return;
           if(!data||typeof data!=='object')return;
           // ★ 必須「有實際分數或評語」才納入（光有姓名不算，因為刪除分數後姓名可能殘留）
-          // ★ 不依賴 fieldList（考場欄位定義可能變更導致比對不到舊資料）
-          //   改為：掃所有非系統欄位（不以 _ 開頭、非 comment/absent），若有任一實際值即算有分數
+          // ★ 條件：有姓名 OR 有實際分數 OR 有評語 才算有效評審
+          //   有姓名但沒分數的：可能是剛登入未打分的評審，仍需顯示在欄位（顯示「未評」）
+          //   光是 null 或無姓名無分數的幽靈才會被過濾
           const SYS_KEYS=new Set(['comment','absent']);
+          const hasName=data._jurorName&&String(data._jurorName).trim();
           const hasScore=Object.keys(data).some(fk=>{
             if(fk.startsWith('_')||SYS_KEYS.has(fk))return false;
             const v=data[fk];
             return v!==undefined&&v!==''&&v!==null&&v!=='*';
           });
           const hasComment=data.comment&&String(data.comment).trim();
-          if(hasScore||hasComment)validIds.add(k);
+          if(hasName||hasScore||hasComment)validIds.add(k);
         });
       });
       DB._jurorOrderCache[rId]=[...validIds].sort();
@@ -10361,16 +10358,18 @@ function _renderResultsTable(opts){
           if(k.startsWith('_'))return;
           if(!data||typeof data!=='object')return;
           // ★ 必須「有實際分數或評語」才納入（光有姓名不算，因為刪除分數後姓名可能殘留）
-          // ★ 不依賴 fieldList（考場欄位定義可能變更導致比對不到舊資料）
-          //   改為：掃所有非系統欄位（不以 _ 開頭、非 comment/absent），若有任一實際值即算有分數
+          // ★ 條件：有姓名 OR 有實際分數 OR 有評語 才算有效評審
+          //   有姓名但沒分數的：可能是剛登入未打分的評審，仍需顯示在欄位（顯示「未評」）
+          //   光是 null 或無姓名無分數的幽靈才會被過濾
           const SYS_KEYS=new Set(['comment','absent']);
+          const hasName=data._jurorName&&String(data._jurorName).trim();
           const hasScore=Object.keys(data).some(fk=>{
             if(fk.startsWith('_')||SYS_KEYS.has(fk))return false;
             const v=data[fk];
             return v!==undefined&&v!==''&&v!==null&&v!=='*';
           });
           const hasComment=data.comment&&String(data.comment).trim();
-          if(hasScore||hasComment)validIds.add(k);
+          if(hasName||hasScore||hasComment)validIds.add(k);
         });
       });
       DB._jurorOrderCache[rId]=[...validIds].sort();
@@ -10559,16 +10558,18 @@ function exportAdminResultsCSV(allRooms,forceRoomId){
           if(k.startsWith('_'))return;
           if(!data||typeof data!=='object')return;
           // ★ 必須「有實際分數或評語」才納入（光有姓名不算，因為刪除分數後姓名可能殘留）
-          // ★ 不依賴 fieldList（考場欄位定義可能變更導致比對不到舊資料）
-          //   改為：掃所有非系統欄位（不以 _ 開頭、非 comment/absent），若有任一實際值即算有分數
+          // ★ 條件：有姓名 OR 有實際分數 OR 有評語 才算有效評審
+          //   有姓名但沒分數的：可能是剛登入未打分的評審，仍需顯示在欄位（顯示「未評」）
+          //   光是 null 或無姓名無分數的幽靈才會被過濾
           const SYS_KEYS=new Set(['comment','absent']);
+          const hasName=data._jurorName&&String(data._jurorName).trim();
           const hasScore=Object.keys(data).some(fk=>{
             if(fk.startsWith('_')||SYS_KEYS.has(fk))return false;
             const v=data[fk];
             return v!==undefined&&v!==''&&v!==null&&v!=='*';
           });
           const hasComment=data.comment&&String(data.comment).trim();
-          if(hasScore||hasComment)validIds.add(k);
+          if(hasName||hasScore||hasComment)validIds.add(k);
         });
       });
       DB._jurorOrderCache[rId]=[...validIds].sort();
