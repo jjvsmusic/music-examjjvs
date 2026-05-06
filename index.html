@@ -3248,9 +3248,14 @@ function loadAllFromFirebase(done, lightMode){
       const fields=(typeof getRoomFields==='function'?getRoomFields(roomId):[{id:'scale'},{id:'assigned'},{id:'free'}]).map(f=>f.id);
 
       // ★ 統一判斷：是否有實際分數或評語
+      const SYS_KEYS=new Set(['comment','absent']);
       const hasContent=(data)=>{
         if(!data||typeof data!=='object')return false;
-        const hasScore=fields.some(f=>{const v=data[f];return v!==undefined&&v!==''&&v!==null&&v!=='*';});
+        const hasScore=Object.keys(data).some(fk=>{
+          if(fk.startsWith('_')||SYS_KEYS.has(fk))return false;
+          const v=data[fk];
+          return v!==undefined&&v!==''&&v!==null&&v!=='*';
+        });
         const hasComment=data.comment&&String(data.comment).trim();
         return hasScore||hasComment;
       };
@@ -9049,11 +9054,10 @@ window.saveRepConfirmMsg=saveRepConfirmMsg;
 // ════════════════════════════════════════════════
 // ADMIN - DANGER: CLEAR DATA
 // ════════════════════════════════════════════════
-function clearData(type){
+async function clearData(type){
   if(!requireRole('admin'))return;
   const labels={rep:'學生曲目填報',teacher:'教師平時成績',jury:'考試成績與評語',jurySignup:'教師期末考評分報名',all:'全部考試資料'};
   if(!confirm(`確定要清除「${labels[type]}」？此操作不可復原。`))return;
-  // ★ 修正 R8：二次確認 + 預估筆數
   let estimateOps=0;
   if(type==='rep'||type==='all')estimateOps+=students().length;
   if(type==='teacher'||type==='all')estimateOps+=Object.keys(DB.teacherComments).length+students().length;
@@ -9065,36 +9069,55 @@ function clearData(type){
   if(window._clearingData){showToast('清除中，請稍候...','warn');return;}
   window._clearingData=true;
   showToast(`正在清除「${labels[type]}」...`,'sync');
+
+  // ★ helper：真正可靠的刪除（await + 控制併發）
+  const isRest=window._FB?._rest;
+  const db=window._FB?.db;
+  const reliableDelete=async (path)=>{
+    if(!window._FB)return;
+    try{
+      if(isRest){
+        await window._FB._delete(path);
+      } else if(db){
+        // path: collection/doc 或 collection/doc/sub/doc
+        const parts=path.split('/');
+        let ref=db;
+        for(let i=0;i<parts.length;i++){
+          ref=i%2===0?ref.collection(parts[i]):ref.doc(parts[i]);
+        }
+        await ref.delete();
+      }
+    }catch(e){console.warn('[clearData delete]',path,e);}
+  };
+  // 控制併發：每批 10 個 promise 一起送，避免一次發太多失敗
+  const batchAwait=async (tasks,batchSize=10)=>{
+    for(let i=0;i<tasks.length;i+=batchSize){
+      await Promise.all(tasks.slice(i,i+batchSize).map(t=>t()));
+    }
+  };
+
   try{
     if(type==='rep'||type==='all'){
       students().forEach(s=>{
-        // ★ 清除記憶體中的所有曲目欄位
         s.major_ac=s.major_at=s.major_fc=s.major_ft='';
         s.minor_ac=s.minor_at=s.minor_fc=s.minor_ft='';
         s.elec_ac=s.elec_at=s.elec_fc=s.elec_ft='';
         s.repDone=false;
-        // ★ 寫入完整 user 物件（非 merge），確保 Firebase 中所有曲目欄位被覆蓋
-        //   若使用 merge/patch，Firebase 裡舊欄位值不會被清除
         const fullUser={...s,
           major_ac:'',major_at:'',major_fc:'',major_ft:'',
           minor_ac:'',minor_at:'',minor_fc:'',minor_ft:'',
           elec_ac:'',elec_at:'',elec_fc:'',elec_ft:'',
           repDone:false,
         };
-        // 直接呼叫底層 REST SET（全覆蓋），不用 merge
         if(window._FB?._rest){
-          window._FB._set('users/'+s.id, {...fullUser, _updatedAt:new Date().toISOString()})
+          window._FB._set('users/'+s.id,{...fullUser,_updatedAt:new Date().toISOString()})
             .catch(e=>console.warn('[clearRep]',e));
-        } else {
-          // SDK 模式：不用 merge:true，直接 set（全覆蓋）
-          if(window._FB?.db){
-            window._FB.db.collection('users').doc(s.id)
-              .set({...fullUser, _updatedAt:new Date().toISOString()})
-              .catch(e=>console.warn('[clearRep]',e));
-          }
+        } else if(window._FB?.db){
+          window._FB.db.collection('users').doc(s.id)
+            .set({...fullUser,_updatedAt:new Date().toISOString()})
+            .catch(e=>console.warn('[clearRep]',e));
         }
       });
-      // ★ 同步清空排程快照內的曲目欄位（現場評分頁從快照讀曲目）
       const pieceFields=['ac','at','fc','ft'];
       const snap=DB.savedScheduleSnapshot||{};
       Object.entries(snap).forEach(([roomId,entries])=>{
@@ -9104,11 +9127,9 @@ function clearData(type){
           pieceFields.forEach(f=>{if(e[f]){e[f]='';dirty=true;}});
         });
         if(dirty){
-          // 更新 Firebase 快照
           fbSet('scheduleSnapshots',roomId,{entries,_savedAt:new Date().toISOString()});
         }
       });
-      // ★ 同時清除樂器異動通知
       if(DB.repInstChanges){
         Object.keys(DB.repInstChanges).forEach(k=>fbDelete('repInstChanges',k));
         DB.repInstChanges={};
@@ -9120,20 +9141,60 @@ function clearData(type){
       students().forEach(s=>{s.teaDone=false;fbSet('users',s.id,{teaDone:false});});
     }
     if(type==='jury'||type==='all'){
-      Object.keys(DB.juryScores).forEach(roomId=>{
-        Object.keys(DB.juryScores[roomId]||{}).forEach(entryKey=>{
-          fbDelete('juryScores/'+roomId+'/entries',entryKey);
-        });
-        delete DB.juryScores[roomId];
+      // ★ 改為真正 await：先收集所有要刪的 path，再批次 await
+      // ★ 從 Firebase 直接列出所有 entries（不依賴記憶體狀態，避免漏刪）
+      const deleteTasks=[];
+      const allRoomIds=new Set();
+      // 來源1：DB.juryScores 記憶體
+      Object.keys(DB.juryScores||{}).forEach(rid=>allRoomIds.add(rid));
+      // 來源2：DB.rooms 設定（涵蓋所有可能的考場）
+      (DB.rooms||[]).forEach(r=>r.id&&allRoomIds.add(r.id));
+
+      // 對每個考場：直接從 Firebase 列出實際 entries 並刪除
+      for(const roomId of allRoomIds){
+        try{
+          let entryDocs=[];
+          if(isRest){
+            entryDocs=await window._FB._list('juryScores/'+roomId+'/entries').catch(()=>[]);
+          } else if(db){
+            const snap=await db.collection('juryScores').doc(roomId).collection('entries').get();
+            entryDocs=snap.docs.map(d=>({id:d.id}));
+          }
+          entryDocs.forEach(ed=>{
+            if(ed.id)deleteTasks.push(()=>reliableDelete('juryScores/'+roomId+'/entries/'+ed.id));
+          });
+        }catch(e){console.warn('[clearData jury] 列出 '+roomId+' 失敗',e);}
+      }
+      // 加上 deductions
+      Object.keys(DB.deductions||{}).forEach(k=>{
+        deleteTasks.push(()=>reliableDelete('deductions/'+k));
       });
-      Object.keys(DB.deductions).forEach(k=>{fbDelete('deductions',k);delete DB.deductions[k];});
+      console.log('[clearData jury] 從 Firebase 實際列出 '+deleteTasks.length+' 筆要刪除');
+      await batchAwait(deleteTasks,10);
+      console.log('[clearData jury] 刪除完成');
+
+      // 清空記憶體
+      DB.juryScores={};
+      DB.deductions={};
+      if(DB._jurorOrderCache)DB._jurorOrderCache={};
+
+      // ★ 同時清空管理員自己的快取
+      try{
+        Object.values(CACHE_DATASETS).forEach(d=>{try{localStorage.removeItem(d.key);}catch(e){}});
+      }catch(e){}
+
+      // 推送 snapshot 讓學生/教師更新快取
+      try{
+        await publishSnapshot('scores');
+        await publishSnapshot('comments');
+      }catch(e){console.warn('[clearData] snapshot push',e);}
+
       try{
         const p=JSON.parse(localStorage.getItem(PENDING_KEY)||'[]');
         p.forEach(k=>localStorage.removeItem(k));
         localStorage.removeItem(PENDING_KEY);
       }catch(e){}
     }
-    // ★ Bug3 修正：清除教師期末考評分報名資料
     if(type==='jurySignup'||type==='all'){
       Object.keys(DB.jurySignup||{}).forEach(tid=>{
         fbDelete('jurySignup',tid);
@@ -9143,10 +9204,9 @@ function clearData(type){
       if(typeof renderJurySignupPage==='function')renderJurySignupPage();
     }
     renderAll();
-    showToast(`已清除「${labels[type]}」✓ — 建議重新整理頁面以確認資料已更新`,'ok');
-    // ★ 3 秒後提示可手動重整
+    showToast(`已清除「${labels[type]}」✓`,'ok');
     setTimeout(()=>{
-      if(confirm(`「${labels[type]}」已清除完成。\n\n是否立即重新整理頁面，以確認 Firebase 資料已更新？`)){
+      if(confirm(`「${labels[type]}」已清除完成。\n\n是否立即重新整理頁面以確認 Firebase 資料已更新？`)){
         location.reload();
       }
     },500);
@@ -9154,6 +9214,7 @@ function clearData(type){
     window._clearingData=false;
   }
 }
+window.clearData=clearData;
 
 // ════════════════════════════════════════════════
 // RESULTS (術科成績)
@@ -9269,9 +9330,14 @@ async function cleanGhostJurors(){
       const toDelete=[];
 
       // 統一判斷標準
+      const SYS_KEYS=new Set(['comment','absent']);
       const hasContent=(data)=>{
         if(!data||typeof data!=='object')return false;
-        const hasScore=fields.some(f=>{const v=data[f];return v!==undefined&&v!==''&&v!==null&&v!=='*';});
+        const hasScore=Object.keys(data).some(fk=>{
+          if(fk.startsWith('_')||SYS_KEYS.has(fk))return false;
+          const v=data[fk];
+          return v!==undefined&&v!==''&&v!==null&&v!=='*';
+        });
         const hasComment=data.comment&&String(data.comment).trim();
         return hasScore||hasComment;
       };
@@ -9407,7 +9473,12 @@ function updateDelJurorList(){
       if(jid.startsWith('_'))return;
       if(!data||typeof data!=='object')return;
       // ★ 只列出「有實際分數或評語」的評審（避免顯示已刪除但姓名殘留的舊評審）
-      const hasScore=fieldList.some(f=>{const v=data[f];return v!==undefined&&v!==''&&v!==null&&v!=='*';});
+      const SYS_KEYS=new Set(['comment','absent']);
+      const hasScore=Object.keys(data).some(fk=>{
+        if(fk.startsWith('_')||SYS_KEYS.has(fk))return false;
+        const v=data[fk];
+        return v!==undefined&&v!==''&&v!==null&&v!=='*';
+      });
       const hasComment=data.comment&&String(data.comment).trim();
       if(!hasScore&&!hasComment)return;
       if(!jurorMap[jid]){jurorMap[jid]={name:data._jurorName||'',count:0};}
@@ -9704,7 +9775,14 @@ function _buildResultCard(e,ei,getEntryRemarks,showRoom){
           if(k.startsWith('_'))return;
           if(!data||typeof data!=='object')return;
           // ★ 必須「有實際分數或評語」才納入（光有姓名不算，因為刪除分數後姓名可能殘留）
-          const hasScore=fieldList.some(f=>{const v=data[f];return v!==undefined&&v!==''&&v!==null&&v!=='*';});
+          // ★ 不依賴 fieldList（考場欄位定義可能變更導致比對不到舊資料）
+          //   改為：掃所有非系統欄位（不以 _ 開頭、非 comment/absent），若有任一實際值即算有分數
+          const SYS_KEYS=new Set(['comment','absent']);
+          const hasScore=Object.keys(data).some(fk=>{
+            if(fk.startsWith('_')||SYS_KEYS.has(fk))return false;
+            const v=data[fk];
+            return v!==undefined&&v!==''&&v!==null&&v!=='*';
+          });
           const hasComment=data.comment&&String(data.comment).trim();
           if(hasScore||hasComment)validIds.add(k);
         });
@@ -10046,7 +10124,14 @@ function renderTeaJuryComments(){
           if(k.startsWith('_'))return;
           if(!data||typeof data!=='object')return;
           // ★ 必須「有實際分數或評語」才納入（光有姓名不算，因為刪除分數後姓名可能殘留）
-          const hasScore=fieldList.some(f=>{const v=data[f];return v!==undefined&&v!==''&&v!==null&&v!=='*';});
+          // ★ 不依賴 fieldList（考場欄位定義可能變更導致比對不到舊資料）
+          //   改為：掃所有非系統欄位（不以 _ 開頭、非 comment/absent），若有任一實際值即算有分數
+          const SYS_KEYS=new Set(['comment','absent']);
+          const hasScore=Object.keys(data).some(fk=>{
+            if(fk.startsWith('_')||SYS_KEYS.has(fk))return false;
+            const v=data[fk];
+            return v!==undefined&&v!==''&&v!==null&&v!=='*';
+          });
           const hasComment=data.comment&&String(data.comment).trim();
           if(hasScore||hasComment)validIds.add(k);
         });
@@ -10276,7 +10361,14 @@ function _renderResultsTable(opts){
           if(k.startsWith('_'))return;
           if(!data||typeof data!=='object')return;
           // ★ 必須「有實際分數或評語」才納入（光有姓名不算，因為刪除分數後姓名可能殘留）
-          const hasScore=fieldList.some(f=>{const v=data[f];return v!==undefined&&v!==''&&v!==null&&v!=='*';});
+          // ★ 不依賴 fieldList（考場欄位定義可能變更導致比對不到舊資料）
+          //   改為：掃所有非系統欄位（不以 _ 開頭、非 comment/absent），若有任一實際值即算有分數
+          const SYS_KEYS=new Set(['comment','absent']);
+          const hasScore=Object.keys(data).some(fk=>{
+            if(fk.startsWith('_')||SYS_KEYS.has(fk))return false;
+            const v=data[fk];
+            return v!==undefined&&v!==''&&v!==null&&v!=='*';
+          });
           const hasComment=data.comment&&String(data.comment).trim();
           if(hasScore||hasComment)validIds.add(k);
         });
@@ -10467,7 +10559,14 @@ function exportAdminResultsCSV(allRooms,forceRoomId){
           if(k.startsWith('_'))return;
           if(!data||typeof data!=='object')return;
           // ★ 必須「有實際分數或評語」才納入（光有姓名不算，因為刪除分數後姓名可能殘留）
-          const hasScore=fieldList.some(f=>{const v=data[f];return v!==undefined&&v!==''&&v!==null&&v!=='*';});
+          // ★ 不依賴 fieldList（考場欄位定義可能變更導致比對不到舊資料）
+          //   改為：掃所有非系統欄位（不以 _ 開頭、非 comment/absent），若有任一實際值即算有分數
+          const SYS_KEYS=new Set(['comment','absent']);
+          const hasScore=Object.keys(data).some(fk=>{
+            if(fk.startsWith('_')||SYS_KEYS.has(fk))return false;
+            const v=data[fk];
+            return v!==undefined&&v!==''&&v!==null&&v!=='*';
+          });
           const hasComment=data.comment&&String(data.comment).trim();
           if(hasScore||hasComment)validIds.add(k);
         });
