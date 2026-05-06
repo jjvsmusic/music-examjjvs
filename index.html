@@ -1174,7 +1174,7 @@ tbody td{color:var(--ink)!important}
       <div class="ph"><h1>現場評分成績總表</h1><span>Live Results</span></div>
       <div class="card" style="margin-bottom:14px">
         <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:10px;padding:8px 12px;background:var(--cream);border-radius:var(--r);line-height:1.9">
-          📊 本頁顯示各考場術科成績總表，包含每位評審的個別給分、各科目平均、扣分原因及最終總平均。🥇🥈🥉 為各考場前三名（依扣分後總平均排列）。成績以 ★ 標示為您自己的成績列。
+          📊 本頁顯示各考場術科成績總表，包含每位評審的個別給分、各科目平均、扣分原因及最終總平均。🥇🥈🥉 為各考場前三名（依扣分後總平均排列）。成績以 ★ 標示為您自己的成績列。<span style="text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:var(--rust);opacity:.55;font-family:'DM Mono',monospace">85.0</span> 表示此分數被刪頭/刪尾排除，不計入平均。
         </div>
         <div class="room-bar">
           <label>考場</label>
@@ -2435,7 +2435,7 @@ const DB = {
     },
     // access control per role: {pageId: true/false}
     studentAccess:{rep:true,scores:true,'stu-schedule':true,'exam-rules':true,'live-results':false},
-    teacherAccess:{teacher:true,'stu-schedule':false,'jury-signup':true,'exam-rules':true,'live-results':false,'tea-jury-comments':false},
+    teacherAccess:{teacher:true,'tea-schedule':false,'jury-signup':true,'exam-rules':true,'live-results':false,'tea-jury-comments':false},
     teacherScheduleClosedMsg:'考試排程尚未開放查看，請等候管理員公告。',
     instRestrict:{major:[],minor:[],elective:[]},
     repConfirmMsg:'',
@@ -3430,6 +3430,12 @@ function loadAllFromFirebase(done, lightMode){
       if(rest.teacherAccess)Object.assign(DB.config.teacherAccess,rest.teacherAccess);
       if(DB.config.teacherAccess['jury-signup']===undefined)DB.config.teacherAccess['jury-signup']=true;
       if(DB.config.teacherAccess['tea-jury-comments']===undefined)DB.config.teacherAccess['tea-jury-comments']=false;
+      // ★ 遷移：舊資料用 stu-schedule，新版改為 tea-schedule
+      if(DB.config.teacherAccess['stu-schedule']!==undefined&&DB.config.teacherAccess['tea-schedule']===undefined){
+        DB.config.teacherAccess['tea-schedule']=DB.config.teacherAccess['stu-schedule'];
+      }
+      delete DB.config.teacherAccess['stu-schedule'];
+      if(DB.config.teacherAccess['tea-schedule']===undefined)DB.config.teacherAccess['tea-schedule']=false;
       if(rest.repHint)DB.config.repHint=rest.repHint;
       if(rest.tyTitle)DB.config.tyTitle=rest.tyTitle;
       if(rest.tyText)DB.config.tyText=rest.tyText;
@@ -8839,7 +8845,7 @@ function renderAccessControl(){
   ];
   const teacherPages=[
     {id:'teacher',label:'平時評量'},
-    {id:'stu-schedule',label:'考試順序查看'},
+    {id:'tea-schedule',label:'考試順序查看'},
     {id:'jury-signup',label:'📋 期末考評分報名'},
     {id:'exam-rules',label:'考試規則與指定曲'},
     {id:'live-results',label:'📊 現場評分成績總表'},
@@ -10525,11 +10531,26 @@ function _renderResultsTable(opts){
 
       let scoresCells='';
       roomFields.forEach(f=>{
+        // ★ 取得此欄被刪頭刪尾的分數列表（用於畫橫線標示）
+        const removedScores=result.detail?.[f.id]?.removed||[];
+        // 為了正確處理重複分數，用「次數」追蹤已標記過幾個
+        const removedCount={};
+        removedScores.forEach(v=>{removedCount[v]=(removedCount[v]||0)+1;});
+
         jurorIds.forEach(jid=>{
           const s=jurorData[jid];
           const v=s?(s.absent?'缺考':(s[f.id]!==undefined&&s[f.id]!=='*'?parseFloat(s[f.id]).toFixed(1):'—')):'—';
           const color=(v!=='—'&&v!=='缺考'&&parseFloat(v)<60)?'color:var(--red)':'';
-          scoresCells+=`<td style="${tdNum};${color}">${v}</td>`;
+          // ★ 判斷此分數是否被刪頭刪尾
+          let trimMark='';
+          if(v!=='—'&&v!=='缺考'){
+            const numV=parseFloat(s[f.id]);
+            if(removedCount[numV]>0){
+              trimMark='text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:var(--rust);opacity:.55';
+              removedCount[numV]--;  // 標記掉這次出現的，避免下一個重複分數又被標
+            }
+          }
+          scoresCells+=`<td style="${tdNum};${color};${trimMark}" title="${trimMark?'此分數已被刪頭/刪尾排除，不計入平均':''}">${v}</td>`;
         });
         const avg=result.fieldAvgs?.[f.id]??null;
         const avgDisp=isAbsent?'0':(avg!==null?avg.toFixed(2):'—');
@@ -10681,9 +10702,27 @@ function exportAdminResultsCSV(allRooms,forceRoomId){
     const row={'序':String(e.order||i+1).padStart(2,'0'),'考場':e.roomName,'班別':e.class,'座號':e.seat,'姓名':e.name,'修別':typeName(e.type),'樂器':e.instName};
     // 各科目各評審
     roomFields.forEach(f=>{
+      // ★ 取得此欄被刪頭刪尾的分數列表（CSV 標示「85.0(削)」）
+      const removedScores=result.detail?.[f.id]?.removed||[];
+      const removedCount={};
+      removedScores.forEach(v=>{removedCount[v]=(removedCount[v]||0)+1;});
+
       jurorIds.forEach((jid,ji)=>{
         const s=jd[jid];
-        const v=s?(s.absent?0:(s[f.id]!==undefined&&s[f.id]!=='*'?parseFloat(s[f.id]):'')):'' ;
+        let v='';
+        if(s){
+          if(s.absent){v=0;}
+          else if(s[f.id]!==undefined&&s[f.id]!=='*'){
+            const numV=parseFloat(s[f.id]);
+            // ★ 標示被刪頭刪尾的分數
+            if(removedCount[numV]>0){
+              v=numV.toFixed(1)+'(削)';
+              removedCount[numV]--;
+            } else {
+              v=numV;
+            }
+          }
+        }
         row[`${f.label}_評審${ji+1}`]=v;
       });
       const avg=result.fieldAvgs?.[f.id]??null;
@@ -10705,7 +10744,7 @@ function renderTeaSchedulePage(){
   const msgDiv=document.getElementById('tea-schedule-access-msg');
   const contentDiv=document.getElementById('tea-schedule-content');
   if(!msgDiv||!contentDiv)return;
-  const hasAccess=DB.config.teacherAccess['stu-schedule']!==false;
+  const hasAccess=DB.config.teacherAccess['tea-schedule']!==false;
   if(!hasAccess){
     msgDiv.style.display='block';contentDiv.style.display='none';
     const txt=document.getElementById('tea-schedule-msg-text');
