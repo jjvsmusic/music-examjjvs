@@ -65,13 +65,13 @@ body::after{content:'';position:fixed;inset:0;background-image:url("data:image/s
 .tb-logo em{font-style:italic}
 .tb-nav{display:flex;gap:2px;flex:1;overflow-x:auto;scrollbar-width:none}
 .tb-nav::-webkit-scrollbar{display:none}
-.nb{padding:5px 12px;background:none;border:none;color:var(--muted);font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:1.5px;cursor:pointer;white-space:nowrap;text-transform:uppercase;border-radius:var(--r);transition:all .2s;border-bottom:2px solid transparent}
+.nb{padding:6px 13px;background:none;border:none;color:rgba(245,238,221,.75);font-family:\'DM Mono\',monospace;font-size:11px;letter-spacing:1.2px;cursor:pointer;white-space:nowrap;text-transform:uppercase;border-radius:var(--r);transition:all .2s;border-bottom:2px solid transparent}
 .nb:hover{color:var(--paper)}
-.nb.on{color:var(--gold);border-bottom-color:var(--gold)}
+.nb.on{color:var(--gold);border-bottom-color:var(--gold);font-weight:600}
 .tb-right{display:flex;align-items:center;gap:9px;padding-left:14px;border-left:1px solid rgba(181,137,42,.3);flex-shrink:0}
-.role-pill{padding:2px 9px;border:1px solid var(--gold);color:var(--gold);font-family:\'DM Mono\',monospace;font-size:8px;letter-spacing:2px;border-radius:20px}
-.tb-uname{font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);white-space:nowrap}
-.logout-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;transition:color .2s;padding:3px}
+.role-pill{padding:3px 10px;border:1px solid var(--gold);color:var(--gold);font-family:\'DM Mono\',monospace;font-size:10px;letter-spacing:1.5px;border-radius:20px}
+.tb-uname{font-family:\'DM Mono\',monospace;font-size:12px;color:rgba(245,238,221,.85);white-space:nowrap}
+.logout-btn{background:none;border:none;color:rgba(245,238,221,.7);cursor:pointer;font-size:15px;line-height:1;transition:color .2s;padding:3px}
 .logout-btn:hover{color:var(--rust)}
 
 /* MAIN */
@@ -9208,36 +9208,48 @@ window._getEntriesForRoom=_getEntriesForRoom;
 // 幽靈評審清理工具（管理員用）
 // ════════════════════════════════════════════════
 async function cleanGhostJurors(){
-  if(ST.role!=='admin'){showToast('僅管理員可執行','err');return;}
-  if(!confirm('確定要清理幽靈評審？\n\n系統將：\n① 合併同名評審的重複記錄\n② 移除無姓名且無分數的幽靈記錄\n\n此操作不可復原。'))return;
+  if(!requireRole('admin'))return;
+  if(!confirm('確定要清理幽靈評審？\n\n系統將：\n① 合併同名評審的重複記錄\n② 移除無姓名且無分數的幽靈\n③ 移除「有姓名但無實際分數或評語」的殘留評審\n④ 整個文件覆寫，徹底清除 null 欄位\n\n此操作不可復原。'))return;
 
   let mergeCount=0,deleteCount=0;
-  const fv=window._FB?.FieldValue;
+  const isRest=window._FB?._rest;
   const db=window._FB?.db;
   const st=window._FB?.serverTimestamp;
+  showToast('正在清理...','sync');
 
   for(const roomId of Object.keys(DB.juryScores)){
     const roomScores=DB.juryScores[roomId]||{};
+    const fields=getRoomFields(roomId).map(f=>f.id);
+
     for(const [entryKey,entryData] of Object.entries(roomScores)){
       if(!entryData||typeof entryData!=='object')continue;
       const jurors=Object.entries(entryData).filter(([k])=>!k.startsWith('_'));
       const byName={};
       const toDelete=[];
+
+      // 統一判斷標準
+      const hasContent=(data)=>{
+        if(!data||typeof data!=='object')return false;
+        const hasScore=fields.some(f=>{const v=data[f];return v!==undefined&&v!==''&&v!==null&&v!=='*';});
+        const hasComment=data.comment&&String(data.comment).trim();
+        return hasScore||hasComment;
+      };
+
       jurors.forEach(([jid,data])=>{
         if(!data||typeof data!=='object'){toDelete.push(jid);return;}
         const n=(data._jurorName||'').trim();
+        // ★ 沒實際內容的評審（不管有無姓名）一律刪除
+        if(!hasContent(data)){toDelete.push(jid);return;}
+        // 有內容才參與合併判斷
         if(n){
           if(!byName[n])byName[n]=[];
           byName[n].push([jid,data]);
-        } else {
-          const fields=getRoomFields(roomId).map(f=>f.id);
-          const hasScore=fields.some(f=>data[f]!==undefined&&data[f]!==''&&data[f]!=='*'&&data[f]!==0&&data[f]!==null);
-          if(!hasScore)toDelete.push(jid);
         }
+        // 有內容但沒姓名：保留（這種情況罕見，可能是評審還沒登錄就直接打分）
       });
 
-      const patch={};let dirty=false;
-      // ① 合併同名重複 key
+      let dirty=false;
+      // ① 合併同名重複 key（保留 stableId，刪除其他）
       for(const [name,records] of Object.entries(byName)){
         if(records.length<=1)continue;
         const stableId='JN_'+roomId+'_'+name.replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_\u4e00-\u9fff]/g,'');
@@ -9246,24 +9258,53 @@ async function cleanGhostJurors(){
         records.forEach(([,d])=>{Object.keys(d).forEach(k=>{if(!merged[k]&&k!=='_jurorName'&&k!=='_localUpdatedAt')merged[k]=d[k];});});
         merged._localUpdatedAt=Date.now();
         DB.juryScores[roomId][entryKey][stableId]=merged;
-        patch[stableId]=merged;
         records.forEach(([jid])=>{
-          if(jid!==stableId){delete DB.juryScores[roomId][entryKey][jid];patch[jid]=fv?.delete?.()??null;mergeCount++;dirty=true;}
+          if(jid!==stableId){delete DB.juryScores[roomId][entryKey][jid];mergeCount++;dirty=true;}
         });
       }
       // ② 刪除幽靈 key
       toDelete.forEach(jid=>{
-        delete DB.juryScores[roomId][entryKey][jid];patch[jid]=fv?.delete?.()??null;deleteCount++;dirty=true;
+        delete DB.juryScores[roomId][entryKey][jid];deleteCount++;dirty=true;
       });
-      if(dirty&&db){
-        patch['_updatedAt']=st?.()??new Date().toISOString();
-        await db.collection('juryScores').doc(roomId).collection('entries').doc(entryKey)
-          .set(patch,{merge:true}).catch(e=>console.warn('[cleanGhost]',e));
+
+      // ③ 整個文件覆寫到 Firebase（徹底清除舊欄位）
+      if(dirty&&window._FB){
+        const cleanData={...DB.juryScores[roomId][entryKey]};
+        Object.keys(cleanData).forEach(k=>{if(k.startsWith('_'))delete cleanData[k];});
+        cleanData._updatedAt=st?.()??new Date().toISOString();
+        try{
+          if(Object.keys(cleanData).length===1){
+            // 只剩 _updatedAt：整個 entry 沒評審了，直接刪除文件
+            if(isRest){
+              await window._FB._delete('juryScores/'+roomId+'/entries/'+entryKey).catch(()=>{});
+            } else if(db){
+              await db.collection('juryScores').doc(roomId).collection('entries').doc(entryKey).delete();
+            }
+            delete DB.juryScores[roomId][entryKey];
+          } else {
+            if(isRest){
+              await window._FB._delete('juryScores/'+roomId+'/entries/'+entryKey).catch(()=>{});
+              await window._FB._set('juryScores/'+roomId+'/entries/'+entryKey,cleanData);
+            } else if(db){
+              await db.collection('juryScores').doc(roomId).collection('entries').doc(entryKey).set(cleanData);
+            }
+          }
+        }catch(e){console.warn('[cleanGhost]',entryKey,e);}
       }
     }
   }
+
+  // 重新整理快取
   if(DB._jurorOrderCache)DB._jurorOrderCache={};
-  renderResults();if(typeof renderAdminResults==='function')renderAdminResults();
+  // 推送 snapshot 讓學生/教師也更新
+  await publishSnapshot('scores');
+  await publishSnapshot('comments');
+
+  renderResults();
+  if(typeof renderAdminResults==='function')renderAdminResults();
+  if(typeof renderLiveResults==='function')renderLiveResults();
+  if(typeof updateDelJurorList==='function')updateDelJurorList();
+
   showToast(`清理完成：合併 ${mergeCount} 筆重複、刪除 ${deleteCount} 筆幽靈評審 ✓`,'ok');
 }
 window.cleanGhostJurors=cleanGhostJurors;
@@ -9317,13 +9358,17 @@ function updateDelJurorList(){
   jurorSel.innerHTML='<option value="">— 選擇評審 —</option>';
   if(!roomId)return;
 
-  // 蒐集此考場所有出現過的評審 id
+  // 蒐集此考場所有「實際有分數或評語」的評審
   const jurorMap={};// id -> {name, count}
+  const fieldList=(typeof getRoomFields==='function'?getRoomFields(roomId):[{id:'scale'},{id:'assigned'},{id:'free'}]).map(f=>f.id);
   Object.entries(DB.juryScores[roomId]||{}).forEach(([entryKey,scores])=>{
     Object.entries(scores||{}).forEach(([jid,data])=>{
       if(jid.startsWith('_'))return;
-      // ★ 過濾 null/非物件評審記錄（殘留的幽靈資料）
       if(!data||typeof data!=='object')return;
+      // ★ 只列出「有實際分數或評語」的評審（避免顯示已刪除但姓名殘留的舊評審）
+      const hasScore=fieldList.some(f=>{const v=data[f];return v!==undefined&&v!==''&&v!==null&&v!=='*';});
+      const hasComment=data.comment&&String(data.comment).trim();
+      if(!hasScore&&!hasComment)return;
       if(!jurorMap[jid]){jurorMap[jid]={name:data._jurorName||'',count:0};}
       jurorMap[jid].count++;
     });
@@ -9617,7 +9662,7 @@ function _buildResultCard(e,ei,getEntryRemarks,showRoom){
         Object.entries(entry||{}).forEach(([k,data])=>{
           if(k.startsWith('_'))return;
           if(!data||typeof data!=='object')return;
-          if(data._jurorName){validIds.add(k);return;}
+          // ★ 必須「有實際分數或評語」才納入（光有姓名不算，因為刪除分數後姓名可能殘留）
           const hasScore=fieldList.some(f=>{const v=data[f];return v!==undefined&&v!==''&&v!==null&&v!=='*';});
           const hasComment=data.comment&&String(data.comment).trim();
           if(hasScore||hasComment)validIds.add(k);
@@ -9631,11 +9676,11 @@ function _buildResultCard(e,ei,getEntryRemarks,showRoom){
   const buildJurorRows=(field)=>{
     return jurorIds.map((jid,ji)=>{
       const s=jurorData[jid];
-      // ★ 該評審未評分此學生：顯示「未評」並淡化
+      // ★ 該評審未評分此學生：顯示「未評」並淡化（保持可讀）
       if(!s){
-        return `<div class="rjs-item" style="opacity:.4">
-          <span style="color:var(--muted)">評審 ${ji+1}</span>
-          <span style="color:var(--muted);font-size:11px">— 未評 —</span>
+        return `<div class="rjs-item" style="opacity:.7">
+          <span style="color:var(--ink)">評審 ${ji+1}</span>
+          <span style="color:var(--muted);font-size:11px;font-weight:600">— 未評 —</span>
         </div>`;
       }
       const isSkip=s[field]==='*'||s[field+'_skip']===true;
@@ -9959,7 +10004,7 @@ function renderTeaJuryComments(){
         Object.entries(ed||{}).forEach(([k,data])=>{
           if(k.startsWith('_'))return;
           if(!data||typeof data!=='object')return;
-          if(data._jurorName){validIds.add(k);return;}
+          // ★ 必須「有實際分數或評語」才納入（光有姓名不算，因為刪除分數後姓名可能殘留）
           const hasScore=fieldList.some(f=>{const v=data[f];return v!==undefined&&v!==''&&v!==null&&v!=='*';});
           const hasComment=data.comment&&String(data.comment).trim();
           if(hasScore||hasComment)validIds.add(k);
@@ -10189,7 +10234,7 @@ function _renderResultsTable(opts){
         Object.entries(ed||{}).forEach(([k,data])=>{
           if(k.startsWith('_'))return;
           if(!data||typeof data!=='object')return;
-          if(data._jurorName){validIds.add(k);return;}
+          // ★ 必須「有實際分數或評語」才納入（光有姓名不算，因為刪除分數後姓名可能殘留）
           const hasScore=fieldList.some(f=>{const v=data[f];return v!==undefined&&v!==''&&v!==null&&v!=='*';});
           const hasComment=data.comment&&String(data.comment).trim();
           if(hasScore||hasComment)validIds.add(k);
@@ -10380,7 +10425,7 @@ function exportAdminResultsCSV(allRooms,forceRoomId){
         Object.entries(ed||{}).forEach(([k,data])=>{
           if(k.startsWith('_'))return;
           if(!data||typeof data!=='object')return;
-          if(data._jurorName){validIds.add(k);return;}
+          // ★ 必須「有實際分數或評語」才納入（光有姓名不算，因為刪除分數後姓名可能殘留）
           const hasScore=fieldList.some(f=>{const v=data[f];return v!==undefined&&v!==''&&v!==null&&v!=='*';});
           const hasComment=data.comment&&String(data.comment).trim();
           if(hasScore||hasComment)validIds.add(k);
