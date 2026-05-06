@@ -3229,17 +3229,30 @@ function loadAllFromFirebase(done, lightMode){
     for(const roomId of Object.keys(DB.juryScores)){
       const room=DB.juryScores[roomId];
       let roomDirty=false;
+      const fields=(typeof getRoomFields==='function'?getRoomFields(roomId):[{id:'scale'},{id:'assigned'},{id:'free'}]).map(f=>f.id);
+
+      // ★ 統一判斷：是否有實際分數或評語
+      const hasContent=(data)=>{
+        if(!data||typeof data!=='object')return false;
+        const hasScore=fields.some(f=>{const v=data[f];return v!==undefined&&v!==''&&v!==null&&v!=='*';});
+        const hasComment=data.comment&&String(data.comment).trim();
+        return hasScore||hasComment;
+      };
+
       for(const entryKey of Object.keys(room)){
         const entry=room[entryKey];
         if(!entry||typeof entry!=='object')continue;
         // 依姓名分組
         const byName={};
         const namelessIds=[]; // 無姓名的幽靈
+        const noContentIds=[]; // 有姓名但無實際分數/評語的幽靈
         Object.entries(entry).forEach(([jid,data])=>{
           if(jid.startsWith('_'))return;
-          if(!data||typeof data!=='object')return;
+          if(!data||typeof data!=='object'){namelessIds.push(jid);return;}
           const name=(data._jurorName||'').trim();
-          if(!name){namelessIds.push(jid);return;} // 收集無姓名的幽靈
+          if(!name){namelessIds.push(jid);return;} // 無姓名的幽靈
+          // ★ 有姓名但無實際內容的也要清
+          if(!hasContent(data)){noContentIds.push(jid);return;}
           if(!byName[name])byName[name]=[];
           byName[name].push([jid,data]);
         });
@@ -3270,7 +3283,6 @@ function loadAllFromFirebase(done, lightMode){
           records.forEach(([jid])=>{
             if(jid===stableId)return;
             delete DB.juryScores[roomId][entryKey][jid];
-            // Firebase: REST 模式用 null 標記刪除，SDK 用 FieldValue.delete()
             if(isRest)patch[jid]=null;
             else if(fv?.delete)patch[jid]=fv.delete();
             else patch[jid]=null;
@@ -3279,8 +3291,18 @@ function loadAllFromFirebase(done, lightMode){
           entryDirty=true;
         }
 
-        // ★ 額外處理：刪除無姓名的幽靈評審（無法合併到任何人）
+        // ★ 刪除無姓名的幽靈
         namelessIds.forEach(jid=>{
+          delete DB.juryScores[roomId][entryKey][jid];
+          if(isRest)patch[jid]=null;
+          else if(fv?.delete)patch[jid]=fv.delete();
+          else patch[jid]=null;
+          totalMerged++;
+          entryDirty=true;
+        });
+
+        // ★ 刪除「有姓名但無分數無評語」的殘留
+        noContentIds.forEach(jid=>{
           delete DB.juryScores[roomId][entryKey][jid];
           if(isRest)patch[jid]=null;
           else if(fv?.delete)patch[jid]=fv.delete();
@@ -3291,24 +3313,27 @@ function loadAllFromFirebase(done, lightMode){
 
         // ★ 寫回 Firebase
         //   策略：REST 模式無法真正刪除 field，會留下 nullValue，
-        //   改採「整個文件覆寫」確保 Firebase 也乾淨
+        //   改採「整個文件覆寫」或「整個文件刪除」確保 Firebase 也乾淨
         if(entryDirty&&db){
           const cleanData={...DB.juryScores[roomId][entryKey]};
-          // 移除頂層 _ 開頭的內部欄位
           Object.keys(cleanData).forEach(k=>{if(k.startsWith('_'))delete cleanData[k];});
-          cleanData._updatedAt=st?.()??new Date().toISOString();
           try{
-            if(isRest){
-              // REST：先刪除整個文件再 set，徹底清掉 null 欄位
-              await window._FB._delete('juryScores/'+roomId+'/entries/'+entryKey).catch(()=>{});
-              await db.collection('juryScores').doc(roomId)
-                .collection('entries').doc(entryKey)
-                .set(cleanData);
+            if(Object.keys(cleanData).length===0){
+              // 整個 entry 沒有任何有效評審，直接刪除整個文件
+              if(isRest){
+                await window._FB._delete('juryScores/'+roomId+'/entries/'+entryKey).catch(()=>{});
+              } else {
+                await db.collection('juryScores').doc(roomId).collection('entries').doc(entryKey).delete().catch(()=>{});
+              }
+              delete DB.juryScores[roomId][entryKey];
             } else {
-              // SDK：set 不帶 merge 會整個覆寫
-              await db.collection('juryScores').doc(roomId)
-                .collection('entries').doc(entryKey)
-                .set(cleanData);
+              cleanData._updatedAt=st?.()??new Date().toISOString();
+              if(isRest){
+                await window._FB._delete('juryScores/'+roomId+'/entries/'+entryKey).catch(()=>{});
+                await window._FB._set('juryScores/'+roomId+'/entries/'+entryKey,cleanData);
+              } else {
+                await db.collection('juryScores').doc(roomId).collection('entries').doc(entryKey).set(cleanData);
+              }
             }
             roomDirty=true;
           }catch(e){console.warn('[autoMerge] 寫回失敗',entryKey,e);}
