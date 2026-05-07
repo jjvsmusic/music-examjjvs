@@ -2484,31 +2484,33 @@ function isFieldSkipped(field, entry){
   const rules=field.skipRules||[];
   if(!rules.length)return false;
 
-  // 取得此學生在 DB 中的完整資料，以便查各修別的樂器大項
-  const stu=DB.users.find(u=>u.id===entry.studentId)||{};
+  // ★ 修正：直接用 entry 本身的 type/catId 比對
+  //   entry 結構：{studentId, type:'major'|'minor'|'elective', catId, class, ...}
+  //   每筆 entry 代表「學生 × 修別」的特定組合，這正是要排除的對象
+  //   舊邏輯會去查 DB.users 的所有修別，導致「主修豎笛 + 選修豎笛」的學生
+  //   在評主修那欄時，因為選修也是木管而被誤跳。
+
+  // ★ 取得 entry 的樂器大項（catId 可能為空，從 instruments 查）
+  let entryCatId=entry.catId;
+  if(!entryCatId&&entry.instId){
+    const inst=DB.instruments.items.find(i=>i.id===entry.instId);
+    entryCatId=inst?.cat||'';
+  }
 
   return rules.some(r=>{
     // ① 班級條件（空=不限）
     const matchCls=!r.cls||r.cls===entry.class;
     if(!matchCls)return false;
 
-    // ② 若規則大項與修別皆空 → 僅靠班級判斷
-    if(!r.catId&&!r.type)return true;
+    // ② 修別條件（空=不限；有指定則必須與 entry.type 相同）
+    const matchType=!r.type||r.type===entry.type;
+    if(!matchType)return false;
 
-    // ③ 若只指定修別、不指定大項 → 學生有該修別即符合
-    if(r.type&&!r.catId){
-      return !!stu[r.type];
-    }
+    // ③ 樂器大項條件（空=不限；有指定則必須與 entry 的 catId 相同）
+    const matchCat=!r.catId||r.catId===entryCatId;
+    if(!matchCat)return false;
 
-    // ④ 若有指定大項：遍歷學生「所有修別」，找樂器大項 = r.catId 的
-    //    若同時指定修別，則只查那個修別；否則查全部三個修別
-    const typesToCheck=r.type?[r.type]:['major','minor','elective'];
-    return typesToCheck.some(t=>{
-      const instId=stu[t];
-      if(!instId)return false;
-      const inst=DB.instruments.items.find(i=>i.id===instId);
-      return inst&&inst.cat===r.catId;
-    });
+    return true;
   });
 }
 window.isFieldSkipped=isFieldSkipped;
@@ -3652,16 +3654,75 @@ function launchApp(){
           // ★ 離線化方案：已停用 _startLiveExamListener（liveExam 不再雲端同步）
         },500);
         // ★ 改進 A+C：評審進場時一次性讀取自己考場的歷史分數（不啟動輪詢）
+        //   ★ 離線化修正：先還原 localStorage 本機分數，再從 Firebase 補上「本機沒有」的部分
+        //                 避免 Firebase 上的舊版本覆蓋掉本機未上傳的新分數
         if(ST.role==='jury'&&ST.juryRoom?.id&&window._FB){
+          // ── Step 1: 立即從 localStorage 還原本機分數（不等 Firebase）──
+          try{
+            const myJurorId=ST.juryId;
+            const roomId=ST.juryRoom.id;
+            if(myJurorId){
+              if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
+              let restoredCount=0;
+              for(let i=0;i<localStorage.length;i++){
+                const key=localStorage.key(i);
+                if(!key||!key.startsWith('jury_'))continue;
+                if(!key.endsWith('_'+myJurorId))continue;
+                try{
+                  const data=JSON.parse(localStorage.getItem(key)||'null');
+                  if(!data||typeof data!=='object')continue;
+                  const stripped=key.replace(/^jury_/,'');
+                  const segs=stripped.split('_');
+                  if(segs.length<4)continue;
+                  const lsRoomId=segs[0];
+                  const entryKey=segs[1]+'_'+segs[2];
+                  const jurorId=segs.slice(3).join('_');
+                  if(jurorId!==myJurorId)continue;
+                  if(lsRoomId!==roomId)continue; // 只還原本考場
+                  if(!DB.juryScores[lsRoomId])DB.juryScores[lsRoomId]={};
+                  if(!DB.juryScores[lsRoomId][entryKey])DB.juryScores[lsRoomId][entryKey]={};
+                  // ★ 永遠以 localStorage 為真相（離線優先架構）
+                  DB.juryScores[lsRoomId][entryKey][jurorId]=data;
+                  restoredCount++;
+                }catch(e){}
+              }
+              if(restoredCount>0){
+                console.log('[jury] 已從 localStorage 還原 '+restoredCount+' 筆本機分數');
+                if(document.getElementById('pg-jury')?.classList.contains('on'))renderJuryTable();
+              }
+            }
+          }catch(e){console.warn('[jury] 還原本機分數失敗',e);}
+
+          // ── Step 2: 從 Firebase 補上「本機完全沒打過」的歷史分數（不覆蓋本機資料）──
           setTimeout(async()=>{
             try{
               const roomId=ST.juryRoom.id;
+              const myJurorId=ST.juryId;
               if(typeof _fsList==='function'){
                 const docs=await _fsList('juryScores/'+roomId+'/entries');
                 if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
-                docs.forEach(d=>{const{id,...rest}=d;DB.juryScores[roomId][id]=rest;});
+                let mergedCount=0;
+                docs.forEach(d=>{
+                  const{id,...rest}=d;
+                  if(!DB.juryScores[roomId][id])DB.juryScores[roomId][id]={};
+                  // ★ 對每位評審分別處理：本機已有的不覆蓋，本機沒有的補進去
+                  Object.keys(rest).forEach(jurorKey=>{
+                    if(jurorKey.startsWith('_'))return;
+                    if(!rest[jurorKey]||typeof rest[jurorKey]!=='object')return;
+                    // ★ 「自己」的分數：絕不從 Firebase 覆蓋（本機才是最新）
+                    if(jurorKey===myJurorId){
+                      if(!DB.juryScores[roomId][id][jurorKey]){
+                        DB.juryScores[roomId][id][jurorKey]=rest[jurorKey];
+                        mergedCount++;
+                      }
+                      return;
+                    }
+                    // 其他評審的分數：照樣帶進來（顯示用，不會被本機修改）
+                    DB.juryScores[roomId][id][jurorKey]=rest[jurorKey];
+                  });
+                });
                 if(document.getElementById('pg-jury')?.classList.contains('on'))renderJuryTable();
-                console.log('[jury] 已載入考場',roomId,'的歷史分數，共',docs.length,'筆');
+                console.log('[jury] 已從 Firebase 補上歷史分數，共',docs.length,'筆 entries，新增本機沒有的',mergedCount,'筆');
               }
             }catch(e){console.warn('[jury] 歷史分數載入失敗',e);}
           },800);
@@ -3683,51 +3744,12 @@ function launchApp(){
           },300);
         }
         // ★ 修正 #O2：進入頁面時若已連線且有 pending，主動 sync 一次
+        //   ★ 離線化修正：原本 sync 完後會做「localStorage merge 回 DB」的還原邏輯，
+        //                 但該邏輯已移到 launchApp 上方（評審進場時立即還原），
+        //                 此處只保留 sync 動作（把任何遺留的 pending 補傳）
         setTimeout(()=>{
           if(navigator.onLine&&window._FB&&typeof syncPendingToFirebase==='function'){
-            syncPendingToFirebase().then(()=>{
-              // ★ sync 完後，把 localStorage 的本機資料 merge 回 DB.juryScores
-              //   讓評審重新登入時看到自己離線打過的分數
-              //   但只還原「本評審」的資料，且只在本機版本較新時才覆蓋
-              if(ST.role==='jury'&&ST.juryRoom&&ST.juryId){
-                try{
-                  const myJurorId=ST.juryId;
-                  let restoredCount=0;
-                  for(let i=0;i<localStorage.length;i++){
-                    const key=localStorage.key(i);
-                    if(!key||!key.startsWith('jury_'))continue;
-                    // ★ 只還原本評審的資料（key 結尾應為本評審 id）
-                    if(!key.endsWith('_'+myJurorId))continue;
-                    const data=JSON.parse(localStorage.getItem(key)||'null');
-                    if(!data||typeof data!=='object')continue;
-                    const stripped=key.replace(/^jury_/,'');
-                    const segs=stripped.split('_');
-                    if(segs.length<4)continue;
-                    const roomId=segs[0];
-                    const entryKey=segs[1]+'_'+segs[2];
-                    const jurorId=segs.slice(3).join('_');
-                    if(jurorId!==myJurorId)continue; // 雙重檢查
-                    if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
-                    if(!DB.juryScores[roomId][entryKey])DB.juryScores[roomId][entryKey]={};
-                    const existing=DB.juryScores[roomId][entryKey][jurorId];
-                    // ★ 嚴格比對：只在本機版本明確較新時才覆蓋（避免覆蓋 Firebase 較新版本）
-                    const localTs=data._localUpdatedAt||0;
-                    const remoteTs=existing?._localUpdatedAt||0;
-                    if(!existing||localTs>remoteTs){
-                      DB.juryScores[roomId][entryKey][jurorId]=data;
-                      restoredCount++;
-                    } else {
-                      // 本機資料較舊，刪除 lsKey 避免下次又被處理
-                      try{localStorage.removeItem(key);}catch(e){}
-                    }
-                  }
-                  if(restoredCount>0){
-                    if(typeof renderJuryPage==='function')renderJuryPage();
-                    console.log('[jury] 已從 localStorage 還原 '+restoredCount+' 筆本機分數');
-                  }
-                }catch(e){console.warn('[jury] 還原本機分數失敗',e);}
-              }
-            });
+            syncPendingToFirebase();
           }
         },2000);
       },200);
@@ -8693,7 +8715,7 @@ function renderRoomFields(){
         </div>
         <div style="padding:8px 10px;background:var(--white)">
           <div style="font-family:DM Mono,monospace;font-size:8px;letter-spacing:1px;color:var(--rust);margin-bottom:6px;text-transform:uppercase">
-            ⊘ 此欄自動標 * 不計分的條件（多條件為 OR 關係；同一條件內大項、修別、班級為 AND）
+            ⊘ 此欄自動標 * 不計分的條件（多條件為 OR；同一條件內大項、修別、班級為 AND；以「該筆 entry 本身」的修別＋大項做比對，例：「木管組+選修」只跳「選修木管」，不影響該生主修木管）
           </div>
           <div id="rf-rules-${r.id}-${fi}">${rulesHtml}</div>
           <button class="btn btn-s btn-xs" style="margin-top:4px" onclick="rfAddRule('${r.id}',${fi})">＋ 新增排除條件</button>
