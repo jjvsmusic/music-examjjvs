@@ -880,6 +880,9 @@ tbody td{color:var(--ink)!important}
     </div>
     <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">請填入您的姓名後即可開始評分，全程無需帳號或密碼。</p>
     <div class="fg"><label>評審姓名</label><input id="jn-name" type="text" placeholder="請輸入您的姓名" autofocus></div>
+    <div style="background:#fef9e7;border-left:3px solid var(--gold);padding:8px 12px;margin-top:10px;font-size:11px;color:var(--rust);line-height:1.5">
+      ⚠ <strong>姓名請務必填寫一致</strong>：若稍後重新登入時打錯字（例：「王小明」打成「王曉明」），系統會視為「不同評審」，先前打過的分數可能無法自動接續。
+    </div>
     <div class="login-err" id="jn-err" style="min-height:14px;margin-top:6px"></div>
     <div class="modal-ft">
       <button class="btn btn-s" onclick="closeOverlay('jury-name-modal')">返回</button>
@@ -2646,12 +2649,17 @@ function doJuryDirectLogin(){
       const savedJury=localStorage.getItem('_jurySession_'+room.id);
       if(savedJury){
         const sess=JSON.parse(savedJury);
-        // ★ 修正：只在 12 小時內的 session 才提示恢復；超過視為過期，直接走新登入
+        // ★ 修正：72 小時內的 session 才提示恢復（跨天考試常見）；超過視為過期
         const ageMs=Date.now()-(sess.savedAt||0);
-        const ageOk=ageMs<12*3600*1000;
+        const ageOk=ageMs<72*3600*1000;
         if(sess.juryId&&sess.name&&ageOk){
-          console.log('[jury login] 偵測到 12hr 內的舊 session:',sess.name,'asking confirm');
-          if(confirm(`偵測到先前在此考場登入過：「${sess.name}」\n\n要繼續使用此身分嗎？\n\n[確定] = 用「${sess.name}」繼續評分\n[取消] = 重新輸入姓名`)){
+          console.log('[jury login] 偵測到 72hr 內的舊 session:',sess.name,'asking confirm');
+          if(confirm(
+            `偵測到先前在此考場登入過：「${sess.name}」\n\n` +
+            `★ 強烈建議按「確定」沿用此身分，分數會自動接續。\n` +
+            `（按「取消」改用新身分輸入時，務必輸入完全相同的姓名，否則會視為新評審）\n\n` +
+            `要繼續使用「${sess.name}」嗎？`
+          )){
             ST.juryId=sess.juryId;ST.juryName=sess.name;ST.role='jury';
             ST.user={id:ST.juryId,name:sess.name,role:'jury'};
             console.log('[jury login] 沿用舊身分，啟動 launchApp');
@@ -2659,7 +2667,7 @@ function doJuryDirectLogin(){
           }
           console.log('[jury login] 使用者選擇重新輸入');
         } else if(sess&&!ageOk){
-          console.log('[jury login] 舊 session 已過期（>12hr），清除');
+          console.log('[jury login] 舊 session 已過期（>72hr），清除');
           try{localStorage.removeItem('_jurySession_'+room.id);}catch(e){}
         }
       }
@@ -3664,31 +3672,41 @@ function launchApp(){
             if(myJurorId){
               if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
               let restoredCount=0;
+              // ★ Bug 修正：原本用 split('_') 拆解 lsKey 會在 studentId/roomId 含底線時切錯
+              //   例如 lsKey='jury_r1730_s1730_5_major_JN_r1730_王小明'，split 會切出 7 段
+              //   導致 entryKey 變成 's1730_5'（漏掉 _major），jurorId 變成 'major_JN_r1730_王小明'
+              //   修正：用「右側 myJurorId 的位置」反向切割，不依賴 split 段數
+              const myJurorIdSuffix='_'+myJurorId;
               for(let i=0;i<localStorage.length;i++){
                 const key=localStorage.key(i);
                 if(!key||!key.startsWith('jury_'))continue;
-                if(!key.endsWith('_'+myJurorId))continue;
+                if(!key.endsWith(myJurorIdSuffix))continue;
                 try{
                   const data=JSON.parse(localStorage.getItem(key)||'null');
                   if(!data||typeof data!=='object')continue;
-                  const stripped=key.replace(/^jury_/,'');
-                  const segs=stripped.split('_');
-                  if(segs.length<4)continue;
-                  const lsRoomId=segs[0];
-                  const entryKey=segs[1]+'_'+segs[2];
-                  const jurorId=segs.slice(3).join('_');
-                  if(jurorId!==myJurorId)continue;
+                  // 去頭 'jury_' 與去尾 '_{myJurorId}'，剩下是 'roomId_studentId_type'
+                  const middle=key.slice(5, key.length-myJurorIdSuffix.length);
+                  // 從左找第一個 '_' 切出 roomId（roomId 格式 r{timestamp} 沒底線，安全）
+                  const firstUnderscore=middle.indexOf('_');
+                  if(firstUnderscore<0)continue;
+                  const lsRoomId=middle.slice(0,firstUnderscore);
+                  const entryKey=middle.slice(firstUnderscore+1); // 'studentId_type'
+                  if(!entryKey)continue;
                   if(lsRoomId!==roomId)continue; // 只還原本考場
                   if(!DB.juryScores[lsRoomId])DB.juryScores[lsRoomId]={};
                   if(!DB.juryScores[lsRoomId][entryKey])DB.juryScores[lsRoomId][entryKey]={};
                   // ★ 永遠以 localStorage 為真相（離線優先架構）
-                  DB.juryScores[lsRoomId][entryKey][jurorId]=data;
+                  DB.juryScores[lsRoomId][entryKey][myJurorId]=data;
                   restoredCount++;
-                }catch(e){}
+                }catch(e){console.warn('[jury restore] 解析 lsKey 失敗:',key,e);}
               }
               if(restoredCount>0){
                 console.log('[jury] 已從 localStorage 還原 '+restoredCount+' 筆本機分數');
-                if(document.getElementById('pg-jury')?.classList.contains('on'))renderJuryTable();
+                // ★ 不論 pg-jury 是否已 on，都嘗試 render（navFirst 80ms 後可能還沒切過去）
+                //   若元素還沒準備好，renderJuryTable 自己會 return（line 5534）
+                setTimeout(()=>{
+                  try{if(typeof renderJuryTable==='function')renderJuryTable();}catch(e){}
+                },150); // 等 navFirst (80ms) 切過去 + tbody DOM 就緒
               }
             }
           }catch(e){console.warn('[jury] 還原本機分數失敗',e);}
@@ -3698,31 +3716,89 @@ function launchApp(){
             try{
               const roomId=ST.juryRoom.id;
               const myJurorId=ST.juryId;
+              const myJurorName=ST.juryName;
               if(typeof _fsList==='function'){
                 const docs=await _fsList('juryScores/'+roomId+'/entries');
                 if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
                 let mergedCount=0;
+                let ghostMergedCount=0;
+                const ghostIdsToDelete=new Set(); // 待刪的幽靈 ID
                 docs.forEach(d=>{
                   const{id,...rest}=d;
                   if(!DB.juryScores[roomId][id])DB.juryScores[roomId][id]={};
-                  // ★ 對每位評審分別處理：本機已有的不覆蓋，本機沒有的補進去
+                  // ★ 對每位評審分別處理
                   Object.keys(rest).forEach(jurorKey=>{
                     if(jurorKey.startsWith('_'))return;
                     if(!rest[jurorKey]||typeof rest[jurorKey]!=='object')return;
-                    // ★ 「自己」的分數：絕不從 Firebase 覆蓋（本機才是最新）
+                    const remoteData=rest[jurorKey];
+
+                    // ★ Case 1：「自己」的分數 → 本機才是最新，不覆蓋
                     if(jurorKey===myJurorId){
                       if(!DB.juryScores[roomId][id][jurorKey]){
-                        DB.juryScores[roomId][id][jurorKey]=rest[jurorKey];
+                        DB.juryScores[roomId][id][jurorKey]=remoteData;
                         mergedCount++;
                       }
                       return;
                     }
-                    // 其他評審的分數：照樣帶進來（顯示用，不會被本機修改）
-                    DB.juryScores[roomId][id][jurorKey]=rest[jurorKey];
+
+                    // ★ Case 2：「同名但 ID 不同」→ 幽靈評審，自動合併到自己
+                    //   這發生於：同一位評審用不同裝置/不同 session 進入過考場
+                    //   合併策略：把 ghost 資料併入自己的 stableId
+                    if(myJurorName && remoteData._jurorName === myJurorName){
+                      console.log('[ghost merge] 偵測到幽靈評審',jurorKey,'→ 合併到',myJurorId,'(entry:',id,')');
+                      // 合併：以「自己現有資料」為主，缺欄位才從 ghost 補
+                      const myExisting=DB.juryScores[roomId][id][myJurorId]||{};
+                      const merged={...remoteData,...myExisting,_jurorName:myJurorName};
+                      DB.juryScores[roomId][id][myJurorId]=merged;
+                      // 標記 ghost 為待刪
+                      delete DB.juryScores[roomId][id][jurorKey];
+                      ghostIdsToDelete.add(id+'|'+jurorKey);
+                      ghostMergedCount++;
+                      // ★ 把合併後的資料寫回 localStorage 並標記 pending
+                      //   （送出時會上傳，順帶把 ghost 從 Firebase 刪除）
+                      try{
+                        const lsKey=`jury_${roomId}_${id}_${myJurorId}`;
+                        merged._localUpdatedAt=Date.now();
+                        localStorage.setItem(lsKey,JSON.stringify(merged));
+                        markPending(lsKey);
+                      }catch(e){}
+                      return;
+                    }
+
+                    // ★ Case 3：其他評審的分數 → 照常帶進來（顯示用）
+                    DB.juryScores[roomId][id][jurorKey]=remoteData;
                   });
                 });
+
+                // ★ 把待刪的 ghost ID 從 Firebase 真實刪除（背景執行，不阻塞）
+                if(ghostIdsToDelete.size > 0 && navigator.onLine && window._FB){
+                  setTimeout(()=>{
+                    ghostIdsToDelete.forEach(async key=>{
+                      const [entryId,ghostId] = key.split('|');
+                      try{
+                        // 用 set + null 的方式刪除欄位（REST 模式下沒有 FieldValue.delete）
+                        const patch={};
+                        patch[ghostId]=null;
+                        if(window._FB._rest){
+                          await window._FB._set('juryScores/'+roomId+'/entries/'+entryId,patch);
+                        }else{
+                          const {db,FieldValue,serverTimestamp}=window._FB;
+                          const realPatch={};
+                          realPatch[ghostId]=FieldValue?.delete?.()??null;
+                          realPatch._updatedAt=serverTimestamp?.()??new Date().toISOString();
+                          await db.collection('juryScores').doc(roomId).collection('entries').doc(entryId).set(realPatch,{merge:true});
+                        }
+                        console.log('[ghost merge] 已刪除幽靈評審',ghostId,'(entry:',entryId,')');
+                      }catch(e){console.warn('[ghost merge] 刪除失敗',ghostId,e);}
+                    });
+                  },1500);
+                }
+
                 if(document.getElementById('pg-jury')?.classList.contains('on'))renderJuryTable();
-                console.log('[jury] 已從 Firebase 補上歷史分數，共',docs.length,'筆 entries，新增本機沒有的',mergedCount,'筆');
+                console.log('[jury] Firebase 補讀完成，本機新增',mergedCount,'筆，合併幽靈評審',ghostMergedCount,'筆');
+                if(ghostMergedCount>0){
+                  showToast(`已自動合併 ${ghostMergedCount} 筆先前的評分紀錄 ✓`,'ok');
+                }
               }
             }catch(e){console.warn('[jury] 歷史分數載入失敗',e);}
           },800);
@@ -5917,13 +5993,31 @@ async function syncPendingToFirebase(){
       try{
         const data=JSON.parse(localStorage.getItem(lsKey)||'null');
         if(!data){unmarkPending(lsKey);return;}
-        // ★ lsKey 拆解：roomId=第1段；entryKey=第2段+'_'+第3段；jurorId=剩下全部
+        // ★ Bug 修正：原本用 split('_') 拆 lsKey 在 studentId 含底線時會切錯（如 's1730_5'）
+        //   改用「以 jurorId 結尾反向切割」，jurorId 從資料裡取最可靠
+        //   方法：1) lsKey 去頭 'jury_' 2) 找最後一個 '_JN_' 或用當前 ST.juryId 當尾巴切
         const stripped=lsKey.replace(/^jury_/,'');
-        const segs=stripped.split('_');
-        if(segs.length<4){console.warn('[sync] lsKey 格式異常：',lsKey);return;}
-        const roomId=segs[0];
-        const entryKey=segs[1]+'_'+segs[2];
-        const jurorId=segs.slice(3).join('_');
+        // 嘗試用當前評審 ID 當切點（最常見情境）
+        let roomId='', entryKey='', jurorId='';
+        if(ST.juryId && stripped.endsWith('_'+ST.juryId)){
+          jurorId=ST.juryId;
+          const middle=stripped.slice(0, stripped.length-jurorId.length-1);
+          const fi=middle.indexOf('_');
+          if(fi<0){console.warn('[sync] lsKey 缺少 roomId 分隔：',lsKey);return;}
+          roomId=middle.slice(0,fi);
+          entryKey=middle.slice(fi+1);
+        } else {
+          // Fallback：找最右邊的 '_JN_' 切點（jurorId 通常以 'JN_' 開頭）
+          const jnIdx=stripped.lastIndexOf('_JN_');
+          if(jnIdx<0){console.warn('[sync] lsKey 找不到 jurorId 切點：',lsKey);return;}
+          jurorId=stripped.slice(jnIdx+1);
+          const middle=stripped.slice(0,jnIdx);
+          const fi=middle.indexOf('_');
+          if(fi<0){console.warn('[sync] lsKey 缺少 roomId 分隔：',lsKey);return;}
+          roomId=middle.slice(0,fi);
+          entryKey=middle.slice(fi+1);
+        }
+        if(!roomId||!entryKey||!jurorId){console.warn('[sync] lsKey 解析失敗：',lsKey);return;}
         const patch={};
         patch[jurorId]={...data};
         try{
@@ -6122,6 +6216,13 @@ async function midSaveJury(){
   try{
     await syncPendingToFirebase();
     const stillPending=JSON.parse(localStorage.getItem(PENDING_KEY)||'[]');
+    // ★ 重新更新 session 時間戳（避免 72hr 過期）
+    try{
+      const roomId=ST.juryRoom?.id;
+      if(roomId&&ST.juryId&&ST.juryName){
+        localStorage.setItem('_jurySession_'+roomId,JSON.stringify({juryId:ST.juryId,name:ST.juryName,savedAt:Date.now()}));
+      }
+    }catch(e){}
     if(stillPending.length){
       showToast(`部分資料未上傳成功（${stillPending.length} 筆），下次儲存或送出時會再試`,'warn');
       showSyncStatus('pend',`${stillPending.length} 筆待上傳`);
@@ -6198,9 +6299,19 @@ async function submitJuryAll(){
         keysToRemove.forEach(k=>{
           try{localStorage.removeItem(k);}catch(e){}
         });
-        // 同時清空 pending queue
-        try{localStorage.removeItem(PENDING_KEY);}catch(e){}
-        console.log('[jury submit] 已清除 '+keysToRemove.length+' 筆本機暫存資料');
+        // ★ 修正：pending queue 只移除自己的 key，不影響別人
+        try{
+          const p=JSON.parse(localStorage.getItem(PENDING_KEY)||'[]');
+          const remaining=p.filter(k=>!k.endsWith('_'+myJurorId));
+          if(remaining.length){
+            localStorage.setItem(PENDING_KEY,JSON.stringify(remaining));
+          }else{
+            localStorage.removeItem(PENDING_KEY);
+          }
+        }catch(e){}
+        // ★ 同時清掉本評審的 session（送出後不應再「沿用舊身分」）
+        try{localStorage.removeItem('_jurySession_'+(ST.juryRoom?.id||''));}catch(e){}
+        console.log('[jury submit] 已清除 '+keysToRemove.length+' 筆本機暫存資料 + session');
       }
     }catch(e){console.warn('[jury submit] 清除 localStorage 失敗',e);}
   }finally{
