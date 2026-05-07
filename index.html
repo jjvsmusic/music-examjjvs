@@ -1380,7 +1380,10 @@ tbody td{color:var(--ink)!important}
               </span>
             </div>
           </div>
-          <div class="prog" style="margin-bottom:12px"><div class="prog-f" id="tea-prog" style="width:0%"></div></div>
+          <div class="prog" style="margin-bottom:6px"><div class="prog-f" id="tea-prog" style="width:0%"></div></div>
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:12px;letter-spacing:1px">
+            ℹ 每位學生在主修／副修／選修中<strong style="color:var(--sage)">任填一項即算完成</strong>，不必每樣都填
+          </div>
           <div id="tea-overview-body"></div>
         </div>
         <!-- ★ 完成提醒 banner -->
@@ -5393,11 +5396,14 @@ window.teaWizSubmitAll=teaWizSubmitAll;
 // 全部學生評量完成後的提醒與跳轉
 function teaCheckAllDone(){
   const allStus=getMyStudents();
+  // ★ 修正：每位學生「任一修別」填寫即算完成（與 teaDone 邏輯一致）
+  //   不再要求每個修別都填，老師只要在每位學生上選一樣修別打分就算完成
   const incomplete=allStus.filter(s=>{
     const types=['major','minor','elective'].filter(k=>s[k]);
     if(!types.length)return false;
-    // ★ 修正：score===0 也算填寫完成（用 !== undefined 而非 truthy 判斷）
-    return !types.every(k=>DB.teacherComments[s.id]?.[k]?.score!==undefined&&DB.teacherComments[s.id]?.[k]?.score!==null);
+    // ★ score===0 也算填寫完成（用 !== undefined 而非 truthy 判斷）
+    // ★ 改為 some：只要有任一修別已填即算完成
+    return !types.some(k=>DB.teacherComments[s.id]?.[k]?.score!==undefined&&DB.teacherComments[s.id]?.[k]?.score!==null);
   });
   if(!incomplete.length&&allStus.length>0){
     const confirmDiv=document.getElementById('tea-all-done-banner');
@@ -5412,13 +5418,16 @@ function teaCheckAllDone(){
     if(incompleteDiv){
       incompleteDiv.style.display='block';
       incompleteDiv.innerHTML=`<div style="background:#fff8e6;border:1px solid var(--gold);border-left:4px solid var(--gold);border-radius:var(--r);padding:14px 16px;margin-bottom:14px">
-        <div style="font-family:DM Mono,monospace;font-size:10px;letter-spacing:2px;color:var(--gold);margin-bottom:8px">⚠ 以下學生尚未完成全部評量</div>
+        <div style="font-family:DM Mono,monospace;font-size:10px;letter-spacing:2px;color:var(--gold);margin-bottom:8px">⚠ 以下學生尚未填寫任何評量（每位學生只需任一修別即可）</div>
         ${incomplete.map(s=>{
-          const missing=['major','minor','elective'].filter(k=>s[k]&&(DB.teacherComments[s.id]?.[k]?.score===undefined||DB.teacherComments[s.id]?.[k]?.score===null));
+          // ★ 因為改為 some 邏輯，這裡列出的學生代表「所有修別都沒填」
+          //   提供任一修別讓他點進去填寫
+          const availableTypes=['major','minor','elective'].filter(k=>s[k]);
+          const firstType=availableTypes[0]||'major';
           return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
             <span style="font-size:13px">${s.name} <span style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted)">${s.class}·座${s.seat}</span></span>
-            <span style="font-family:DM Mono,monospace;font-size:9px;color:var(--rust)">${missing.map(k=>typeName(k)).join('、')} 未填</span>
-            <button class="btn btn-p btn-xs" onclick="teaWizOpenDirect('${s.id}','${missing[0]}')">去填寫</button>
+            <span style="font-family:DM Mono,monospace;font-size:9px;color:var(--rust)">尚未評量（可填寫：${availableTypes.map(k=>typeName(k)).join('、')}）</span>
+            <button class="btn btn-p btn-xs" onclick="teaWizOpenDirect('${s.id}','${firstType}')">去填寫</button>
           </div>`;
         }).join('')}
         <div class="bg" style="margin-top:12px">
