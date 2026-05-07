@@ -30,6 +30,10 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
 body{font-family:Noto Serif TC,serif;background:var(--paper);color:var(--ink);display:flex;flex-direction:column;font-size:15px}
+/* iPhone 瀏海/Dynamic Island 後方的視覺延伸：與 topbar 同色避免米白底露出 */
+body::before{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0);background:var(--ink);z-index:8500;pointer-events:none}
+/* 離線提示 bar 顯示時，瀏海後方改成 rust 色（與 off-bar 一致） */
+body:has(.off-bar.show)::before{background:var(--rust)}
 body::after{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");pointer-events:none;z-index:9000}
 
 /* LOGIN */
@@ -452,9 +456,135 @@ td{color:var(--ink)}
 /* Ensure all table text is readable */
 tbody td{color:var(--ink)!important}
 
-/* PWA safe area */
-@supports(padding-bottom:env(safe-area-inset-bottom)){
-  .main{padding-bottom:calc(40px + env(safe-area-inset-bottom))}
+/* PWA safe area — iPhone 瀏海/Dynamic Island/橫式邊緣處理 */
+@supports(padding:env(safe-area-inset-top)){
+  /* 頂部：把 topbar 整個推下來避開瀏海 */
+  .topbar{
+    padding-top:env(safe-area-inset-top);
+    padding-left:max(20px, env(safe-area-inset-left));
+    padding-right:max(20px, env(safe-area-inset-right));
+    height:calc(52px + env(safe-area-inset-top));
+  }
+  /* 離線提示 bar 顯示時，讓 off-bar 處理瀏海避讓，topbar 退回正常高度避免重複留白 */
+  .off-bar.show ~ .topbar{
+    padding-top:0;
+    height:52px;
+  }
+  /* 主內容區：底部避開 Home Indicator，左右避開橫式時的圓角 */
+  .main{
+    padding-bottom:calc(40px + env(safe-area-inset-bottom));
+    padding-left:max(24px, env(safe-area-inset-left));
+    padding-right:max(24px, env(safe-area-inset-right));
+  }
+  /* 離線提示 bar 也避開瀏海 */
+  .off-bar{padding-top:calc(8px + env(safe-area-inset-top))}
+  /* 登入畫面整體填滿但內容避開瀏海 */
+  .login-screen{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+  /* 底部固定操作列（如評審頁的「送出評分」工具列）避開 Home Indicator */
+  .fixed-bottom-bar{padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+  /* 全螢幕 overlay/modal 在瀏海下也不被遮 */
+  .overlay{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+}
+
+/* 手機版的 .main padding 需要再次覆蓋（媒體查詢優先序問題） */
+@media (max-width:768px){
+  @supports(padding:env(safe-area-inset-top)){
+    .topbar{
+      padding-left:max(12px, env(safe-area-inset-left));
+      padding-right:max(12px, env(safe-area-inset-right));
+    }
+    .main{
+      padding-left:max(12px, env(safe-area-inset-left));
+      padding-right:max(12px, env(safe-area-inset-right));
+    }
+  }
+}
+
+/* ══ 考試規則與指定曲：學生/教師端的內容渲染樣式（全域生效） ══ */
+/* 容器：水平捲動 + 防止內容被擋 */
+.er-content{
+  width:100%;
+  max-width:100%;
+  overflow-x:auto;        /* ★ 表格過寬時可水平捲動 */
+  overflow-y:visible;
+  -webkit-overflow-scrolling:touch; /* iOS 慣性捲動 */
+  word-wrap:break-word;
+  overflow-wrap:break-word;
+  box-sizing:border-box;
+}
+/* 表格：響應式處理 */
+.er-content table{
+  border-collapse:collapse;
+  margin:8px 0;
+  /* 桌面用 100% 寬，但手機允許自然撐開讓 overflow-x 接管 */
+  width:auto;
+  min-width:100%;
+  max-width:none;
+}
+.er-content td,.er-content th{
+  border:1px solid #d0d0d0;
+  padding:8px 12px;
+  vertical-align:top;
+  word-break:break-word;
+  min-width:80px;
+}
+.er-content th{background:#f5f5f0;font-weight:600}
+/* 圖片：強制不超出容器寬 */
+.er-content img{
+  max-width:100%;
+  height:auto;
+  display:block;
+  margin:8px 0;
+  border-radius:4px;
+}
+.er-content hr{border:none;border-top:2px solid var(--border);margin:12px 0}
+.er-content ul,.er-content ol{padding-left:24px;margin:8px 0}
+.er-content p{margin:6px 0}
+/* 預先格式化文字也允許捲動 */
+.er-content pre{
+  white-space:pre-wrap;
+  word-break:break-word;
+  background:#f5f5f0;
+  padding:8px 12px;
+  border-radius:4px;
+  overflow-x:auto;
+}
+
+/* 手機版（768px 以下）特別優化 */
+@media (max-width:768px){
+  /* 卡片內距縮小，留給內容更多空間 */
+  #pg-exam-rules .card{padding:14px 12px}
+  /* 內容區字級稍大，行高更舒服 */
+  .er-content{font-size:14px;line-height:2.0}
+  /* 表格在手機上強制最小欄寬，並用單獨容器水平捲動 */
+  .er-content table{
+    display:block;       /* ★ 關鍵：讓表格可獨立捲動 */
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    white-space:nowrap;  /* 表格內不換行，讓使用者用滑動看完 */
+    width:100%;
+    max-width:100%;
+    border:1px solid var(--border);
+    border-radius:6px;
+  }
+  .er-content table td,.er-content table th{
+    white-space:normal;  /* 儲存格內仍可換行 */
+    min-width:90px;
+    max-width:240px;
+  }
+  /* 表格滑動提示視覺：右邊緣用漸層暗示「還能滑」 */
+  .er-content table{position:relative}
+  /* 頂部 tab 在手機橫排會擠，改用換行+小一號 */
+  #exam-rules-tabs button{
+    font-size:13px !important;
+    padding:9px 16px !important;
+    flex:1 1 auto;
+    min-width:130px;
+  }
+}
+/* 桌面也讓寬表格能捲動（避免擠破卡片） */
+@media (min-width:769px){
+  .er-content{overflow-x:auto}
 }</style>
 
 <!-- ══ SERVICE WORKER 註冊 ══ -->
@@ -3844,10 +3974,10 @@ const NAV_MAP = {
     {label:'曲目填寫',page:'rep'},
     {label:'評語',page:'scores'},
     {label:'考試順序',page:'stu-schedule'},
-    {label:'考試規則',page:'exam-rules'},
+    {label:'考試規則與指定曲',page:'exam-rules'},
     {label:'成績總表',page:'live-results'},
   ],
-  teacher:[{label:'平時評量',page:'teacher'},{label:'考試順序',page:'tea-schedule'},{label:'考試規則',page:'exam-rules'},{label:'成績總表',page:'live-results'},{label:'學生評語',page:'tea-jury-comments'}],
+  teacher:[{label:'平時評量',page:'teacher'},{label:'考試順序',page:'tea-schedule'},{label:'考試規則與指定曲',page:'exam-rules'},{label:'成績總表',page:'live-results'},{label:'學生評語',page:'tea-jury-comments'}],
   jury:[{label:'現場評分',page:'jury'}],
   invigilator:[{label:'監考管理',page:'invigilator'}],
   admin:[
@@ -8573,7 +8703,36 @@ function switchExamRulesTab(tab,btn){
   if(html&&html.replace(/<[^>]+>/g,'').trim()){
     if(panel)panel.style.display='block';
     if(empty)empty.style.display='none';
-    if(content)content.innerHTML=html;
+    if(content){
+      content.innerHTML=html;
+      // ★ 為過寬的表格加上「可左右滑動」提示（手機常見問題）
+      setTimeout(()=>{
+        try{
+          content.querySelectorAll('table').forEach(t=>{
+            // 表格實際內容寬 vs 顯示寬
+            if(t.scrollWidth>t.clientWidth+2){
+              if(!t.dataset.scrollHinted){
+                t.dataset.scrollHinted='1';
+                // 在表格上方插入提示
+                const hint=document.createElement('div');
+                hint.style.cssText='font-family:DM Mono,monospace;font-size:10px;color:var(--gold);margin:4px 0 -2px;letter-spacing:1px;display:flex;align-items:center;gap:4px';
+                hint.innerHTML='← 表格可左右滑動 →';
+                t.parentNode.insertBefore(hint,t);
+                // 滑動後淡出提示
+                t.addEventListener('scroll',()=>{
+                  if(t.scrollLeft>4)hint.style.opacity='0.3';
+                },{passive:true});
+              }
+            }
+          });
+          // 圖片過寬時自動縮放
+          content.querySelectorAll('img').forEach(img=>{
+            img.style.maxWidth='100%';
+            img.style.height='auto';
+          });
+        }catch(e){console.warn('[exam-rules] 表格捲動偵測失敗',e);}
+      },80);
+    }
   } else {
     if(panel)panel.style.display='none';
     if(empty)empty.style.display='block';
