@@ -721,35 +721,8 @@ tbody td{color:var(--ink)!important}
     });
   }
 
-  // liveExam 輪詢
-  window._startLiveExamListener = function(){
-    if(!window._FB)return;
-    // ★ 修正：ST 定義在另一個 IIFE 內，須透過 window.ST 訪問
-    const ST=window.ST;
-    if(!ST)return;
-    if(ST.role==='student')return;
-    if(window._pollTimers.live){return;}
-    async function pollLive(){
-      if(document.hidden)return;
-      try{
-        const docs = await _fsList('liveExam');
-        let changed = false;
-        docs.forEach(d => {
-          const {id, ...rest} = d;
-          if(JSON.stringify(window.DB.liveExam[id]) !== JSON.stringify(rest)){
-            window.DB.liveExam[id] = rest; changed = true;
-          }
-        });
-        if(changed){
-          if(document.getElementById('pg-jury')?.classList.contains('on')&&typeof renderJuryTable==='function')renderJuryTable();
-          if(document.getElementById('pg-invigilator')?.classList.contains('on')&&typeof window._patchInvigLive==='function')window._patchInvigLive();
-        }
-      }catch(e){}
-    }
-    const interval = (ST.role==='admin') ? 15000 : 6000;
-    pollLive();
-    window._pollTimers.live = {fn:pollLive, interval, id:setInterval(pollLive,interval)};
-  };
+  // ★ 離線化方案：liveExam 輪詢已停用（原本每 6 秒輪詢，每天造成 ~72 萬次讀取）
+  window._startLiveExamListener = function(){ /* disabled — offline mode */ };
 
   window._startJuryListener = function(){
     if(!window._FB)return;
@@ -1531,6 +1504,7 @@ tbody td{color:var(--ink)!important}
         </div>
       </div>
       <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:14px;gap:10px;flex-wrap:wrap">
+        <button class="btn" style="font-size:14px;padding:10px 18px;background:var(--steel);color:#fff;min-height:44px" onclick="midSaveJury()" title="把目前進度上傳到雲端做備份，但不結束評分">💾 中場儲存</button>
         <button class="btn btn-b" style="font-size:16px;padding:12px 24px;font-weight:700;min-height:48px" onclick="checkJuryBeforeSubmit()">✔ 填寫完畢確認</button>
         <button class="btn btn-g" style="font-size:17px;padding:12px 28px;font-weight:700;min-height:48px;letter-spacing:.5px" onclick="submitJuryAll()">↑ 送出全部評分</button>
       </div>
@@ -1559,6 +1533,7 @@ tbody td{color:var(--ink)!important}
       </div>
       <!-- ★ 底部送出按鈕 -->
       <div style="display:flex;align-items:center;justify-content:flex-end;margin-top:20px;gap:10px;flex-wrap:wrap">
+        <button class="btn" style="font-size:14px;padding:10px 18px;background:var(--steel);color:#fff;min-height:44px" onclick="midSaveJury()" title="把目前進度上傳到雲端做備份，但不結束評分">💾 中場儲存</button>
         <button class="btn btn-b" style="font-size:16px;padding:12px 24px;font-weight:700;min-height:48px" onclick="checkJuryBeforeSubmit()">✔ 填寫完畢確認</button>
         <button class="btn btn-g" style="font-size:17px;padding:12px 28px;font-weight:700;min-height:48px;letter-spacing:.5px" onclick="submitJuryAll()">↑ 送出全部評分</button>
       </div>
@@ -2792,6 +2767,23 @@ function doJuryLogin(){
       localStorage.setItem('_jurySession_'+roomId,JSON.stringify({juryId:ST.juryId,name:ST.juryName,savedAt:Date.now()}));
     }
   }catch(e){}
+  // ★ 離線化方案：第一次進入時提示重要事項（同一裝置只提示一次）
+  try{
+    const noticeKey='_jurySession_offlineNotice_'+roomId;
+    if(!localStorage.getItem(noticeKey)){
+      setTimeout(()=>{
+        alert(
+          '⚠️ 重要提醒（離線評分模式）\n\n' +
+          '本系統採離線評分以節省網路用量：\n\n' +
+          '• 評分過程「不會即時上傳」，請使用同一裝置全程評分\n' +
+          '• 中途想備份可按「💾 中場儲存」按鈕\n' +
+          '• 評分結束務必按「↑ 送出全部評分」\n' +
+          '• 切勿中途清除瀏覽器資料或更換裝置'
+        );
+        try{localStorage.setItem(noticeKey,'1');}catch(e){}
+      },500);
+    }
+  }catch(e){}
   launchApp();
 }
 window.doJuryLogin=doJuryLogin;
@@ -3657,7 +3649,7 @@ function launchApp(){
         // ★ 延遲啟動輪詢監聽（不阻塞首屏渲染）
         setTimeout(()=>{
           if(window._startJuryListener)window._startJuryListener();
-          if(window._startLiveExamListener)window._startLiveExamListener();
+          // ★ 離線化方案：已停用 _startLiveExamListener（liveExam 不再雲端同步）
         },500);
         // ★ 改進 A+C：評審進場時一次性讀取自己考場的歷史分數（不啟動輪詢）
         if(ST.role==='jury'&&ST.juryRoom?.id&&window._FB){
@@ -5706,33 +5698,8 @@ function saveJCell(i,roomId,entryKey,field,val){
   // ── 2. 標記 pending ──
   markPending(lsKey);
 
-  // ── 3. 若有網路，即時寫入 Firestore（debounce 800ms 合併連續修改） ──
-  if(ST.isOnline&&window._FB){
-    showSyncStatus('sync','正在同步...');
-    if(!window._jcDebounce)window._jcDebounce={};
-    const dbKey=roomId+'_'+entryKey+'_'+myId;
-    if(window._jcDebounce[dbKey])clearTimeout(window._jcDebounce[dbKey]);
-    window._jcDebounce[dbKey]=setTimeout(()=>{
-      const {db,serverTimestamp}=window._FB;
-      const entryRef=db.collection('juryScores').doc(roomId)
-        .collection('entries').doc(entryKey);
-      const patch={};
-      const jurorData={...DB.juryScores[roomId][entryKey][myId]};
-      if(ST.juryName)jurorData._jurorName=ST.juryName;
-      patch[myId]=jurorData;
-      patch['_updatedAt']=serverTimestamp();
-      entryRef.set(patch,{merge:true})
-        .then(()=>{
-          const cur=localStorage.getItem(lsKey);
-          if(cur===JSON.stringify(DB.juryScores[roomId][entryKey][myId])){unmarkPending(lsKey);showSyncStatus('ok','已同步 ✓');}
-          else{showSyncStatus('sync','...');}
-        })
-        .catch(()=>showSyncStatus('pend','離線暫存'));
-      delete window._jcDebounce[dbKey];
-    },800);
-  } else {
-    showSyncStatus('pend','離線暫存 — 連線後自動同步');
-  }
+  // ── 3. ★ 離線化方案：所有評分僅寫 localStorage，等中場儲存或送出時才上傳 ──
+  showSyncStatus('pend','已暫存（送出時上傳）');
 }
 
 // ════════════════════════════════════════════════
@@ -5756,12 +5723,8 @@ function saveJRemark(i,roomId,entryKey,val){
     }else if(val!=='其他'&&ta){ta.remove();}
   }
   const data=DB.juryScores[roomId][entryKey][myId];
-  if(ST.isOnline&&window._FB){
-    const {db,serverTimestamp}=window._FB;
-    const patch={};patch[myId]={...data};patch._updatedAt=serverTimestamp();
-    db.collection('juryScores').doc(roomId).collection('entries').doc(entryKey).set(patch,{merge:true}).catch(()=>{});
-  }
-  try{const lsKey=`jury_${roomId}_${entryKey}_${myId}`;localStorage.setItem(lsKey,JSON.stringify(data));}catch(e){}
+  // ★ 離線化：備註只寫 localStorage，送出時批次上傳
+  try{const lsKey=`jury_${roomId}_${entryKey}_${myId}`;localStorage.setItem(lsKey,JSON.stringify(data));markPending(lsKey);}catch(e){}
 }
 window.saveJRemark=saveJRemark;
 
@@ -5770,12 +5733,8 @@ function saveJRemarkText(i,roomId,entryKey,val){
   if(!DB.juryScores[roomId]?.[entryKey]?.[myId])return;
   DB.juryScores[roomId][entryKey][myId]._remarkText=val;
   const data=DB.juryScores[roomId][entryKey][myId];
-  if(ST.isOnline&&window._FB){
-    const {db,serverTimestamp}=window._FB;
-    const patch={};patch[myId]={...data};patch._updatedAt=serverTimestamp();
-    db.collection('juryScores').doc(roomId).collection('entries').doc(entryKey).set(patch,{merge:true}).catch(()=>{});
-  }
-  try{const lsKey=`jury_${roomId}_${entryKey}_${myId}`;localStorage.setItem(lsKey,JSON.stringify(data));}catch(e){}
+  // ★ 離線化：備註說明只寫 localStorage，送出時批次上傳
+  try{const lsKey=`jury_${roomId}_${entryKey}_${myId}`;localStorage.setItem(lsKey,JSON.stringify(data));markPending(lsKey);}catch(e){}
 }
 window.saveJRemarkText=saveJRemarkText;
 
@@ -5878,17 +5837,13 @@ function _debouncedFbSet(col,docId,data,ms=600){
 }
 
 function toggleBlackSign(roomId,entryKey,rowIdx,checked){
-  if(!DB.blackSign[roomId])DB.blackSign[roomId]={};
-  if(checked){DB.blackSign[roomId][entryKey]=true;}
-  else{delete DB.blackSign[roomId][entryKey];}
-  _debouncedFbSet('blackSign',roomId,{...DB.blackSign[roomId]},500);
-  renderInvigTable();
-  if(document.getElementById('pg-jury')?.classList.contains('on'))renderJuryTable();
-  showToast(checked?'已標記黑簽全曲 ✓':'已取消黑簽','ok');
+  // ★ 黑簽功能已停用（離線化方案）
+  showToast('黑簽功能已停用','warn');
 }
 window.toggleBlackSign=toggleBlackSign;
 
 function toggleLivePlay(roomId,entryKey,rowIdx){
+  // ★ 離線化：只更新本機 UI 顯示「目前演奏中」，不寫雲端、不通知評審
   if(!DB.liveExam[roomId])DB.liveExam[roomId]={};
   const cur=DB.liveExam[roomId].playing||'';
   if(cur===entryKey){
@@ -5900,23 +5855,14 @@ function toggleLivePlay(roomId,entryKey,rowIdx){
     if(typeof window._patchInvigLive==='function')window._patchInvigLive();
     else renderInvigTable();
   }
-  if(document.getElementById('pg-jury')?.classList.contains('on'))renderJuryTable();
-  if(ST.isOnline&&window._FB){
-    // ★ 修正 R6：toggleLivePlay 是「立即性」動作，不 debounce 但加保護
-    fbSet('liveExam',roomId,{...DB.liveExam[roomId]});
-  }
+  // ★ 已移除：Firebase 寫入、通知評審頁
 }
 window.toggleLivePlay=toggleLivePlay;
 
 function saveScaleKey(roomId,entryKey,val){
+  // ★ 離線化：調號只本機紀錄，不上傳
   if(!DB.liveExam[roomId])DB.liveExam[roomId]={};
   DB.liveExam[roomId].scaleKey=val;
-  if(ST.isOnline&&window._FB){
-    // ★ 修正 R6：debounce 500ms（避免快速切換調號頻繁寫）
-    _debouncedFbSet('liveExam',roomId,{...DB.liveExam[roomId]},500);
-  } else {
-    if(document.getElementById('pg-jury')?.classList.contains('on'))renderJuryTable();
-  }
   // 監考頁面用局部更新，不重建（保護正在輸入的 input focus）
   if(document.getElementById('pg-invigilator')?.classList.contains('on')&&typeof window._patchInvigLive==='function')window._patchInvigLive();
 }
@@ -5941,42 +5887,38 @@ async function syncPendingToFirebase(){
   if(!pending.length)return;
   showSyncStatus('sync',`同步 ${pending.length} 筆離線資料...`);
   let ok=0,fail=0;
-  // ★ 修正 R5：改用 fbSet（內含 REST/SDK 相容）；不再每筆讀一次（成本減半）
-  // 衝突保護：寫入時帶 _localUpdatedAt，由其他客戶端 merge 時自行決策
-  for(const lsKey of pending){
-    try{
-      const data=JSON.parse(localStorage.getItem(lsKey)||'null');
-      if(!data){unmarkPending(lsKey);continue;}
-      // ★ 修正：lsKey 拆解不能用「最後一段為 jurorId」
-      //   因為 jurorId 現在格式為 'JN_roomId_姓名'，內部已有 '_'
-      //   正確拆解：roomId=第1段；entryKey=第2段+'_'+第3段（studentId_type）；jurorId=剩下全部
-      const stripped=lsKey.replace(/^jury_/,'');
-      const segs=stripped.split('_');
-      if(segs.length<4){console.warn('[sync] lsKey 格式異常：',lsKey);continue;}
-      const roomId=segs[0];
-      const entryKey=segs[1]+'_'+segs[2];
-      const jurorId=segs.slice(3).join('_');
-      const patch={};
-      patch[jurorId]={...data};
-      // 用 await fbSet 並等待完成
-      await new Promise(resolve=>{
+  // ★ 離線化方案：改成並行寫入（10 筆一批），90 筆從 ~60 秒縮到 ~10 秒
+  const BATCH=10;
+  for(let i=0;i<pending.length;i+=BATCH){
+    const batch=pending.slice(i,i+BATCH);
+    await Promise.all(batch.map(async lsKey=>{
+      try{
+        const data=JSON.parse(localStorage.getItem(lsKey)||'null');
+        if(!data){unmarkPending(lsKey);return;}
+        // ★ lsKey 拆解：roomId=第1段；entryKey=第2段+'_'+第3段；jurorId=剩下全部
+        const stripped=lsKey.replace(/^jury_/,'');
+        const segs=stripped.split('_');
+        if(segs.length<4){console.warn('[sync] lsKey 格式異常：',lsKey);return;}
+        const roomId=segs[0];
+        const entryKey=segs[1]+'_'+segs[2];
+        const jurorId=segs.slice(3).join('_');
+        const patch={};
+        patch[jurorId]={...data};
         try{
           if(window._FB._rest){
-            window._FB._set('juryScores/'+roomId+'/entries/'+entryKey,patch).then(success=>{
-              if(success){unmarkPending(lsKey);ok++;}else{fail++;}
-              resolve();
-            }).catch(()=>{fail++;resolve();});
+            const success=await window._FB._set('juryScores/'+roomId+'/entries/'+entryKey,patch);
+            if(success){unmarkPending(lsKey);ok++;}else{fail++;}
           }else{
             const {db,serverTimestamp}=window._FB;
             const finalPatch={...patch,_updatedAt:serverTimestamp()};
-            db.collection('juryScores').doc(roomId).collection('entries').doc(entryKey)
-              .set(finalPatch,{merge:true})
-              .then(()=>{unmarkPending(lsKey);ok++;resolve();})
-              .catch(()=>{fail++;resolve();});
+            await db.collection('juryScores').doc(roomId).collection('entries').doc(entryKey).set(finalPatch,{merge:true});
+            unmarkPending(lsKey);ok++;
           }
-        }catch(e){fail++;resolve();}
-      });
-    }catch(e){fail++;}
+        }catch(e){fail++;}
+      }catch(e){fail++;}
+    }));
+    // 每批之間更新一下進度
+    showSyncStatus('sync',`同步中... ${ok}/${pending.length}`);
   }
   if(fail>0)showSyncStatus('pend',`已同步 ${ok} 筆 ✓（${fail} 筆失敗，下次再試）`);
   else showSyncStatus('ok',`已同步 ${ok} 筆 ✓`);
@@ -6133,6 +6075,46 @@ function checkJuryBeforeSubmit(){
 }
 
 function confirmSubmitJury(){closeOverlay('check-modal');submitJuryAll();}
+
+// ★ 中場儲存：把目前 localStorage 的暫存推上 Firebase，但不結束評分流程
+//   評審可隨時按此按鈕做雲端備份（如午休、休息時段）
+async function midSaveJury(){
+  if(ST.role==='admin'){showToast('管理員模式為唯讀','warn');return;}
+  if(window._midSavingJury){return;}
+  window._midSavingJury=true;
+
+  flushAllComments(); // 把還在編輯中的評語先寫進 DB
+
+  if(!navigator.onLine){
+    showToast('目前離線，無法上傳。請連上網路後再試','err');
+    window._midSavingJury=false;
+    return;
+  }
+  if(!window._FB){
+    showToast('系統未初始化，無法上傳','err');
+    window._midSavingJury=false;
+    return;
+  }
+
+  showSyncStatus('sync','中場儲存中...');
+  try{
+    await syncPendingToFirebase();
+    const stillPending=JSON.parse(localStorage.getItem(PENDING_KEY)||'[]');
+    if(stillPending.length){
+      showToast(`部分資料未上傳成功（${stillPending.length} 筆），下次儲存或送出時會再試`,'warn');
+      showSyncStatus('pend',`${stillPending.length} 筆待上傳`);
+    } else {
+      showToast('✓ 中場儲存完成，可繼續評分','ok');
+      showSyncStatus('ok','已儲存 ✓');
+    }
+  }catch(e){
+    showToast('中場儲存失敗：'+(e.message||e),'err');
+    showSyncStatus('pend','儲存失敗');
+  }finally{
+    setTimeout(()=>{window._midSavingJury=false;},2000);
+  }
+}
+window.midSaveJury=midSaveJury;
 
 async function submitJuryAll(){
   // ★ Bug6 修正：管理員唯讀，禁止送出
@@ -11809,7 +11791,7 @@ const _expose = [
   'filterRepInst','toggleElective','previewRep','backToRepForm','submitRep','editRep','renderRepDoneInfo','renderRepPage',
   'doLookup','clearLookup',
   'openTeaModal','swTeaTab','saveTeaComment','teaWizStart','teaWizPickClass','teaWizPickStu','teaWizPickType','teaWizBack','teaWizSaveAndNext','teaWizSubmitAll','teaWizOpenDirect','openTeaStuModal','tsmFilterClass','saveTeaStu','teaWizNameSearch','teaWizS1NameSearch',
-  'checkJuryBeforeSubmit','submitJuryAll','confirmSubmitJury','toggleAbsent','saveJCell',
+  'checkJuryBeforeSubmit','submitJuryAll','confirmSubmitJury','midSaveJury','toggleAbsent','saveJCell',
   'generateSchedule','exportScheduleCSV','publishSchedule','schResetFilters','schResetToRoomDefaults','schSaveSchedule','schLoadSchedule','schInitSortBar','schAddExcludeRule','schRemoveExcludeRule','renderSchExcludeUI','schToggleSortKey','openDisqModal','saveDisq','removeDisq','importDisqCSV','exportDisqCSV','downloadDisqSample','renderDisqList','onSchRoomChange','schRoomCatToggle','schRoomInstToggle','openSchAddModal','schAddSearch','schAddEntry','schRestoreEntry','schRemoveEntry','schAddCurrentFilter',
   'openAddDisqIndividual','adimSearch','adimSelect','saveDisqIndividual',
   'renderTeaSchedulePage','teaSchSelectRoom','renderLiveResults','renderTeaJuryComments','renderAdminResults','exportAdminResultsCSV','renderDeleteJurorBar','deleteJurorFromRoom',
@@ -11836,7 +11818,7 @@ const _expose = [
   'renderJsupAdminPanel','renderJsupOptsList','addJsupOption','jsupUpdateOptLabel','jsupUpdateOptFlag','jsupDelOption','saveJurySignupConfig','saveJsupOptions','renderJsupAdminTable','exportJsupCSV',
 ];
 // ★ 安全暴露到 window（不用 eval，改用函數名對照表）
-const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schResetToRoomDefaults,schSaveSchedule,schLoadSchedule,schInitSortBar,schAddExcludeRule,schRemoveExcludeRule,renderSchExcludeUI,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,renderLiveResults,renderTeaJuryComments,renderAdminResults,exportAdminResultsCSV,renderDeleteJurorBar,deleteJurorFromRoom,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,openStuRoomModal,saveStuRoomModal,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,rfAddRule,rfRemoveRule,rfReadRulesFromDOM,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveBulletin,renderBulletin,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,publishResults,unpublishResults,renderAdminInstChangeNotices,markInstChangeRead,markAllInstChangesRead,updateDelJurorList,deleteJurorScores,cleanGhostJurors,adminPublishSnapshot,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,erShowTab,erAdminTab,erCmd,erInsertTable,erInsertImage,erSave,erInitAdminEditors,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,teaInlineToggle,teaInlineEdit,teaInlineSave,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,_renderJsupSubmittedSummary,_jsupReopenForm,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,saveJsupOptions,renderJsupAdminTable,exportJsupCSV};
+const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,midSaveJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schResetToRoomDefaults,schSaveSchedule,schLoadSchedule,schInitSortBar,schAddExcludeRule,schRemoveExcludeRule,renderSchExcludeUI,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,renderLiveResults,renderTeaJuryComments,renderAdminResults,exportAdminResultsCSV,renderDeleteJurorBar,deleteJurorFromRoom,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,openStuRoomModal,saveStuRoomModal,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,rfAddRule,rfRemoveRule,rfReadRulesFromDOM,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveBulletin,renderBulletin,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,publishResults,unpublishResults,renderAdminInstChangeNotices,markInstChangeRead,markAllInstChangesRead,updateDelJurorList,deleteJurorScores,cleanGhostJurors,adminPublishSnapshot,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,erShowTab,erAdminTab,erCmd,erInsertTable,erInsertImage,erSave,erInitAdminEditors,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,teaInlineToggle,teaInlineEdit,teaInlineSave,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,_renderJsupSubmittedSummary,_jsupReopenForm,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,saveJsupOptions,renderJsupAdminTable,exportJsupCSV};
 Object.keys(_fnMap).forEach(function(name){ window[name] = _fnMap[name]; });
 
 // ★ 頁面載入後立即從 Firebase 同步 users，讓登入時帳密是最新狀態
