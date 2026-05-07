@@ -2183,16 +2183,17 @@ tbody td{color:var(--ink)!important}
               <select id="jsup-admin-room-filter" onchange="renderJsupAdminTable()" style="padding:4px 9px;border:1px solid var(--border);background:var(--paper);border-radius:var(--r);font-size:12px;outline:none">
                 <option value="">全部考場</option>
               </select>
-              <button class="btn btn-b btn-sm" onclick="exportJsupCSV()">↓ 匯出 CSV</button>
+              <button class="btn btn-b btn-sm" onclick="exportJsupCSV()" title="長表格式：每教師×每考場一列">↓ 匯出 CSV</button>
+              <button class="btn btn-s btn-sm" onclick="exportJsupCSVWide()" title="橫向格式：每教師一列，考場為欄（與表格顯示一致）">↓ 橫向 CSV</button>
             </div>
           </div>
           <!-- 考場分組摘要 -->
           <div id="jsup-admin-summary" style="margin-bottom:14px"></div>
-          <!-- 明細表格 -->
+          <!-- 明細表格（橫向：教師為列、考場為欄；JS 會動態重建 thead） -->
           <div class="tw">
             <table>
               <thead><tr>
-                <th>教師</th><th>指導學生數</th><th>報名考場</th><th>參與狀態</th><th>代評老師</th><th>備註</th><th>送出時間</th>
+                <th>教師</th><th>指導學生數</th><th>參與狀態</th><th>各考場</th><th>備註</th><th>送出時間</th>
               </tr></thead>
               <tbody id="jsup-admin-tbody"></tbody>
             </table>
@@ -2282,6 +2283,7 @@ tbody td{color:var(--ink)!important}
         <div class="bg" style="flex-wrap:wrap">
           <button class="btn btn-b btn-sm" onclick="exportResultsCSV()">↓ 匯出本場 CSV</button>
           <button class="btn btn-s btn-sm" onclick="exportResultsCSV(true)">↓ 全部匯出</button>
+          <button class="btn btn-b btn-sm" onclick="openExportSummaryModal()" title="按學生彙整：含主/副/選修各成績與評語，可分班級下載">📑 彙整成績下載（按班級）</button>
           <button class="btn btn-g" onclick="publishResults()" id="publish-results-btn">📢 發佈成績給學生/教師</button>
           <button class="btn btn-d btn-sm" onclick="unpublishResults()" id="unpublish-results-btn" style="display:none">🔒 收回發佈</button>
           <button class="btn btn-p btn-sm" onclick="adminPublishSnapshot('scores')" title="推送最新成績資料給學生/教師（會更新他們的快取）">⟳ 推送更新</button>
@@ -10299,6 +10301,287 @@ function exportResultsCSV(allClasses){
 }
 
 // ════════════════════════════════════════════════
+// ★ 彙整成績下載：按班級、按學生（一位學生一筆）
+//   欄位：座號 / 姓名 / 主修細項 / 副修細項 / 選修細項 /
+//         主修總成績 / 副修總成績 / 選修總成績 /
+//         主修平時成績 / 副修平時成績 / 選修平時成績 /
+//         主修平時評語 / 副修平時評語 / 選修平時評語
+// ════════════════════════════════════════════════
+function openExportSummaryModal(){
+  // 蒐集現有班級
+  const classSet=new Set();
+  DB.users.filter(u=>u.role==='student').forEach(s=>{if(s.class)classSet.add(s.class);});
+  const classList=[...classSet].sort();
+  if(!classList.length){showToast('找不到任何班級資料','err');return;}
+
+  // 動態建一個簡單 modal（不重複用既有 edit-modal 以免衝突）
+  let modal=document.getElementById('export-summary-modal');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='export-summary-modal';
+    modal.className='overlay';
+    modal.innerHTML=`<div class="modal" style="max-width:520px">
+      <div class="modal-h"><span>📑 彙整成績下載</span><button class="modal-x" onclick="closeOverlay('export-summary-modal')">✕</button></div>
+      <div style="padding:8px 0 14px;font-size:13px;color:var(--muted);line-height:1.7">
+        每位學生一列，包含座號、姓名、主修／副修／選修的<strong style="color:var(--ink)">樂器細項、總成績（術科最終分）、平時成績、平時評語</strong>。
+      </div>
+      <div class="lf">
+        <label style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">下載班級</label>
+        <select id="export-summary-class" style="padding:7px 12px;border:1px solid var(--border);background:var(--paper);font-family:Noto Serif TC,serif;font-size:14px;outline:none;border-radius:var(--r);width:100%">
+          <option value="__all_zip__">全部班級（ZIP，每班一個 CSV 檔）</option>
+          <option value="__all_one__">全部班級（合併在一個 CSV）</option>
+          <optgroup label="—— 單一班級 ——">
+          ${classList.map(c=>`<option value="${c}">${c}</option>`).join('')}
+          </optgroup>
+        </select>
+      </div>
+      <div class="modal-ft" style="margin-top:14px">
+        <button class="btn btn-s" onclick="closeOverlay('export-summary-modal')">取消</button>
+        <button class="btn btn-p" onclick="doExportSummary()">↓ 下載</button>
+      </div>
+    </div>`;
+    document.body.appendChild(modal);
+  } else {
+    // 重整班級列表（避免快取舊資料）
+    const sel=modal.querySelector('#export-summary-class');
+    if(sel){
+      sel.innerHTML=`<option value="__all_zip__">全部班級（ZIP，每班一個 CSV 檔）</option>
+        <option value="__all_one__">全部班級（合併在一個 CSV）</option>
+        <optgroup label="—— 單一班級 ——">
+        ${classList.map(c=>`<option value="${c}">${c}</option>`).join('')}
+        </optgroup>`;
+    }
+  }
+  openOverlay('export-summary-modal');
+}
+window.openExportSummaryModal=openExportSummaryModal;
+
+// ★ 計算彙整成績資料（給定班級或全部，回傳 row 物件陣列）
+function _buildSummaryRows(classFilter){
+  let stus=DB.users.filter(u=>u.role==='student');
+  if(classFilter)stus=stus.filter(s=>s.class===classFilter);
+
+  // 排序：班級 → 座號
+  stus.sort((a,b)=>{
+    const cc=String(a.class||'').localeCompare(String(b.class||''),'zh-TW');
+    if(cc!==0)return cc;
+    return (parseInt(a.seat,10)||0)-(parseInt(b.seat,10)||0);
+  });
+
+  // 為了拿術科總成績，需要從 schedule snapshot 找 entryKey
+  const snap=DB.savedScheduleSnapshot||{};
+  const hasSnap=Object.values(snap).some(arr=>arr&&arr.length>0);
+  let allSched=[];
+  if(hasSnap){
+    Object.entries(snap).forEach(([snapRoomId,snaps])=>{
+      (snaps||[]).forEach(e=>allSched.push({...e,roomId:snapRoomId}));
+    });
+  } else {
+    allSched=getScheduleEntries();
+  }
+  const examScoreMap={};
+  allSched.forEach(e=>{
+    const entryKey=e.studentId+'_'+e.type;
+    const jurorData=DB.juryScores[e.roomId]?.[entryKey]||{};
+    const scoreArr=_safeJurors(jurorData);
+    if(!scoreArr.length){examScoreMap[entryKey]={final:null,isAbsent:false};return;}
+    const result=calcFinal(scoreArr);
+    const ded=DB.deductions[entryKey]||{amount:0,reason:''};
+    const finalWithDed=result.finalScore!==null?Math.max(0,result.finalScore-(ded.amount||0)):null;
+    const isAbsent=scoreArr.some(s=>s.absent);
+    examScoreMap[entryKey]={final:isAbsent?0:finalWithDed,isAbsent};
+  });
+
+  const instById={};
+  (DB.instruments?.items||[]).forEach(it=>{instById[it.id]=it;});
+  const nameOfInst=(id)=>id?(instById[id]?.name||id):'';
+  const getExamFinal=(stuId,type)=>{
+    const k=stuId+'_'+type;
+    const r=examScoreMap[k];
+    if(!r)return '';
+    if(r.isAbsent)return '缺考';
+    return r.final===null||r.final===undefined?'':r.final.toFixed(2);
+  };
+  const getTeaScore=(stuId,type)=>{
+    const tc=DB.teacherComments[stuId]?.[type];
+    if(!tc)return '';
+    return tc.score!==undefined&&tc.score!==null?tc.score:'';
+  };
+  const getTeaComment=(stuId,type)=>{
+    const tc=DB.teacherComments[stuId]?.[type];
+    return tc?.comment||'';
+  };
+
+  return stus.map(s=>({
+    '班級':s.class||'',
+    '座號':s.seat||'',
+    '姓名':s.name||'',
+    '主修樂器':nameOfInst(s.major),
+    '副修樂器':nameOfInst(s.minor),
+    '選修樂器':nameOfInst(s.elective),
+    '主修總成績':getExamFinal(s.id,'major'),
+    '副修總成績':getExamFinal(s.id,'minor'),
+    '選修總成績':getExamFinal(s.id,'elective'),
+    '主修平時成績':getTeaScore(s.id,'major'),
+    '副修平時成績':getTeaScore(s.id,'minor'),
+    '選修平時成績':getTeaScore(s.id,'elective'),
+    '主修平時評語':getTeaComment(s.id,'major'),
+    '副修平時評語':getTeaComment(s.id,'minor'),
+    '選修平時評語':getTeaComment(s.id,'elective'),
+  }));
+}
+
+// ★ 把 row 物件陣列轉成 CSV 字串（含 BOM）
+function _rowsToCsvString(data){
+  if(!data.length)return '\uFEFF';
+  const headers=Object.keys(data[0]);
+  const rows=[headers.join(','),...data.map(r=>headers.map(h=>`"${(r[h]??'').toString().replace(/"/g,'""')}"`).join(','))];
+  return '\uFEFF'+rows.join('\n');
+}
+
+function doExportSummary(){
+  const classF=document.getElementById('export-summary-class')?.value||'__all_zip__';
+
+  // ── 模式 1：全部班級 ZIP ──
+  if(classF==='__all_zip__'){
+    const classSet=new Set();
+    DB.users.filter(u=>u.role==='student').forEach(s=>{if(s.class)classSet.add(s.class);});
+    const classList=[...classSet].sort();
+    if(!classList.length){showToast('無班級資料','err');return;}
+
+    const files=[];
+    let totalStu=0;
+    classList.forEach(cls=>{
+      const rows=_buildSummaryRows(cls);
+      if(!rows.length)return;
+      totalStu+=rows.length;
+      files.push({name:`${cls}_彙整成績.csv`, content:_rowsToCsvString(rows)});
+    });
+    if(!files.length){showToast('所有班級皆無資料','err');return;}
+
+    const zipBlob=_buildZip(files);
+    const url=URL.createObjectURL(zipBlob);
+    const a=document.createElement('a');
+    a.href=url;a.download='全部班級_彙整成績.zip';a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+    closeOverlay('export-summary-modal');
+    showToast(`已下載 ${files.length} 個班級、共 ${totalStu} 位學生的彙整成績`,'ok');
+    return;
+  }
+
+  // ── 模式 2：全部班級合併成單一 CSV ──
+  if(classF==='__all_one__'){
+    const rows=_buildSummaryRows('');
+    if(!rows.length){showToast('無學生資料','err');return;}
+    exportCSV(rows,'全部班級_彙整成績');
+    closeOverlay('export-summary-modal');
+    showToast(`已下載 ${rows.length} 位學生的彙整成績`,'ok');
+    return;
+  }
+
+  // ── 模式 3：單一班級 ──
+  const rows=_buildSummaryRows(classF);
+  if(!rows.length){showToast('該班級無學生資料','err');return;}
+  exportCSV(rows,classF+'_彙整成績');
+  closeOverlay('export-summary-modal');
+  showToast(`已下載 ${rows.length} 位學生的彙整成績`,'ok');
+}
+window.doExportSummary=doExportSummary;
+
+// ════════════════════════════════════════════════
+// ★ 純 JS ZIP 編碼器（STORE 模式，無壓縮）
+//   單檔系統不引入 JSZip；CSV 內容小，無壓縮也只多幾 KB
+// ════════════════════════════════════════════════
+function _buildZip(files){
+  // CRC-32 表（一次建好即可）
+  if(!_buildZip._crcTable){
+    const t=new Uint32Array(256);
+    for(let i=0;i<256;i++){
+      let c=i;
+      for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);
+      t[i]=c>>>0;
+    }
+    _buildZip._crcTable=t;
+  }
+  const crcTable=_buildZip._crcTable;
+  function crc32(bytes){
+    let c=0xFFFFFFFF;
+    for(let i=0;i<bytes.length;i++)c=(crcTable[(c^bytes[i])&0xFF]^(c>>>8))>>>0;
+    return (c^0xFFFFFFFF)>>>0;
+  }
+
+  // 把字串轉 UTF-8 bytes（檔名與內容皆用）
+  const enc=new TextEncoder();
+  const localChunks=[];
+  const centralChunks=[];
+  let offset=0;
+
+  files.forEach(f=>{
+    const nameBytes=enc.encode(f.name);
+    const contentBytes=enc.encode(f.content);
+    const crc=crc32(contentBytes);
+    const size=contentBytes.length;
+
+    // ── Local file header ──
+    const lh=new Uint8Array(30+nameBytes.length);
+    const dv=new DataView(lh.buffer);
+    dv.setUint32(0,0x04034b50,true);   // signature
+    dv.setUint16(4,20,true);            // version needed
+    dv.setUint16(6,0x0800,true);        // general purpose bit flag (UTF-8 filename)
+    dv.setUint16(8,0,true);             // compression method (0 = STORE)
+    dv.setUint16(10,0,true);            // mod time
+    dv.setUint16(12,0,true);            // mod date
+    dv.setUint32(14,crc,true);          // crc-32
+    dv.setUint32(18,size,true);         // compressed size
+    dv.setUint32(22,size,true);         // uncompressed size
+    dv.setUint16(26,nameBytes.length,true); // filename length
+    dv.setUint16(28,0,true);            // extra field length
+    lh.set(nameBytes,30);
+    localChunks.push(lh,contentBytes);
+
+    // ── Central directory header ──
+    const ch=new Uint8Array(46+nameBytes.length);
+    const cv=new DataView(ch.buffer);
+    cv.setUint32(0,0x02014b50,true);
+    cv.setUint16(4,20,true);            // version made by
+    cv.setUint16(6,20,true);            // version needed
+    cv.setUint16(8,0x0800,true);        // general purpose flag
+    cv.setUint16(10,0,true);            // compression
+    cv.setUint16(12,0,true);
+    cv.setUint16(14,0,true);
+    cv.setUint32(16,crc,true);
+    cv.setUint32(20,size,true);
+    cv.setUint32(24,size,true);
+    cv.setUint16(28,nameBytes.length,true);
+    cv.setUint16(30,0,true);            // extra field length
+    cv.setUint16(32,0,true);            // file comment length
+    cv.setUint16(34,0,true);            // disk number start
+    cv.setUint16(36,0,true);            // internal attrs
+    cv.setUint32(38,0,true);            // external attrs
+    cv.setUint32(42,offset,true);       // relative offset of local header
+    ch.set(nameBytes,46);
+    centralChunks.push(ch);
+
+    offset+=lh.length+contentBytes.length;
+  });
+
+  // ── End of central directory record ──
+  const centralSize=centralChunks.reduce((s,c)=>s+c.length,0);
+  const eocd=new Uint8Array(22);
+  const ev=new DataView(eocd.buffer);
+  ev.setUint32(0,0x06054b50,true);
+  ev.setUint16(4,0,true);               // disk number
+  ev.setUint16(6,0,true);               // disk where central starts
+  ev.setUint16(8,files.length,true);    // entries on this disk
+  ev.setUint16(10,files.length,true);   // total entries
+  ev.setUint32(12,centralSize,true);    // central directory size
+  ev.setUint32(16,offset,true);         // central directory offset
+  ev.setUint16(20,0,true);              // comment length
+
+  return new Blob([...localChunks,...centralChunks,eocd],{type:'application/zip'});
+}
+
+// ════════════════════════════════════════════════
 // DISQ - ADD INDIVIDUAL
 // ════════════════════════════════════════════════
 let _adimSelectedSid=null,_adimSelectedType=null;
@@ -11988,33 +12271,95 @@ function renderJsupAdminTable(){
       }).join('')+'</div>';
   }
 
-  // ── 明細表格 ──
+  // ── 明細表格（橫向：教師為列、考場為欄）──
   const tbody=document.getElementById('jsup-admin-tbody');if(!tbody)return;
+  const thead=tbody.parentElement?.querySelector('thead');
+
+  // ★ 篩選後要顯示的考場欄位
+  const shownRooms=roomFilter?DB.rooms.filter(r=>r.id===roomFilter):DB.rooms;
+
+  // ★ 重建 thead：教師 / 參與狀態 / 各考場 / 備註
+  if(thead){
+    thead.innerHTML=`<tr>
+      <th style="min-width:90px;position:sticky;left:0;background:var(--ink);color:var(--gold);z-index:2">教師</th>
+      <th style="min-width:90px">指導學生數</th>
+      <th style="min-width:100px">參與狀態</th>
+      ${shownRooms.map(r=>`<th style="min-width:200px;font-size:11px">${r.name}</th>`).join('')}
+      <th style="min-width:140px">備註</th>
+      <th style="min-width:110px">送出時間</th>
+    </tr>`;
+  }
+
+  // ★ 每位教師一列
   const rows=[];
   teaList.forEach(t=>{
     const su=DB.jurySignup[t.id]||{};
     const stuCount=(DB.teacherStudents[t.id]||[]).length;
     const submitted=su._submitted;
-    const shownRooms=roomFilter?DB.rooms.filter(r=>r.id===roomFilter):DB.rooms;
+
+    // ─ 計算「整體參與狀態」摘要 ─
+    let attendCount=0,subCount=0,otherCount=0,noneCount=0;
     shownRooms.forEach(r=>{
       const rd=su[r.id]||{};
+      if(!rd.optId){noneCount++;return;}
       const opt=opts.find(o=>o.id===rd.optId);
-      const statusLabel=!rd.optId?'未填報':(opt?.label||rd.optId);
-      const statusCls=!rd.optId?'jsup-status-none':(opt?.isAttend?'jsup-status-attend':opt?.isSub?'jsup-status-sub':'jsup-status-other');
-      const contactInfo=opt?.isAttend?(rd.phone||'—'):opt?.isSub?
-        `${rd.subName||'—'} ${rd.subPhone||''} ${rd.subRoomId?'→'+DB.rooms.find(rr=>rr.id===rd.subRoomId)?.name:''}`.trim():'—';
-      rows.push(`<tr>
-        <td><strong>${t.name}</strong> ${submitted?'<span style="font-family:\'DM Mono\',monospace;font-size:7px;color:var(--sage);border:1px solid var(--sage);border-radius:10px;padding:1px 5px">✓送出</span>':''}</td>
-        <td style="text-align:center;font-family:DM Mono,monospace;font-size:12px">${stuCount}</td>
-        <td style="font-size:12px">${r.name}</td>
-        <td><span class="jsup-status-badge ${statusCls}">${statusLabel}</span></td>
-        <td style="font-size:11px;color:var(--muted)">${contactInfo}</td>
-        <td style="font-size:11px;color:var(--muted);max-width:160px">${su._globalNote||'—'}</td>
-        <td style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted)">${su._submittedAt?new Date(su._submittedAt).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'—'}</td>
-      </tr>`);
+      if(opt?.isAttend)attendCount++;
+      else if(opt?.isSub)subCount++;
+      else otherCount++;
     });
+    let overallStatus='';
+    if(attendCount){overallStatus=`<span class="jsup-status-badge jsup-status-attend">出席 ${attendCount}</span>`;}
+    if(subCount){overallStatus+=`<span class="jsup-status-badge jsup-status-sub" style="margin-left:4px">代評 ${subCount}</span>`;}
+    if(otherCount){overallStatus+=`<span class="jsup-status-badge jsup-status-other" style="margin-left:4px">其他 ${otherCount}</span>`;}
+    if(!overallStatus){overallStatus=`<span class="jsup-status-badge jsup-status-none">未填報</span>`;}
+
+    // ─ 渲染各考場欄位 ─
+    const roomCells=shownRooms.map(r=>{
+      const rd=su[r.id]||{};
+      if(!rd.optId){
+        return `<td style="font-size:11px;color:var(--muted);text-align:center">—</td>`;
+      }
+      const opt=opts.find(o=>o.id===rd.optId);
+      // 出席：顯示「本人出席」+ 教師電話
+      if(opt?.isAttend){
+        const phone=rd.phone||t.phone||'';
+        return `<td style="font-size:12px;background:#f0f5ed">
+          <div style="color:var(--sage);font-weight:600">✓ 本人出席</div>
+          ${phone?`<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);margin-top:2px">📞 ${phone}</div>`:''}
+        </td>`;
+      }
+      // 找代評：顯示代評姓名 + 電話
+      if(opt?.isSub){
+        const subName=rd.subName||'(未填代評姓名)';
+        const subPhone=rd.subPhone||'';
+        const subRoomLabel=rd.subRoomId?` → ${DB.rooms.find(rr=>rr.id===rd.subRoomId)?.name||rd.subRoomId}`:'';
+        return `<td style="font-size:12px;background:#fef9e7">
+          <div style="color:var(--rust);font-weight:600">⚡ 代評：${subName}</div>
+          ${subPhone?`<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);margin-top:2px">📞 ${subPhone}</div>`:''}
+          ${subRoomLabel?`<div style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted);margin-top:1px">${subRoomLabel}</div>`:''}
+        </td>`;
+      }
+      // 其他選項（如「學生僅一人，免評」）
+      return `<td style="font-size:11px;color:var(--muted)">
+        <span style="font-weight:600;color:var(--steel)">○ ${opt?.label||rd.optId}</span>
+      </td>`;
+    }).join('');
+
+    rows.push(`<tr>
+      <td style="position:sticky;left:0;background:var(--white);z-index:1;box-shadow:2px 0 4px -2px rgba(0,0,0,.06)">
+        <strong>${t.name}</strong>
+        ${submitted?'<div style="font-family:\'DM Mono\',monospace;font-size:7px;color:var(--sage);border:1px solid var(--sage);border-radius:10px;padding:1px 5px;display:inline-block;margin-top:2px">✓送出</div>':''}
+      </td>
+      <td style="text-align:center;font-family:DM Mono,monospace;font-size:12px">${stuCount}</td>
+      <td>${overallStatus}</td>
+      ${roomCells}
+      <td style="font-size:11px;color:var(--muted);max-width:160px">${su._globalNote||'—'}</td>
+      <td style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted);white-space:nowrap">${su._submittedAt?new Date(su._submittedAt).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'—'}</td>
+    </tr>`);
   });
-  tbody.innerHTML=rows.join('')||`<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted);font-family:DM Mono,monospace;font-size:11px">尚無教師填報資料</td></tr>`;
+
+  const totalCols=3+shownRooms.length+2;
+  tbody.innerHTML=rows.join('')||`<tr><td colspan="${totalCols}" style="text-align:center;padding:20px;color:var(--muted);font-family:DM Mono,monospace;font-size:11px">尚無教師填報資料</td></tr>`;
 }
 window.renderJsupAdminTable=renderJsupAdminTable;
 
@@ -12044,6 +12389,48 @@ function exportJsupCSV(){
   exportCSV(rows,'期末考評分報名');
 }
 window.exportJsupCSV=exportJsupCSV;
+
+// ★ 橫向格式 CSV：教師為列，每考場為欄（與後台表格顯示一致）
+function exportJsupCSVWide(){
+  const opts=DB.config.jurySignupOptions||[];
+  const rows=[];
+  teachers().forEach(t=>{
+    const su=DB.jurySignup[t.id]||{};
+    const stuCount=(DB.teacherStudents[t.id]||[]).length;
+    const row={
+      '教師姓名':t.name,
+      '帳號':t.account||'',
+      '指導學生數':stuCount,
+    };
+    // 各考場欄位
+    DB.rooms.forEach(r=>{
+      const rd=su[r.id]||{};
+      const opt=opts.find(o=>o.id===rd.optId);
+      let cell='—';
+      if(rd.optId){
+        if(opt?.isAttend){
+          const phone=rd.phone||t.phone||'';
+          cell=`本人出席${phone?` (${phone})`:''}`;
+        } else if(opt?.isSub){
+          const subName=rd.subName||'(未填)';
+          const subPhone=rd.subPhone||'';
+          cell=`代評：${subName}${subPhone?` (${subPhone})`:''}`;
+        } else {
+          cell=opt?.label||rd.optId;
+        }
+      } else {
+        cell='未填報';
+      }
+      row[r.name]=cell;
+    });
+    row['備註']=su._globalNote||'';
+    row['已送出']=su._submitted?'是':'否';
+    row['送出時間']=su._submittedAt?new Date(su._submittedAt).toLocaleString('zh-TW'):'';
+    rows.push(row);
+  });
+  exportCSV(rows,'期末考評分報名_橫向格式');
+}
+window.exportJsupCSVWide=exportJsupCSVWide;
 
 // ════════════════════════════════════════════════
 // ADMIN TABS
@@ -12119,7 +12506,7 @@ const _expose = [
   'renderJsupAdminPanel','renderJsupOptsList','addJsupOption','jsupUpdateOptLabel','jsupUpdateOptFlag','jsupDelOption','saveJurySignupConfig','saveJsupOptions','renderJsupAdminTable','exportJsupCSV',
 ];
 // ★ 安全暴露到 window（不用 eval，改用函數名對照表）
-const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,midSaveJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schResetToRoomDefaults,schSaveSchedule,schLoadSchedule,schInitSortBar,schAddExcludeRule,schRemoveExcludeRule,renderSchExcludeUI,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,renderLiveResults,renderTeaJuryComments,renderAdminResults,exportAdminResultsCSV,renderDeleteJurorBar,deleteJurorFromRoom,adminJurySelectRoom,initJuryAdminRoomBar,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,openStuRoomModal,saveStuRoomModal,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,rfAddRule,rfRemoveRule,rfReadRulesFromDOM,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveBulletin,renderBulletin,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,publishResults,unpublishResults,renderAdminInstChangeNotices,markInstChangeRead,markAllInstChangesRead,updateDelJurorList,deleteJurorScores,cleanGhostJurors,adminPublishSnapshot,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,erShowTab,erAdminTab,erCmd,erInsertTable,erInsertImage,erSave,erInitAdminEditors,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,teaInlineToggle,teaInlineEdit,teaInlineSave,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,_renderJsupSubmittedSummary,_jsupReopenForm,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,saveJsupOptions,renderJsupAdminTable,exportJsupCSV};
+const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,midSaveJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schResetToRoomDefaults,schSaveSchedule,schLoadSchedule,schInitSortBar,schAddExcludeRule,schRemoveExcludeRule,renderSchExcludeUI,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,renderLiveResults,renderTeaJuryComments,renderAdminResults,exportAdminResultsCSV,renderDeleteJurorBar,deleteJurorFromRoom,adminJurySelectRoom,initJuryAdminRoomBar,openExportSummaryModal,doExportSummary,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,openStuRoomModal,saveStuRoomModal,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,rfAddRule,rfRemoveRule,rfReadRulesFromDOM,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveBulletin,renderBulletin,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,publishResults,unpublishResults,renderAdminInstChangeNotices,markInstChangeRead,markAllInstChangesRead,updateDelJurorList,deleteJurorScores,cleanGhostJurors,adminPublishSnapshot,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,erShowTab,erAdminTab,erCmd,erInsertTable,erInsertImage,erSave,erInitAdminEditors,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,teaInlineToggle,teaInlineEdit,teaInlineSave,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,_renderJsupSubmittedSummary,_jsupReopenForm,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,saveJsupOptions,renderJsupAdminTable,exportJsupCSV,exportJsupCSVWide};
 Object.keys(_fnMap).forEach(function(name){ window[name] = _fnMap[name]; });
 
 // ★ 頁面載入後立即從 Firebase 同步 users，讓登入時帳密是最新狀態
