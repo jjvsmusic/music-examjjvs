@@ -237,6 +237,29 @@ td{padding:9px 12px;font-size:13px;vertical-align:middle}
 .modal-t{font-family:Cormorant Garamond,serif;font-size:22px;font-weight:300;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
 .modal-ft{margin-top:18px;padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:7px}
 
+/* ★ HIGH SCORE APPROVAL — 90分以上審核相關 */
+.approval-badge{display:inline-block;background:var(--rust);color:#fff;font-family:'DM Mono',monospace;font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px;min-width:18px;text-align:center;line-height:1.4}
+.appr-list{display:flex;flex-direction:column;gap:10px}
+.appr-empty{padding:24px;text-align:center;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;background:var(--cream);border-radius:var(--r);border:1px dashed var(--border)}
+.appr-card{background:var(--paper);border:1px solid var(--border);border-left:4px solid var(--gold);border-radius:var(--r);padding:14px 16px;box-shadow:0 1px 3px var(--shadow)}
+.appr-card.approved{border-left-color:var(--sage);opacity:.85}
+.appr-card.rejected{border-left-color:var(--rust);opacity:.85}
+.appr-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:10px;flex-wrap:wrap}
+.appr-type{display:inline-block;background:var(--gold-bg);color:var(--gold);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;padding:2px 8px;border-radius:10px;text-transform:uppercase;margin-right:8px}
+.appr-stu{font-size:15px;color:var(--ink)}
+.appr-score{font-family:Cormorant Garamond,serif;font-size:32px;font-weight:600;line-height:1}
+.appr-score-u{font-size:13px;color:var(--muted);margin-left:4px;font-family:Noto Serif TC,serif;font-weight:400}
+.appr-detail{font-size:12px;color:var(--muted);margin-bottom:8px;font-family:'DM Mono',monospace;letter-spacing:.5px}
+.appr-reason{background:var(--cream);padding:10px 12px;border-radius:var(--r);font-size:13px;line-height:1.6;color:var(--ink);margin-bottom:8px;border-left:3px solid var(--gold)}
+.appr-reason-l{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);display:block;margin-bottom:4px;text-transform:uppercase}
+.appr-meta{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.5px;margin-bottom:4px}
+.appr-review{margin-top:6px;margin-bottom:8px}
+.appr-st{display:inline-block;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1.5px;padding:3px 10px;border-radius:12px;font-weight:600}
+.appr-pending{background:#fff8e6;color:var(--gold);border:1px solid var(--gold)}
+.appr-ok{background:#e8f5e9;color:var(--sage);border:1px solid var(--sage)}
+.appr-no{background:#fdecea;color:var(--rust);border:1px solid var(--rust)}
+.appr-acts{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;padding-top:8px;border-top:1px dashed var(--border);margin-top:4px}
+
 /* TOAST */
 .toast{position:fixed;top:68px;right:20px;background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:var(--r);font-family:\'DM Mono\',monospace;font-size:10px;letter-spacing:1px;z-index:6000;box-shadow:0 4px 20px rgba(0,0,0,.3);transform:translateX(120%);transition:transform .3s;border-left:3px solid var(--gold);max-width:320px}
 .toast.on{transform:translateX(0)}
@@ -1057,6 +1080,34 @@ tbody td{color:var(--ink)!important}
   </div>
 </div>
 
+<!-- HIGH SCORE REASON MODAL (90分以上需審核) -->
+<div class="overlay" id="hs-reason-modal">
+  <div class="modal" style="width:520px;max-width:92vw">
+    <h2 class="modal-t" id="hs-reason-title" style="color:var(--rust)">分數超過 90 分</h2>
+    <div style="background:#fff8e6;border:1px solid var(--gold);border-left:4px solid var(--gold);border-radius:var(--r);padding:12px 14px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+        <span style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted)">SCORE</span>
+        <span id="hs-reason-score" style="font-family:Cormorant Garamond,serif;font-size:32px;color:var(--rust);font-weight:600;line-height:1"></span>
+        <span style="color:var(--muted);font-size:14px">分</span>
+      </div>
+      <div id="hs-reason-target" style="font-size:13px;color:var(--ink);margin-top:2px"></div>
+    </div>
+    <div style="font-size:13px;color:var(--muted);line-height:1.8;margin-bottom:10px">
+      您給予的分數超過 90 分（分數已儲存）。<br>
+      依本系統規定，超過 90 分的分數需向管理員<strong>提供具體理由說明</strong>，請於下方填寫您給予此分數的理由：
+    </div>
+    <div class="lf">
+      <label style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">給予高分的理由（必填，至少 5 字）</label>
+      <textarea id="hs-reason-text" rows="4" style="width:100%;padding:10px 12px;border:1px solid var(--border);background:var(--cream);font-family:Noto Serif TC,serif;font-size:14px;color:var(--ink);outline:none;border-radius:var(--r);resize:vertical;min-height:90px" placeholder="例：學生本學期表現特別優異，技巧、音樂性、台風皆達專業水準⋯"></textarea>
+    </div>
+    <div class="login-err" id="hs-reason-err" style="min-height:16px;margin-bottom:4px"></div>
+    <div class="modal-ft">
+      <button class="btn btn-s" onclick="closeHighScoreReasonModal()">稍後再填</button>
+      <button class="btn btn-p" onclick="submitHighScoreReason()">送出理由</button>
+    </div>
+  </div>
+</div>
+
 
 <!-- TEACHER STUDENTS MODAL -->
 <div class="overlay" id="tea-stu-modal">
@@ -1821,6 +1872,7 @@ tbody td{color:var(--ink)!important}
         <div class="tab" onclick="swAdminTab('access',this)">分頁權限</div>
         <div class="tab" onclick="swAdminTab('content',this)">內容設定</div>
         <div class="tab" onclick="swAdminTab('jurysignup',this)">📋 評分報名設定</div>
+        <div class="tab" id="admin-tab-approvals" onclick="swAdminTab('approvals',this)">📋 分數審核</div>
         <div class="tab" onclick="swAdminTab('danger',this)" style="color:var(--rust)">⚠ 資料清除</div>
       </div>
 
@@ -2201,6 +2253,9 @@ tbody td{color:var(--ink)!important}
         </div>
       </div>
 
+      <!-- Approvals Tab (90分以上審核) -->
+      <div class="tc" id="at-approvals"></div>
+
       <!-- Danger Tab -->
       <div class="tc" id="at-danger">
         <div class="card" style="border-color:var(--rust)">
@@ -2529,6 +2584,7 @@ const DB = {
   liveExam: {}, // {roomId: {playing: entryKey, scaleKey: string}} - 現場演奏同步
   savedScheduleSnapshot: {}, // {roomId: [{entryKey,studentId,name,class,seat,instId,instName,type,order,...}]}
   jurySignup: {}, // {teacherId: {roomId, status, subName, subPhone, note, submittedAt}} - 評分報名
+  pendingApprovals: {}, // ★ 90分以上分數審核：{id: {kind:'teacher'|'jury', score, reason, status:'pending'|'approved'|'rejected', submittedBy, submittedByName, submittedAt, reviewedAt, reviewedBy, ...其他依kind不同的欄位}}
   config: {
     repHint:'💡 示範寫法：作曲家 → Mozart, W.A. ／ 曲目 → Concerto in D major, K. 314, 1st mvt.',
     tyTitle:'感謝您的評分',
@@ -2574,6 +2630,7 @@ DB.deductions = DB.deductions || {};
 DB.teacherComments = DB.teacherComments || {};
 DB.blackSign = DB.blackSign || {};
 DB.liveExam = DB.liveExam || {};
+DB.pendingApprovals = DB.pendingApprovals || {};
 const ST = {user:null,role:null,juryRoom:null,juryName:'',juryId:'',
   npTarget:null,npVal:'',npCallback:null,isOnline:navigator.onLine,
   invigRoom:null,invigName:'',_remarkFilterOn:false};
@@ -3533,6 +3590,7 @@ function loadAllFromFirebase(done, lightMode){
     teacherComments: (lightMode && ST.role!=='student') ? Promise.resolve([]) : load('teacherComments'),
     deductions: lightMode ? Promise.resolve([]) : load('deductions'),
     blackSign: lightMode ? Promise.resolve([]) : load('blackSign'),
+    pendingApprovals: load('pendingApprovals'), // ★ 90分以上審核資料，所有角色都需載入
     users: load('users'),
     // juryScores 在 allSettled.then 後才讀（確保 DB.rooms 已載入）
   };
@@ -3621,6 +3679,12 @@ function loadAllFromFirebase(done, lightMode){
 
     // — teacherComments —
     r.teacherComments.forEach(d=>{const{id,_updatedAt,...rest}=d;DB.teacherComments[id]=rest;});
+
+    // — pendingApprovals — ★ 90分以上審核資料
+    if(r.pendingApprovals){
+      DB.pendingApprovals={};
+      r.pendingApprovals.forEach(d=>{const{id,_updatedAt,...rest}=d;DB.pendingApprovals[id]=rest;});
+    }
 
     // — deductions —
     r.deductions.forEach(d=>{const{id,_updatedAt,...rest}=d;DB.deductions[id]=rest;});
@@ -5225,6 +5289,21 @@ function teaInlineSave(sid,type){
   showToast('已儲存 ✓','ok');
   renderTeaTable();
   setTimeout(teaCheckAllDone, 200);
+  // ★ 90分以上：背景送入審核佇列並請教師填理由（分數已生效不擋）
+  if(score>90 && ST.role!=='admin'){
+    const pendingId='tea_'+sid+'_'+type;
+    const existing=DB.pendingApprovals?.[pendingId];
+    if(!(existing && existing.status==='pending' && existing.score===score)){
+      openHighScoreReasonModal({
+        kind:'teacher',
+        score:score,
+        comment:comment,
+        sid:sid,
+        scoreType:type,
+        pendingId:pendingId,
+      });
+    }
+  }
 }
 window.teaInlineSave=teaInlineSave;
 
@@ -5473,6 +5552,7 @@ function teaWizSave(){
   const score=parseFloat(document.getElementById('tea-wiz-score').value);
   const comment=document.getElementById('tea-wiz-comment').value;
   if(isNaN(score)){showToast('請填入分數','err');return;}
+  // ★ 分數立刻生效寫入（不擋）
   if(!DB.teacherComments[sid])DB.teacherComments[sid]={};
   DB.teacherComments[sid][type]={score,comment};
   const s=DB.users.find(u=>u.id===sid);
@@ -5481,14 +5561,34 @@ function teaWizSave(){
     s.teaDone=types.some(k=>DB.teacherComments[sid]?.[k]?.score!==undefined);
     fbSet('users',s.id,s);
   }
-  // ★ write complete comments record
   fbSet('teacherComments',sid,{...DB.teacherComments[sid]});
   renderTeaTable();
+  // ★ 90分以上：要求教師填寫理由（背景送入審核佇列，分數已生效不擋）
+  //   管理員自己改不需審核
+  if(score>90 && ST.role!=='admin'){
+    const pendingId='tea_'+sid+'_'+type;
+    const existing=DB.pendingApprovals?.[pendingId];
+    // 已有相同 90+ 待審紀錄且分數一致 → 跳過避免重複打擾
+    if(!(existing && existing.status==='pending' && existing.score===score)){
+      // 開啟理由輸入彈窗（背景記錄，分數已生效）
+      openHighScoreReasonModal({
+        kind:'teacher',
+        score:score,
+        comment:comment,
+        sid:sid,
+        scoreType:type,
+        pendingId:pendingId,
+      });
+      return 'pending_reason'; // 提示 caller：開了理由視窗，但分數已存
+    }
+  }
+  return true;
 }
 
 function teaWizSaveAndNext(){
   teaWizSave();
-  // 找下一位「尚未完成全部修別」的學生（跨班）
+  // ★ 分數已立刻生效，不論是否觸發理由視窗都繼續往下跳
+  //   找下一位「尚未完成全部修別」的學生（跨班）
   const allStus=getMyStudents().sort((a,b)=>{
     const ci=DB.classes.indexOf(a.class)-DB.classes.indexOf(b.class);
     return ci!==0?ci:a.seat-b.seat;
@@ -9490,6 +9590,13 @@ async function clearData(type){
     if(type==='teacher'||type==='all'){
       Object.keys(DB.teacherComments).forEach(k=>{fbDelete('teacherComments',k);delete DB.teacherComments[k];});
       students().forEach(s=>{s.teaDone=false;fbSet('users',s.id,{teaDone:false});});
+      // ★ 同時清除教師端的審核紀錄
+      Object.keys(DB.pendingApprovals||{}).forEach(k=>{
+        if(DB.pendingApprovals[k]?.kind==='teacher'){
+          fbDelete('pendingApprovals',k);
+          delete DB.pendingApprovals[k];
+        }
+      });
     }
     if(type==='jury'||type==='all'){
       // ★ 改為真正 await：先收集所有要刪的 path，再批次 await
@@ -9528,6 +9635,14 @@ async function clearData(type){
       DB.juryScores={};
       DB.deductions={};
       if(DB._jurorOrderCache)DB._jurorOrderCache={};
+
+      // ★ 同時清除現場評分的審核紀錄
+      Object.keys(DB.pendingApprovals||{}).forEach(k=>{
+        if(DB.pendingApprovals[k]?.kind==='jury'){
+          fbDelete('pendingApprovals',k);
+          delete DB.pendingApprovals[k];
+        }
+      });
 
       // ★ 同時清空管理員自己的快取
       try{
@@ -11617,8 +11732,44 @@ function npConfirm(){
   } else {
     const val=parseFloat(ST.npVal);
     if(!isNaN(val)&&val>=0&&val<=100){
+      // ★ 先寫入分數（立刻生效）
       const inp=document.getElementById(ST.npTarget);if(inp){inp.value=val;inp.style.color='';}
       if(ST.npCallback)ST.npCallback(val);
+      // ★ 現場評分 > 90 分：背景送審 + 請評審填理由（不擋）
+      const isJuryCell=typeof ST.npTarget==='string'&&ST.npTarget.startsWith('js-');
+      if(val>90 && isJuryCell && ST.role!=='admin'){
+        const m=ST.npTarget.match(/^js-(.+)-(\d+)$/);
+        if(m){
+          const field=m[1];
+          const i=parseInt(m[2]);
+          const roomId=ST.juryRoom?.id||(ST._adminJuryRoomId||DB.rooms[0]?.id||'');
+          const entries=getJuryEntries();
+          const e=entries[i];
+          if(e&&roomId){
+            const entryKey=e.studentId+'_'+e.type;
+            const jurorId=ST.juryId||ST.user?.id||'admin';
+            const pendingId='jury_'+roomId+'_'+entryKey+'_'+jurorId+'_'+field;
+            const existing=DB.pendingApprovals?.[pendingId];
+            // 已有相同分數的待審紀錄 → 跳過避免重複打擾
+            if(!(existing && existing.status==='pending' && existing.score===val)){
+              // 關閉 numpad 後再開理由視窗
+              document.getElementById('np-overlay').classList.remove('on');ST.npVal='';
+              openHighScoreReasonModal({
+                kind:'jury',
+                score:val,
+                roomId:roomId,
+                entryKey:entryKey,
+                jurorId:jurorId,
+                field:field,
+                entryIndex:i,
+                pendingId:pendingId,
+                targetId:ST.npTarget,
+              });
+              return;
+            }
+          }
+        }
+      }
     }
   }
   document.getElementById('np-overlay').classList.remove('on');ST.npVal='';
@@ -11629,6 +11780,280 @@ function npStar(){
   document.getElementById('np-disp').textContent='*';
 }
 window.npStar=npStar;
+
+
+// ════════════════════════════════════════════════
+// HIGH SCORE APPROVAL — 90分以上需審核
+// ════════════════════════════════════════════════
+// 暫存待送出的審核資料（reason modal 確認後送出）
+let _hsReasonCtx=null;
+
+// 開啟理由輸入彈窗
+function openHighScoreReasonModal(ctx){
+  _hsReasonCtx=ctx;
+  // 顯示分數與情境
+  const lblScore=document.getElementById('hs-reason-score');
+  const lblTitle=document.getElementById('hs-reason-title');
+  const lblTarget=document.getElementById('hs-reason-target');
+  if(lblScore)lblScore.textContent=ctx.score;
+  if(lblTitle)lblTitle.textContent=ctx.kind==='teacher'?'平時評量分數超過 90 分':'現場評分分數超過 90 分';
+  // 描述對象（學生姓名）
+  let targetTxt='';
+  if(ctx.kind==='teacher'){
+    const s=DB.users.find(u=>u.id===ctx.sid);
+    if(s)targetTxt=`學生：${s.name}（${s.class}·座${s.seat}）／${typeName(ctx.scoreType)}`;
+  } else {
+    const entries=getJuryEntries();
+    const e=entries[ctx.entryIndex];
+    if(e)targetTxt=`學生：${e.name}（${e.class}·座${e.seat}）／${typeName(e.type)} — 欄位：${ctx.field}`;
+  }
+  if(lblTarget)lblTarget.textContent=targetTxt;
+  document.getElementById('hs-reason-text').value='';
+  document.getElementById('hs-reason-err').textContent='';
+  openOverlay('hs-reason-modal');
+  setTimeout(()=>{document.getElementById('hs-reason-text')?.focus();},100);
+}
+window.openHighScoreReasonModal=openHighScoreReasonModal;
+
+// 取消理由輸入（不送出）
+function closeHighScoreReasonModal(){
+  closeOverlay('hs-reason-modal');
+  _hsReasonCtx=null;
+}
+window.closeHighScoreReasonModal=closeHighScoreReasonModal;
+
+// 確認送出審核
+function submitHighScoreReason(){
+  if(!_hsReasonCtx){closeOverlay('hs-reason-modal');return;}
+  const reason=document.getElementById('hs-reason-text').value.trim();
+  if(reason.length<5){
+    document.getElementById('hs-reason-err').textContent='請填寫至少 5 個字的具體理由';
+    return;
+  }
+  const ctx=_hsReasonCtx;
+  const submittedBy=ST.user?.id||ST.juryId||'unknown';
+  const submittedByName=ST.user?.name||ST.juryName||'未知';
+  const now=new Date().toISOString();
+  const record={
+    kind:ctx.kind,
+    score:ctx.score,
+    reason:reason,
+    status:'pending',
+    submittedBy:submittedBy,
+    submittedByName:submittedByName,
+    submittedAt:now,
+    reviewedAt:null,
+    reviewedBy:null,
+  };
+  if(ctx.kind==='teacher'){
+    record.sid=ctx.sid;
+    record.scoreType=ctx.scoreType;
+    record.comment=ctx.comment||'';
+  } else {
+    record.roomId=ctx.roomId;
+    record.entryKey=ctx.entryKey;
+    record.jurorId=ctx.jurorId;
+    record.field=ctx.field;
+  }
+  DB.pendingApprovals[ctx.pendingId]=record;
+  fbSet('pendingApprovals',ctx.pendingId,record);
+  closeOverlay('hs-reason-modal');
+  _hsReasonCtx=null;
+  // ★ 分數已生效，這裡只是登記理由給管理員參考；不再提及「審核」字眼
+  showToast('已記錄 ✓','ok');
+}
+window.submitHighScoreReason=submitHighScoreReason;
+
+// 管理員：核准（同意此分數 — 分數已生效，僅標記狀態）
+function approvePendingScore(pendingId){
+  const rec=DB.pendingApprovals?.[pendingId];
+  if(!rec){showToast('找不到審核紀錄','err');return;}
+  if(rec.status!=='pending'){showToast('此紀錄已處理','warn');return;}
+  rec.status='approved';
+  rec.reviewedAt=new Date().toISOString();
+  rec.reviewedBy=ST.user?.id||'admin';
+  rec.reviewedByName=ST.user?.name||'管理員';
+  fbSet('pendingApprovals',pendingId,rec);
+  // ★ 分數已在打分當下寫入，這裡只標記為已同意
+  //   但為安全起見，若實際分數已被改動（例如被本人重打），則同步回原核准分數
+  if(rec.kind==='teacher'){
+    const cur=DB.teacherComments[rec.sid]?.[rec.scoreType]?.score;
+    if(cur!==rec.score){
+      if(!DB.teacherComments[rec.sid])DB.teacherComments[rec.sid]={};
+      DB.teacherComments[rec.sid][rec.scoreType]={
+        score:rec.score,
+        comment:DB.teacherComments[rec.sid][rec.scoreType]?.comment||rec.comment||'',
+      };
+      fbSet('teacherComments',rec.sid,{...DB.teacherComments[rec.sid]});
+      const s=DB.users.find(u=>u.id===rec.sid);
+      if(s){
+        const types=['major','minor','elective'].filter(k=>s[k]);
+        s.teaDone=types.some(k=>DB.teacherComments[rec.sid]?.[k]?.score!==undefined);
+        fbSet('users',s.id,s);
+      }
+    }
+  } else if(rec.kind==='jury'){
+    const cur=DB.juryScores[rec.roomId]?.[rec.entryKey]?.[rec.jurorId]?.[rec.field];
+    if(cur!==rec.score){
+      if(!DB.juryScores[rec.roomId])DB.juryScores[rec.roomId]={};
+      if(!DB.juryScores[rec.roomId][rec.entryKey])DB.juryScores[rec.roomId][rec.entryKey]={};
+      if(!DB.juryScores[rec.roomId][rec.entryKey][rec.jurorId])DB.juryScores[rec.roomId][rec.entryKey][rec.jurorId]={};
+      DB.juryScores[rec.roomId][rec.entryKey][rec.jurorId][rec.field]=rec.score;
+      delete DB.juryScores[rec.roomId][rec.entryKey][rec.jurorId][rec.field+'_skip'];
+      DB.juryScores[rec.roomId][rec.entryKey][rec.jurorId]._localUpdatedAt=Date.now();
+      fbSet('juryScores',rec.roomId+'_'+rec.entryKey,{
+        ...DB.juryScores[rec.roomId][rec.entryKey],
+        _roomId:rec.roomId,
+        _entryKey:rec.entryKey,
+      });
+    }
+  }
+  showToast('已同意，維持原分數 ✓','ok');
+  renderPendingApprovalsPage();
+}
+window.approvePendingScore=approvePendingScore;
+
+// 管理員：拒絕（不同意，給 89 分上限）
+function rejectPendingScore(pendingId){
+  const rec=DB.pendingApprovals?.[pendingId];
+  if(!rec){showToast('找不到審核紀錄','err');return;}
+  if(rec.status!=='pending'){showToast('此紀錄已處理','warn');return;}
+  if(!confirm('確定拒絕此分數？\n系統將自動以 89 分作為上限分數寫入。')){return;}
+  rec.status='rejected';
+  rec.reviewedAt=new Date().toISOString();
+  rec.reviewedBy=ST.user?.id||'admin';
+  rec.reviewedByName=ST.user?.name||'管理員';
+  rec.finalScore=89; // 強制 89 分
+  fbSet('pendingApprovals',pendingId,rec);
+  // 將 89 分寫入對應集合
+  if(rec.kind==='teacher'){
+    if(!DB.teacherComments[rec.sid])DB.teacherComments[rec.sid]={};
+    DB.teacherComments[rec.sid][rec.scoreType]={score:89,comment:rec.comment||''};
+    fbSet('teacherComments',rec.sid,{...DB.teacherComments[rec.sid]});
+    const s=DB.users.find(u=>u.id===rec.sid);
+    if(s){
+      const types=['major','minor','elective'].filter(k=>s[k]);
+      s.teaDone=types.some(k=>DB.teacherComments[rec.sid]?.[k]?.score!==undefined);
+      fbSet('users',s.id,s);
+    }
+  } else if(rec.kind==='jury'){
+    if(!DB.juryScores[rec.roomId])DB.juryScores[rec.roomId]={};
+    if(!DB.juryScores[rec.roomId][rec.entryKey])DB.juryScores[rec.roomId][rec.entryKey]={};
+    if(!DB.juryScores[rec.roomId][rec.entryKey][rec.jurorId])DB.juryScores[rec.roomId][rec.entryKey][rec.jurorId]={};
+    DB.juryScores[rec.roomId][rec.entryKey][rec.jurorId][rec.field]=89;
+    delete DB.juryScores[rec.roomId][rec.entryKey][rec.jurorId][rec.field+'_skip'];
+    DB.juryScores[rec.roomId][rec.entryKey][rec.jurorId]._localUpdatedAt=Date.now();
+    fbSet('juryScores',rec.roomId+'_'+rec.entryKey,{
+      ...DB.juryScores[rec.roomId][rec.entryKey],
+      _roomId:rec.roomId,
+      _entryKey:rec.entryKey,
+    });
+  }
+  showToast('已拒絕，已自動寫入 89 分上限','warn');
+  renderPendingApprovalsPage();
+}
+window.rejectPendingScore=rejectPendingScore;
+
+// 管理員：刪除已處理紀錄
+function deletePendingApproval(pendingId){
+  if(!confirm('確定刪除此審核紀錄？（僅刪除歷史紀錄，不影響已寫入的分數）'))return;
+  delete DB.pendingApprovals[pendingId];
+  fbDelete('pendingApprovals',pendingId);
+  renderPendingApprovalsPage();
+  showToast('已刪除','ok');
+}
+window.deletePendingApproval=deletePendingApproval;
+
+// 取得單筆審核紀錄的描述（學生資訊、評分者、修別等）
+function _getApprovalDesc(rec){
+  if(rec.kind==='teacher'){
+    const s=DB.users.find(u=>u.id===rec.sid);
+    const stuName=s?`${s.name}（${s.class}·座${s.seat}）`:rec.sid;
+    return {
+      typeLabel:'平時評量',
+      stuName:stuName,
+      detail:`修別：${typeName(rec.scoreType)}`+(s&&s[rec.scoreType]?`（${iname(s[rec.scoreType])}）`:''),
+    };
+  } else {
+    const sid=rec.entryKey?rec.entryKey.split('_')[0]:'';
+    const s=DB.users.find(u=>u.id===sid);
+    const stuName=s?`${s.name}（${s.class}·座${s.seat}）`:sid;
+    const room=DB.rooms.find(r=>r.id===rec.roomId);
+    const roomName=room?room.name:rec.roomId;
+    return {
+      typeLabel:'現場評分',
+      stuName:stuName,
+      detail:`考場：${roomName} ／ 欄位：${rec.field}`,
+    };
+  }
+}
+
+// 渲染管理員審核頁
+function renderPendingApprovalsPage(){
+  const tab=document.getElementById('at-approvals');
+  if(!tab)return;
+  const all=Object.entries(DB.pendingApprovals||{});
+  const pending=all.filter(([id,r])=>r.status==='pending');
+  const handled=all.filter(([id,r])=>r.status!=='pending').sort((a,b)=>(b[1].reviewedAt||'').localeCompare(a[1].reviewedAt||''));
+  // 更新 tab 標籤上的待審數量
+  const tabBtn=document.getElementById('admin-tab-approvals');
+  if(tabBtn){
+    const badge=pending.length>0?` <span class="approval-badge">${pending.length}</span>`:'';
+    tabBtn.innerHTML='📋 分數審核'+badge;
+  }
+  const fmtTime=iso=>{if(!iso)return '';try{const d=new Date(iso);return d.toLocaleString('zh-TW',{hour12:false});}catch(e){return iso;}};
+  // 建立分頁內容
+  const renderRow=([id,r])=>{
+    const desc=_getApprovalDesc(r);
+    const scoreColor=r.status==='rejected'?'var(--rust)':(r.status==='approved'?'var(--sage)':'var(--gold)');
+    const statusBadge=r.status==='pending'
+      ?'<span class="appr-st appr-pending">⏳ 待審核</span>'
+      :(r.status==='approved'
+        ?'<span class="appr-st appr-ok">✓ 已同意</span>'
+        :'<span class="appr-st appr-no">✗ 已拒絕（89分上限）</span>');
+    const reviewInfo=r.status!=='pending'
+      ?`<div class="appr-review">${statusBadge} <span class="appr-meta">由 ${r.reviewedByName||r.reviewedBy||'-'} 於 ${fmtTime(r.reviewedAt)}</span></div>`
+      :`<div class="appr-review">${statusBadge}</div>`;
+    const actions=r.status==='pending'
+      ?`<div class="appr-acts">
+          <button class="btn btn-g btn-sm" onclick="approvePendingScore('${id}')">✓ 同意（維持原分數）</button>
+          <button class="btn btn-d btn-sm" onclick="rejectPendingScore('${id}')">✗ 不同意（改為 89 分）</button>
+        </div>`
+      :`<div class="appr-acts"><button class="btn btn-s btn-sm" onclick="deletePendingApproval('${id}')">🗑 刪除紀錄</button></div>`;
+    return `<div class="appr-card ${r.status}">
+      <div class="appr-head">
+        <div>
+          <span class="appr-type">${desc.typeLabel}</span>
+          <strong class="appr-stu">${desc.stuName}</strong>
+        </div>
+        <div class="appr-score" style="color:${scoreColor}">${r.score}<span class="appr-score-u">分</span></div>
+      </div>
+      <div class="appr-detail">${desc.detail}</div>
+      <div class="appr-reason"><span class="appr-reason-l">提交理由：</span>${(r.reason||'').replace(/</g,'&lt;')}</div>
+      <div class="appr-meta">提交者：${r.submittedByName||r.submittedBy||'-'} ／ ${fmtTime(r.submittedAt)}</div>
+      ${reviewInfo}
+      ${actions}
+    </div>`;
+  };
+  const pendingHTML=pending.length
+    ? pending.map(renderRow).join('')
+    : '<div class="appr-empty">目前沒有待審核的分數</div>';
+  const handledHTML=handled.length
+    ? handled.map(renderRow).join('')
+    : '<div class="appr-empty">尚無已處理紀錄</div>';
+  tab.innerHTML=`
+    <div class="card">
+      <div class="card-t">📋 分數審核 — 待審核（${pending.length}）</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">當教師或評審給予超過 90 分的分數時，分數已立即生效寫入，並會在此列出由您事後審核。<br>同意 → 維持原分數；不同意 → 自動將該筆分數覆寫為 89 分上限。<br><span style="color:var(--orange);font-size:12px">※ 教師與評審不會收到審核結果通知，請在所有評分結束後再統一處理。</span></p>
+      <div class="appr-list">${pendingHTML}</div>
+    </div>
+    <div class="card" style="margin-top:18px">
+      <div class="card-t">歷史紀錄 — 已處理（${handled.length}）</div>
+      <div class="appr-list">${handledHTML}</div>
+    </div>
+  `;
+}
+window.renderPendingApprovalsPage=renderPendingApprovalsPage;
 
 
 // ════════════════════════════════════════════════
@@ -12440,6 +12865,7 @@ function swAdminTab(key,el){
   document.querySelectorAll('#pg-admin .tc').forEach(t=>{if(t.id.startsWith('at-'))t.classList.remove('on');});
   el.classList.add('on');document.getElementById('at-'+key)?.classList.add('on');
   if(key==='jurysignup')renderJsupAdminPanel();
+  if(key==='approvals')renderPendingApprovalsPage(); // ★ 90分審核頁
   // ★ 切換到內容設定 tab 時初始化富文字編輯器
   if(key==='content'){setTimeout(erInitAdminEditors,50);setTimeout(aprRender,80);}
 }
