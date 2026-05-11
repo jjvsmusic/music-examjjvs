@@ -5586,42 +5586,57 @@ function teaWizSave(){
 }
 
 function teaWizSaveAndNext(){
-  teaWizSave();
-  // ★ 分數已立刻生效，不論是否觸發理由視窗都繼續往下跳
-  //   找下一位「尚未完成全部修別」的學生（跨班）
-  const allStus=getMyStudents().sort((a,b)=>{
-    const ci=DB.classes.indexOf(a.class)-DB.classes.indexOf(b.class);
-    return ci!==0?ci:a.seat-b.seat;
-  });
-  const curIdx=allStus.findIndex(s=>s.id===TWZ.sid);
-  // 從下一位開始找未完成的
-  const nextPending=allStus.slice(curIdx+1).find(s=>{
-    const types=['major','minor','elective'].filter(k=>s[k]);
-    // ★ 任一修別填完就不算 incomplete
-    return !types.some(k=>DB.teacherComments[s.id]?.[k]?.score!==undefined);
-  });
-  if(nextPending){
-    const stuSel=document.getElementById('tea-wiz-stu');
-    if(stuSel)stuSel.value=nextPending.id;
-    showToast('已儲存 ✓，跳到：'+nextPending.name,'ok');
-    TWZ.sid=nextPending.id;
-    TWZ.cls=nextPending.class;
-    teaWizPickStu();
-  } else {
-    // ★ 修正 #L5：line 3698 已 teaWizSave 過，此處不再重複呼叫
-    document.getElementById('tea-wizard').style.display='none';
-    renderTeaTable();
-    teaCheckAllDone();
+  const result=teaWizSave();
+  // ★ 把「跳下一位」邏輯封裝成函式
+  const doNext=()=>{
+    const allStus=getMyStudents().sort((a,b)=>{
+      const ci=DB.classes.indexOf(a.class)-DB.classes.indexOf(b.class);
+      return ci!==0?ci:a.seat-b.seat;
+    });
+    const curIdx=allStus.findIndex(s=>s.id===TWZ.sid);
+    // 從下一位開始找未完成的
+    const nextPending=allStus.slice(curIdx+1).find(s=>{
+      const types=['major','minor','elective'].filter(k=>s[k]);
+      // ★ 任一修別填完就不算 incomplete
+      return !types.some(k=>DB.teacherComments[s.id]?.[k]?.score!==undefined);
+    });
+    if(nextPending){
+      const stuSel=document.getElementById('tea-wiz-stu');
+      if(stuSel)stuSel.value=nextPending.id;
+      showToast('已儲存 ✓，跳到：'+nextPending.name,'ok');
+      TWZ.sid=nextPending.id;
+      TWZ.cls=nextPending.class;
+      teaWizPickStu();
+    } else {
+      document.getElementById('tea-wizard').style.display='none';
+      renderTeaTable();
+      teaCheckAllDone();
+    }
+  };
+  // ★ 若觸發了 90+ 理由視窗 → 等填完理由再跳下一位（修正：避免視窗被「跳下一位」蓋掉）
+  if(result==='pending_reason'){
+    _hsAfterReason=doNext;
+    return;
   }
+  doNext();
 }
 window.teaWizSaveAndNext=teaWizSaveAndNext;
 
 function teaWizSubmitAll(){
-  teaWizSave();
-  document.getElementById('tea-wizard').style.display='none';
-  renderTeaTable();
-  showToast('評量已儲存 ✓','ok');
-  teaCheckAllDone();
+  const result=teaWizSave();
+  // ★ 把「結束 wizard」邏輯封裝成函式
+  const doFinish=()=>{
+    document.getElementById('tea-wizard').style.display='none';
+    renderTeaTable();
+    showToast('評量已儲存 ✓','ok');
+    teaCheckAllDone();
+  };
+  // ★ 若觸發了 90+ 理由視窗 → 等填完理由再結束（修正：避免視窗被結束流程蓋掉）
+  if(result==='pending_reason'){
+    _hsAfterReason=doFinish;
+    return;
+  }
+  doFinish();
 }
 window.teaWizSubmitAll=teaWizSubmitAll;
 
@@ -11787,6 +11802,8 @@ window.npStar=npStar;
 // ════════════════════════════════════════════════
 // 暫存待送出的審核資料（reason modal 確認後送出）
 let _hsReasonCtx=null;
+// ★ 理由 modal 關閉後要執行的後續動作（例如：跳下一位、結束 wizard）
+let _hsAfterReason=null;
 
 // 開啟理由輸入彈窗
 function openHighScoreReasonModal(ctx){
@@ -11815,10 +11832,50 @@ function openHighScoreReasonModal(ctx){
 }
 window.openHighScoreReasonModal=openHighScoreReasonModal;
 
-// 取消理由輸入（不送出）
+// 取消理由輸入（不填理由，但分數已生效 — 仍登記一筆待審紀錄）
 function closeHighScoreReasonModal(){
+  // ★ 若有 ctx 但教師選擇不填，仍登記一筆「未填理由」的待審紀錄
+  //   讓管理員能看到並做事後審核
+  if(_hsReasonCtx){
+    const ctx=_hsReasonCtx;
+    // 只在尚無此紀錄時才登記（避免覆寫已有理由）
+    const exist=DB.pendingApprovals?.[ctx.pendingId];
+    if(!(exist && exist.status==='pending' && exist.score===ctx.score)){
+      const submittedBy=ST.user?.id||ST.juryId||'unknown';
+      const submittedByName=ST.user?.name||ST.juryName||'未知';
+      const record={
+        kind:ctx.kind,
+        score:ctx.score,
+        reason:'（未填寫理由）',
+        status:'pending',
+        submittedBy:submittedBy,
+        submittedByName:submittedByName,
+        submittedAt:new Date().toISOString(),
+        reviewedAt:null,
+        reviewedBy:null,
+      };
+      if(ctx.kind==='teacher'){
+        record.sid=ctx.sid;
+        record.scoreType=ctx.scoreType;
+        record.comment=ctx.comment||'';
+      } else {
+        record.roomId=ctx.roomId;
+        record.entryKey=ctx.entryKey;
+        record.jurorId=ctx.jurorId;
+        record.field=ctx.field;
+      }
+      DB.pendingApprovals[ctx.pendingId]=record;
+      fbSet('pendingApprovals',ctx.pendingId,record);
+    }
+  }
   closeOverlay('hs-reason-modal');
   _hsReasonCtx=null;
+  // ★ 執行後續動作（跳下一位 / 結束 wizard）
+  if(typeof _hsAfterReason==='function'){
+    const fn=_hsAfterReason;
+    _hsAfterReason=null;
+    setTimeout(fn,50);
+  }
 }
 window.closeHighScoreReasonModal=closeHighScoreReasonModal;
 
@@ -11861,6 +11918,12 @@ function submitHighScoreReason(){
   _hsReasonCtx=null;
   // ★ 分數已生效，這裡只是登記理由給管理員參考；不再提及「審核」字眼
   showToast('已記錄 ✓','ok');
+  // ★ 執行後續動作（例如跳下一位學生、結束 wizard）
+  if(typeof _hsAfterReason==='function'){
+    const fn=_hsAfterReason;
+    _hsAfterReason=null;
+    setTimeout(fn,50); // 讓 modal 先收乾淨再執行後續
+  }
 }
 window.submitHighScoreReason=submitHighScoreReason;
 
@@ -11988,6 +12051,109 @@ function _getApprovalDesc(rec){
   }
 }
 
+// ★ 掃描既有資料庫中所有 90+ 分的紀錄，回填為待審
+//   解決「設定此功能前已存在的 90+ 分」問題
+function scanExistingHighScores(){
+  if(!confirm('將掃描所有已存在的分數，把 90 分以上的紀錄回填為待審。\n\n（已有審核紀錄的不會被覆寫；此操作會新增多筆 Firebase 寫入）\n\n確定繼續？'))return;
+  let teacherFound=0, juryFound=0, teacherSkipped=0, jurySkipped=0;
+  const now=new Date().toISOString();
+  const tasks=[];
+
+  // 1) 掃描 teacherComments
+  Object.entries(DB.teacherComments||{}).forEach(([sid,types])=>{
+    if(!types||typeof types!=='object')return;
+    Object.entries(types).forEach(([typeKey,data])=>{
+      if(!data||typeof data!=='object')return;
+      const score=parseFloat(data.score);
+      if(isNaN(score)||score<=90)return;
+      const pendingId='tea_'+sid+'_'+typeKey;
+      // 已有紀錄 → 跳過
+      if(DB.pendingApprovals?.[pendingId]){teacherSkipped++;return;}
+      // 找教師 — 從學生資料反推
+      const stu=DB.users.find(u=>u.id===sid);
+      let submittedBy='unknown', submittedByName='（系統回填）';
+      if(stu&&stu.class){
+        // 試著找該班的指派教師
+        const teacher=DB.users.find(u=>u.role==='teacher'&&Array.isArray(u.assignedClasses)&&u.assignedClasses.includes(stu.class));
+        if(teacher){submittedBy=teacher.id;submittedByName=teacher.name||'（系統回填）';}
+      }
+      const rec={
+        kind:'teacher',
+        score:score,
+        reason:'（系統回填 — 此分數於審核機制建立前已存在）',
+        status:'pending',
+        submittedBy:submittedBy,
+        submittedByName:submittedByName,
+        submittedAt:now,
+        reviewedAt:null,
+        reviewedBy:null,
+        sid:sid,
+        scoreType:typeKey,
+        comment:data.comment||'',
+        _backfilled:true,
+      };
+      DB.pendingApprovals[pendingId]=rec;
+      tasks.push(()=>fbSet('pendingApprovals',pendingId,rec));
+      teacherFound++;
+    });
+  });
+
+  // 2) 掃描 juryScores
+  //    結構：DB.juryScores[roomId][entryKey][jurorId][field]
+  const scoreFields=['s1','s2','s3','s4','s5','s6','final','total']; // 可能的分數欄位
+  Object.entries(DB.juryScores||{}).forEach(([roomId,entries])=>{
+    if(!entries||typeof entries!=='object')return;
+    Object.entries(entries).forEach(([entryKey,jurors])=>{
+      if(!jurors||typeof jurors!=='object')return;
+      Object.entries(jurors).forEach(([jurorId,scores])=>{
+        if(!scores||typeof scores!=='object'||jurorId.startsWith('_'))return;
+        Object.entries(scores).forEach(([field,val])=>{
+          if(field.startsWith('_')||field.endsWith('_skip')||field==='comment')return;
+          const score=parseFloat(val);
+          if(isNaN(score)||score<=90)return;
+          const pendingId='jury_'+roomId+'_'+entryKey+'_'+jurorId+'_'+field;
+          if(DB.pendingApprovals?.[pendingId]){jurySkipped++;return;}
+          // 找評審名稱
+          let submittedByName='（系統回填）';
+          const juror=DB.users.find(u=>u.id===jurorId);
+          if(juror)submittedByName=juror.name||juror.id;
+          const rec={
+            kind:'jury',
+            score:score,
+            reason:'（系統回填 — 此分數於審核機制建立前已存在）',
+            status:'pending',
+            submittedBy:jurorId,
+            submittedByName:submittedByName,
+            submittedAt:now,
+            reviewedAt:null,
+            reviewedBy:null,
+            roomId:roomId,
+            entryKey:entryKey,
+            jurorId:jurorId,
+            field:field,
+            _backfilled:true,
+          };
+          DB.pendingApprovals[pendingId]=rec;
+          tasks.push(()=>fbSet('pendingApprovals',pendingId,rec));
+          juryFound++;
+        });
+      });
+    });
+  });
+
+  // 批次寫入 Firebase
+  Promise.all(tasks.map(t=>t())).then(()=>{
+    const msg=`掃描完成 ✓\n\n平時評量 90+ 分：新增 ${teacherFound} 筆（跳過 ${teacherSkipped} 筆已存在）\n現場評分 90+ 分：新增 ${juryFound} 筆（跳過 ${jurySkipped} 筆已存在）`;
+    alert(msg);
+    renderPendingApprovalsPage();
+  }).catch(e=>{
+    console.error('[scanExistingHighScores]',e);
+    showToast('部分項目寫入失敗，請查看 console','err');
+    renderPendingApprovalsPage();
+  });
+}
+window.scanExistingHighScores=scanExistingHighScores;
+
 // 渲染管理員審核頁
 function renderPendingApprovalsPage(){
   const tab=document.getElementById('at-approvals');
@@ -12045,6 +12211,13 @@ function renderPendingApprovalsPage(){
     <div class="card">
       <div class="card-t">📋 分數審核 — 待審核（${pending.length}）</div>
       <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">當教師或評審給予超過 90 分的分數時，分數已立即生效寫入，並會在此列出由您事後審核。<br>同意 → 維持原分數；不同意 → 自動將該筆分數覆寫為 89 分上限。<br><span style="color:var(--orange);font-size:12px">※ 教師與評審不會收到審核結果通知，請在所有評分結束後再統一處理。</span></p>
+      <div style="background:var(--cream);border:1px dashed var(--gold);border-radius:var(--r);padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <div style="font-size:12px;color:var(--muted);line-height:1.6">
+          <strong style="color:var(--ink)">🔍 掃描既有 90+ 分紀錄</strong><br>
+          若此審核機制建立前已有教師/評審給予 90 分以上的分數，可點此按鈕掃描並回填至待審清單。
+        </div>
+        <button class="btn btn-p btn-sm" onclick="scanExistingHighScores()" style="white-space:nowrap">🔍 掃描既有 90+ 分</button>
+      </div>
       <div class="appr-list">${pendingHTML}</div>
     </div>
     <div class="card" style="margin-top:18px">
