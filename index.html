@@ -1083,7 +1083,7 @@ tbody td{color:var(--ink)!important}
 <!-- HIGH SCORE REASON MODAL (90分以上需審核) -->
 <div class="overlay" id="hs-reason-modal">
   <div class="modal" style="width:520px;max-width:92vw">
-    <h2 class="modal-t" id="hs-reason-title" style="color:var(--rust)">分數超過 90 分</h2>
+    <h2 class="modal-t" id="hs-reason-title" style="color:var(--rust)">分數達 90 分（含）以上</h2>
     <div style="background:#fff8e6;border:1px solid var(--gold);border-left:4px solid var(--gold);border-radius:var(--r);padding:12px 14px;margin-bottom:14px">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
         <span style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted)">SCORE</span>
@@ -1093,8 +1093,8 @@ tbody td{color:var(--ink)!important}
       <div id="hs-reason-target" style="font-size:13px;color:var(--ink);margin-top:2px"></div>
     </div>
     <div style="font-size:13px;color:var(--muted);line-height:1.8;margin-bottom:10px">
-      您給予的分數超過 90 分（分數已儲存）。<br>
-      依本系統規定，超過 90 分的分數需向管理員<strong>提供具體理由說明</strong>，請於下方填寫您給予此分數的理由：
+      您給予的分數達 90 分（含）以上（分數已儲存）。<br>
+      依本系統規定，達 90 分（含）以上的分數需向管理員<strong>提供具體理由說明</strong>，請於下方填寫您給予此分數的理由：
     </div>
     <div class="lf">
       <label style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">給予高分的理由（必填，至少 5 字）</label>
@@ -1513,7 +1513,7 @@ tbody td{color:var(--ink)!important}
           <div id="tea-s4" style="display:none">
             <div style="background:var(--cream);border-radius:var(--r);padding:10px 14px;margin-bottom:14px;font-size:13px" id="tea-wiz-info"></div>
             <div class="fr" style="align-items:flex-end">
-              <div class="fg" style="max-width:130px"><label>平時成績（0–100）</label>
+              <div class="fg" style="max-width:130px"><label>平時成績（0–99）</label>
                 <input type="text" inputmode="decimal" id="tea-wiz-score" placeholder="輸入分數"
                   onclick="openNP('tea-wiz-score','平時成績',v=>{document.getElementById('tea-wiz-score').value=v;})" readonly
                   style="cursor:pointer;font-family:\'DM Mono\',monospace;font-size:22px;font-weight:700;color:var(--ink);text-align:center">
@@ -5206,7 +5206,7 @@ function renderTeaTable(){
         <div id="tea-inline-form-${s.id}-${k}" style="display:none;margin-top:10px;padding:12px;background:var(--cream);border-radius:var(--r)">
           <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
             <div style="flex:0 0 120px">
-              <div style="font-family:DM Mono,monospace;font-size:8px;letter-spacing:1px;color:var(--muted);margin-bottom:4px">平時成績（0–100）</div>
+              <div style="font-family:DM Mono,monospace;font-size:8px;letter-spacing:1px;color:var(--muted);margin-bottom:4px">平時成績（0–99）</div>
               <input type="text" inputmode="decimal" id="ti-score-${s.id}-${k}" value="${t?.score??''}"
                 placeholder="輸入分數" readonly
                 onclick="openNP('ti-score-${s.id}-${k}','平時成績',v=>{document.getElementById('ti-score-${s.id}-${k}').value=v;})"
@@ -5276,6 +5276,9 @@ function teaInlineSave(sid,type){
   const score=parseFloat(scoreEl.value);
   const comment=(commentEl?.value||'').trim();
   if(isNaN(score)){showToast('請填入有效分數','err');return;}
+  // ★ 分數上限 99 分
+  if(score>99){showToast('分數上限為 99 分','err');return;}
+  if(score<0){showToast('分數不可為負','err');return;}
   if(!DB.teacherComments[sid])DB.teacherComments[sid]={};
   DB.teacherComments[sid][type]={score,comment};
   const s=DB.users.find(u=>u.id===sid);
@@ -5289,8 +5292,8 @@ function teaInlineSave(sid,type){
   showToast('已儲存 ✓','ok');
   renderTeaTable();
   setTimeout(teaCheckAllDone, 200);
-  // ★ 90分以上：背景送入審核佇列並請教師填理由（分數已生效不擋）
-  if(score>90 && ST.role!=='admin'){
+  // ★ 90分（含）以上：背景送入審核佇列並請教師填理由（分數已生效不擋）
+  if(score>=90 && ST.role!=='admin'){
     const pendingId='tea_'+sid+'_'+type;
     const existing=DB.pendingApprovals?.[pendingId];
     if(!(existing && existing.status==='pending' && existing.score===score)){
@@ -5552,6 +5555,9 @@ function teaWizSave(){
   const score=parseFloat(document.getElementById('tea-wiz-score').value);
   const comment=document.getElementById('tea-wiz-comment').value;
   if(isNaN(score)){showToast('請填入分數','err');return;}
+  // ★ 分數上限 99 分
+  if(score>99){showToast('分數上限為 99 分','err');return;}
+  if(score<0){showToast('分數不可為負','err');return;}
   // ★ 分數立刻生效寫入（不擋）
   if(!DB.teacherComments[sid])DB.teacherComments[sid]={};
   DB.teacherComments[sid][type]={score,comment};
@@ -5563,9 +5569,9 @@ function teaWizSave(){
   }
   fbSet('teacherComments',sid,{...DB.teacherComments[sid]});
   renderTeaTable();
-  // ★ 90分以上：要求教師填寫理由（背景送入審核佇列，分數已生效不擋）
+  // ★ 90分（含）以上：要求教師填寫理由（背景送入審核佇列，分數已生效不擋）
   //   管理員自己改不需審核
-  if(score>90 && ST.role!=='admin'){
+  if(score>=90 && ST.role!=='admin'){
     const pendingId='tea_'+sid+'_'+type;
     const existing=DB.pendingApprovals?.[pendingId];
     // 已有相同 90+ 待審紀錄且分數一致 → 跳過避免重複打擾
@@ -10362,18 +10368,20 @@ function editJuryScores(roomId,entryKey,studentName){
     jurorIds.map((jid,ji)=>{const s=jurorData[jid];return `<div style="padding:10px;background:var(--cream);border-radius:var(--r);margin-bottom:8px">
       <div style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--muted);margin-bottom:8px">評審 ${ji+1} ${s.absent?'（缺考）':''}</div>
       <div class="fr">
-        <div class="fg"><label>音階</label><input type="number" id="ej-scale-${ji}" value="${s.scale||0}" min="0" max="100" step="0.5"></div>
-        <div class="fg"><label>指定曲</label><input type="number" id="ej-assigned-${ji}" value="${s.assigned||0}" min="0" max="100" step="0.5"></div>
-        <div class="fg"><label>自選曲</label><input type="number" id="ej-free-${ji}" value="${s.free||0}" min="0" max="100" step="0.5"></div>
+        <div class="fg"><label>音階</label><input type="number" id="ej-scale-${ji}" value="${s.scale||0}" min="0" max="99" step="0.5"></div>
+        <div class="fg"><label>指定曲</label><input type="number" id="ej-assigned-${ji}" value="${s.assigned||0}" min="0" max="99" step="0.5"></div>
+        <div class="fg"><label>自選曲</label><input type="number" id="ej-free-${ji}" value="${s.free||0}" min="0" max="99" step="0.5"></div>
       </div>
     </div>`;}).join('')
     :'<p style="color:var(--muted);font-size:13px">尚無評審資料</p>';
   document.getElementById('edit-modal-save').onclick=()=>{
+    // ★ 分數上限 99 分 — clamp 防止 paste 或手動輸入超過 99
+    const clamp99=v=>{const n=parseFloat(v)||0;return Math.max(0,Math.min(99,n));};
     jurorIds.forEach((jid,ji)=>{
       const s=DB.juryScores[roomId][entryKey][jid];
-      s.scale=parseFloat(document.getElementById(`ej-scale-${ji}`)?.value)||0;
-      s.assigned=parseFloat(document.getElementById(`ej-assigned-${ji}`)?.value)||0;
-      s.free=parseFloat(document.getElementById(`ej-free-${ji}`)?.value)||0;
+      s.scale=clamp99(document.getElementById(`ej-scale-${ji}`)?.value);
+      s.assigned=clamp99(document.getElementById(`ej-assigned-${ji}`)?.value);
+      s.free=clamp99(document.getElementById(`ej-free-${ji}`)?.value);
     });
     closeOverlay('edit-modal');showToast('評分已更新 ✓','ok');renderResults();
   };
@@ -11746,13 +11754,20 @@ function npConfirm(){
     if(ST.npCallback)ST.npCallback('*');
   } else {
     const val=parseFloat(ST.npVal);
-    if(!isNaN(val)&&val>=0&&val<=100){
+    // ★ 分數範圍 0–99（最高 99 分）
+    if(!isNaN(val)&&val>99){
+      showToast('分數上限為 99 分','err');
+      ST.npVal='';
+      document.getElementById('np-disp').textContent='—';
+      return;
+    }
+    if(!isNaN(val)&&val>=0&&val<=99){
       // ★ 先寫入分數（立刻生效）
       const inp=document.getElementById(ST.npTarget);if(inp){inp.value=val;inp.style.color='';}
       if(ST.npCallback)ST.npCallback(val);
-      // ★ 現場評分 > 90 分：背景送審 + 請評審填理由（不擋）
+      // ★ 現場評分 ≥ 90 分：背景送審 + 請評審填理由（不擋）
       const isJuryCell=typeof ST.npTarget==='string'&&ST.npTarget.startsWith('js-');
-      if(val>90 && isJuryCell && ST.role!=='admin'){
+      if(val>=90 && isJuryCell && ST.role!=='admin'){
         const m=ST.npTarget.match(/^js-(.+)-(\d+)$/);
         if(m){
           const field=m[1];
@@ -11813,7 +11828,7 @@ function openHighScoreReasonModal(ctx){
   const lblTitle=document.getElementById('hs-reason-title');
   const lblTarget=document.getElementById('hs-reason-target');
   if(lblScore)lblScore.textContent=ctx.score;
-  if(lblTitle)lblTitle.textContent=ctx.kind==='teacher'?'平時評量分數超過 90 分':'現場評分分數超過 90 分';
+  if(lblTitle)lblTitle.textContent=ctx.kind==='teacher'?'平時評量分數達 90 分（含）以上':'現場評分分數達 90 分（含）以上';
   // 描述對象（學生姓名）
   let targetTxt='';
   if(ctx.kind==='teacher'){
@@ -12054,7 +12069,7 @@ function _getApprovalDesc(rec){
 // ★ 掃描既有資料庫中所有 90+ 分的紀錄，回填為待審
 //   解決「設定此功能前已存在的 90+ 分」問題
 function scanExistingHighScores(){
-  if(!confirm('將掃描所有已存在的分數，把 90 分以上的紀錄回填為待審。\n\n（已有審核紀錄的不會被覆寫；此操作會新增多筆 Firebase 寫入）\n\n確定繼續？'))return;
+  if(!confirm('將掃描所有已存在的分數，把 90 分（含）以上的紀錄回填為待審。\n\n（已有審核紀錄的不會被覆寫；此操作會新增多筆 Firebase 寫入）\n\n確定繼續？'))return;
   let teacherFound=0, juryFound=0, teacherSkipped=0, jurySkipped=0;
   const now=new Date().toISOString();
   const tasks=[];
@@ -12065,7 +12080,7 @@ function scanExistingHighScores(){
     Object.entries(types).forEach(([typeKey,data])=>{
       if(!data||typeof data!=='object')return;
       const score=parseFloat(data.score);
-      if(isNaN(score)||score<=90)return;
+      if(isNaN(score)||score<90)return;
       const pendingId='tea_'+sid+'_'+typeKey;
       // 已有紀錄 → 跳過
       if(DB.pendingApprovals?.[pendingId]){teacherSkipped++;return;}
@@ -12110,7 +12125,7 @@ function scanExistingHighScores(){
         Object.entries(scores).forEach(([field,val])=>{
           if(field.startsWith('_')||field.endsWith('_skip')||field==='comment')return;
           const score=parseFloat(val);
-          if(isNaN(score)||score<=90)return;
+          if(isNaN(score)||score<90)return;
           const pendingId='jury_'+roomId+'_'+entryKey+'_'+jurorId+'_'+field;
           if(DB.pendingApprovals?.[pendingId]){jurySkipped++;return;}
           // 找評審名稱
@@ -12210,11 +12225,11 @@ function renderPendingApprovalsPage(){
   tab.innerHTML=`
     <div class="card">
       <div class="card-t">📋 分數審核 — 待審核（${pending.length}）</div>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">當教師或評審給予超過 90 分的分數時，分數已立即生效寫入，並會在此列出由您事後審核。<br>同意 → 維持原分數；不同意 → 自動將該筆分數覆寫為 89 分上限。<br><span style="color:var(--orange);font-size:12px">※ 教師與評審不會收到審核結果通知，請在所有評分結束後再統一處理。</span></p>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">當教師或評審給予 90 分（含）以上的分數時，分數已立即生效寫入，並會在此列出由您事後審核。<br>同意 → 維持原分數；不同意 → 自動將該筆分數覆寫為 89 分上限。<br><span style="color:var(--orange);font-size:12px">※ 教師與評審不會收到審核結果通知，請在所有評分結束後再統一處理。</span></p>
       <div style="background:var(--cream);border:1px dashed var(--gold);border-radius:var(--r);padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
         <div style="font-size:12px;color:var(--muted);line-height:1.6">
           <strong style="color:var(--ink)">🔍 掃描既有 90+ 分紀錄</strong><br>
-          若此審核機制建立前已有教師/評審給予 90 分以上的分數，可點此按鈕掃描並回填至待審清單。
+          若此審核機制建立前已有教師/評審給予 90 分（含）以上的分數，可點此按鈕掃描並回填至待審清單。
         </div>
         <button class="btn btn-p btn-sm" onclick="scanExistingHighScores()" style="white-space:nowrap">🔍 掃描既有 90+ 分</button>
       </div>
