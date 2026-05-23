@@ -4204,7 +4204,6 @@ function filterRepInst(type){
   const catId=catEl.value;
   sel.innerHTML='';sel.appendChild(new Option('— 請選 —',''));
   if(catId){
-    const restrict=DB.config.instRestrict?.[type]||[];
     let items=DB.instruments.items.filter(i=>i.cat===catId).sort((a,b)=>a.order-b.order);
     items.forEach(i=>sel.appendChild(new Option(i.name,i.id)));
   }
@@ -4212,8 +4211,9 @@ function filterRepInst(type){
   // 清除之前的附加訊息框
   const msgBoxId='inst-restrict-msg-'+type;
   const old=document.getElementById(msgBoxId);if(old)old.remove();
-  // 監聽樂器選擇變化，顯示附加訊息
-  sel.onchange=function(){
+
+  // ★ 抽出訊息顯示邏輯，供 onchange 和預填後共用
+  function showInstMsg(){
     const old2=document.getElementById(msgBoxId);if(old2)old2.remove();
     const instId=sel.value;
     const restrict=DB.config.instRestrict?.[type]||[];
@@ -4229,15 +4229,20 @@ function filterRepInst(type){
         box.style.cssText='margin-top:10px;background:#fff8e6;border:1px solid var(--gold);border-left:4px solid var(--gold);border-radius:var(--r);padding:12px 14px';
         box.innerHTML=`<div style="font-family:DM Mono,monospace;font-size:8px;letter-spacing:2px;color:var(--gold);margin-bottom:6px">📌 注意事項</div>
           <div style="font-size:13px;line-height:1.9;color:var(--ink)">${htmlText}</div>`;
-        sel.closest('.fr,.reg-sec-b')||sel.parentNode.parentNode;
         sel.parentNode.after(box);
       }
     }
+  }
+
+  // 監聽樂器選擇變化，顯示附加訊息
+  sel.onchange=function(){
+    showInstMsg();
     // ★ 樂器變更時觸發指定曲規則檢查
     aprApply(type);
   };
-  // ★ 大項變更時也觸發（未選樂器則先收起建議區）
-  aprApply(type);
+  // ★ Bug 修正：預填後立即執行一次，處理 .value 設值不觸發 onchange 的情況
+  // 用 requestAnimationFrame 確保 setV() 已執行完畢後再讀取 sel.value
+  requestAnimationFrame(()=>{showInstMsg();aprApply(type);});
 }
 
 // ════════════════════════════════════════════════
