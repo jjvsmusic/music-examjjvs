@@ -1419,7 +1419,8 @@ tbody td{color:var(--ink)!important}
       </div>
       <!-- 搜尋列 -->
       <div class="lookup-bar">
-        <input class="lookup-inp" id="lookup-name" type="text" placeholder="輸入姓名搜尋…（即時顯示該生所有考試）" oninput="onStuNameInput()" style="flex:1;min-width:180px">
+        <input class="lookup-inp" id="lookup-name" type="text" placeholder="輸入姓名搜尋…（即時顯示）" oninput="onStuNameInput()" style="flex:1;min-width:180px">
+        <button class="btn btn-p" onclick="doLookup()">搜尋</button>
         <button class="btn btn-s" onclick="clearLookup()">清除</button>
       </div>
       <!-- 姓名搜尋結果提示 -->
@@ -5214,7 +5215,9 @@ function stuSchSelectRoom(roomId,btn){
   }
 
   const shown=entries.filter(e=>(!nameQ||e.name.toLowerCase().includes(nameQ))&&(!instQ||e.instId===instQ));
-  tbody.innerHTML=shown.map(e=>`<tr>
+  tbody.innerHTML=shown.map(e=>{
+    const {ac,at,fc,ft}=_getEntryRep(e);
+    return `<tr>
     <td style="font-family:'DM Mono',monospace;color:var(--ink);font-weight:600">${e._displayOrder}</td>
     <td style="color:var(--ink)">${escHtml(e._roomName)}</td>
     <td style="color:var(--ink);font-family:'DM Mono',monospace;font-size:11px">${escHtml(e._roomLoc||'—')}</td>
@@ -5222,9 +5225,9 @@ function stuSchSelectRoom(roomId,btn){
     <td style="color:var(--ink);font-weight:600">${escHtml(e.name)}</td>
     <td style="color:var(--ink)">${escHtml(e.instName)}</td>
     <td>${typeBadge(e.type)}</td>
-    <td style="font-size:12px;color:var(--ink)">${e.ac?escHtml(e.ac)+' — <em>'+escHtml(e.at)+'</em>':'—'}</td>
-    <td style="font-size:12px;color:var(--ink)">${e.fc?escHtml(e.fc)+' — <em>'+escHtml(e.ft)+'</em>':'—'}</td>
-  </tr>`).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;font-family:\'DM Mono\',monospace;font-size:12px">查無資料（請確認管理員已存檔排程）</td></tr>';
+    <td style="font-size:12px;color:var(--ink)">${ac?escHtml(ac)+' — <em>'+escHtml(at)+'</em>':'—'}</td>
+    <td style="font-size:12px;color:var(--ink)">${fc?escHtml(fc)+' — <em>'+escHtml(ft)+'</em>':'—'}</td>
+  </tr>`;}).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;font-family:\'DM Mono\',monospace;font-size:12px">查無資料（請確認管理員已存檔排程）</td></tr>';
 }
 window.stuSchSelectRoom=stuSchSelectRoom;
 
@@ -7979,13 +7982,19 @@ function _getScheduleByRoom(){
 
 // ── 共用：從 entry 取曲目（相容快照及即時 entry，均備從 DB 補回）──
 function _getEntryRep(e){
+  // ★ 修正：永遠優先從 DB.users 讀最新曲目，再 fallback 到快照值
+  // 快照存檔時間點和學生填報時間點不同，快照中的曲目可能是舊值或空值
   let ac=e.ac||'',at=e.at||'',fc=e.fc||'',ft=e.ft||'';
-  if(!ac&&!at&&!fc&&!ft&&e.studentId){
+  if(e.studentId){
     const stu=DB.users.find(u=>u.id===e.studentId);
     if(stu){
-      if(e.type==='major'){ac=stu.major_ac||'';at=stu.major_at||'';fc=stu.major_fc||'';ft=stu.major_ft||'';}
-      else if(e.type==='minor'){ac=stu.minor_ac||'';at=stu.minor_at||'';fc=stu.minor_fc||'';ft=stu.minor_ft||'';}
-      else if(e.type==='elective'){ac=stu.elec_ac||'';at=stu.elec_at||'';fc=stu.elec_fc||'';ft=stu.elec_ft||'';}
+      let sa='',st='',sf='',sft='';
+      if(e.type==='major'){sa=stu.major_ac||'';st=stu.major_at||'';sf=stu.major_fc||'';sft=stu.major_ft||'';}
+      else if(e.type==='minor'){sa=stu.minor_ac||'';st=stu.minor_at||'';sf=stu.minor_fc||'';sft=stu.minor_ft||'';}
+      else if(e.type==='elective'){sa=stu.elec_ac||'';st=stu.elec_at||'';sf=stu.elec_fc||'';sft=stu.elec_ft||'';}
+      // DB.users 有值就用，沒有才保留快照值
+      if(sa||st){ac=sa;at=st;}
+      if(sf||sft){fc=sf;ft=sft;}
     }
   }
   return {ac,at,fc,ft};
@@ -12026,7 +12035,9 @@ function teaSchSelectRoom(roomId,btn){
     entries.forEach(e=>{e._roomName=e.roomName;e._roomLoc=e.roomLocation||'';e._displayOrder=e.order||0;});
   }
 
-  tbody.innerHTML=entries.map(e=>`<tr>
+  tbody.innerHTML=entries.map(e=>{
+    const {ac,at,fc,ft}=_getEntryRep(e);
+    return `<tr>
     <td style="font-family:'DM Mono',monospace;color:var(--ink);font-weight:600">${e._displayOrder}</td>
     <td style="color:var(--ink)">${escHtml(e._roomName)}</td>
     <td style="color:var(--ink);font-family:'DM Mono',monospace;font-size:11px">${escHtml(e._roomLoc||'—')}</td>
@@ -12034,9 +12045,9 @@ function teaSchSelectRoom(roomId,btn){
     <td style="color:var(--ink);font-weight:600">${escHtml(e.name)}</td>
     <td style="color:var(--ink)">${escHtml(e.instName)}</td>
     <td>${typeBadge(e.type)}</td>
-    <td style="font-size:12px;color:var(--ink)">${e.ac?escHtml(e.ac)+' — <em>'+escHtml(e.at)+'</em>':'—'}</td>
-    <td style="font-size:12px;color:var(--ink)">${e.fc?escHtml(e.fc)+' — <em>'+escHtml(e.ft)+'</em>':'—'}</td>
-  </tr>`).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;font-family:\'DM Mono\',monospace;font-size:12px">查無資料（請確認管理員已存檔排程）</td></tr>';
+    <td style="font-size:12px;color:var(--ink)">${ac?escHtml(ac)+' — <em>'+escHtml(at)+'</em>':'—'}</td>
+    <td style="font-size:12px;color:var(--ink)">${fc?escHtml(fc)+' — <em>'+escHtml(ft)+'</em>':'—'}</td>
+  </tr>`;}).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;font-family:\'DM Mono\',monospace;font-size:12px">查無資料（請確認管理員已存檔排程）</td></tr>';
 }
 window.teaSchSelectRoom=teaSchSelectRoom;
 
