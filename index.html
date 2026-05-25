@@ -5280,7 +5280,9 @@ function onStuNameInput(){
 
     // 渲染結果
     const tbody=document.getElementById('stu-sched-tbody');if(!tbody)return;
-    tbody.innerHTML=matched.map(e=>`<tr>
+    tbody.innerHTML=matched.map(e=>{
+      const {ac,at,fc,ft}=_getEntryRep(e);
+      return `<tr>
       <td style="font-family:'DM Mono',monospace;color:var(--ink);font-weight:600">${e._displayOrder}</td>
       <td style="color:var(--ink)">${escHtml(e._roomName)}</td>
       <td style="color:var(--ink);font-family:'DM Mono',monospace;font-size:11px">${escHtml(e._roomLoc||'—')}</td>
@@ -5288,9 +5290,9 @@ function onStuNameInput(){
       <td style="color:var(--ink);font-weight:600">${escHtml(e.name)}</td>
       <td style="color:var(--ink)">${escHtml(e.instName)}</td>
       <td>${typeBadge(e.type)}</td>
-      <td style="font-size:12px;color:var(--ink)">${e.ac?escHtml(e.ac)+' — <em>'+escHtml(e.at)+'</em>':'—'}</td>
-      <td style="font-size:12px;color:var(--ink)">${e.fc?escHtml(e.fc)+' — <em>'+escHtml(e.ft)+'</em>':'—'}</td>
-    </tr>`).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;font-family:\'DM Mono\',monospace;font-size:12px">查無資料</td></tr>';
+      <td style="font-size:12px;color:var(--ink)">${ac?escHtml(ac)+' — <em>'+escHtml(at)+'</em>':'—'}</td>
+      <td style="font-size:12px;color:var(--ink)">${fc?escHtml(fc)+' — <em>'+escHtml(ft)+'</em>':'—'}</td>
+    </tr>`;}).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;font-family:\'DM Mono\',monospace;font-size:12px">查無資料</td></tr>';
   } else {
     // 清空搜尋：恢復考場按鈕區，顯示目前選定考場
     if(roomCard)roomCard.style.display='';
