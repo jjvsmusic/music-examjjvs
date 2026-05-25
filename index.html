@@ -7865,14 +7865,14 @@ function _getScheduleByRoom(){
     DB.rooms.forEach(room=>{
       const removed=_getRemovedForRoom(room.id);
       const es=(snap[room.id]||[]).filter(e=>!removed.has(e.studentId+'_'+e.type));
-      byRoom[room.id]={name:room.name||room.id,location:room.location||'',entries:es.map((e,i)=>({...e,order:e.order??i+1}))};
+      byRoom[room.id]={_roomId:room.id,name:room.name||room.id,location:room.location||'',entries:es.map((e,i)=>({...e,order:e.order??i+1}))};
     });
     Object.keys(snap).forEach(roomId=>{
       if(byRoom[roomId])return;
       const es=snap[roomId];if(!Array.isArray(es)||!es.length)return;
       const removed=_getRemovedForRoom(roomId);
       const filtered=es.filter(e=>!removed.has(e.studentId+'_'+e.type));
-      byRoom[roomId]={name:roomId,location:'',entries:filtered.map((e,i)=>({...e,order:e.order??i+1}))};
+      byRoom[roomId]={_roomId:roomId,name:roomId,location:'',entries:filtered.map((e,i)=>({...e,order:e.order??i+1}))};
     });
     return byRoom;
   }
@@ -8037,6 +8037,7 @@ function _openSchedulePrintWindow(rooms,opts){
     +'.header-top{display:flex;align-items:flex-start;justify-content:space-between}'
     +'.room-title{font-size:15px;font-weight:700;color:#1a1a1a;margin:0 0 2px}'
     +'.room-meta{font-size:10px;color:#666}'
+    +'.room-dt{font-size:11px;color:#8b6914;font-weight:600;margin:2px 0 1px;letter-spacing:.3px}'
     +'.school-name{font-size:10px;color:#888;letter-spacing:1px;white-space:nowrap;padding-top:2px}'
     +'table{width:100%;border-collapse:collapse;margin-top:6px}'
     +'thead tr{background:#2c2418;color:#f0e6c8}'
@@ -8062,12 +8063,25 @@ function _openSchedulePrintWindow(rooms,opts){
     +'</style></head><body>';
 
   rooms.forEach(function(roomData){
+    // ★ 計算考場日期時間字串（列印用）
+    var _roomObj=DB.rooms.find(function(r){return r.id===roomData._roomId;});
+    if(!_roomObj&&roomData.entries.length)_roomObj=DB.rooms.find(function(r){return r.name===roomData.name;});
+    var _dtStr='';
+    if(_roomObj){
+      var _wk=['日','一','二','三','四','五','六'];
+      var _fmtDt=function(iso){if(!iso)return null;var d=new Date(iso);if(isNaN(d))return null;return d.getFullYear()+'／'+(d.getMonth()+1<10?'0':'')+(d.getMonth()+1)+'／'+(d.getDate()<10?'0':'')+d.getDate()+'（'+_wk[d.getDay()]+'）'+(d.getHours()<10?'0':'')+d.getHours()+':'+(d.getMinutes()<10?'0':'')+d.getMinutes();};
+      var _s=_fmtDt(_roomObj.dateStart),_e=_fmtDt(_roomObj.dateEnd);
+      if(_s&&_e)_dtStr='📅 '+_s+' ～ '+_e;
+      else if(_s)_dtStr='📅 '+_s;
+    }
+    roomData.datetime=_dtStr;
     var zoom=_calcZoom(roomData.entries.length);
     var zoomStyle=zoom<1?' style="zoom:'+zoom.toFixed(3)+'"':'';
     var scNote=zoom<1?'<span style="font-size:9px;color:#aaa;margin-left:8px">（縮放 '+(zoom*100).toFixed(0)+'%）</span>':'';
     html+='<div class="room-block"'+zoomStyle+'>'
       +'<div class="header"><div class="header-top">'
       +'<div><div class="room-title">\uD83D\uDCCB 出場順序名單\u3000'+roomData.name+scNote+'</div>'
+      +(roomData.datetime?'<div class="room-dt">'+roomData.datetime+'</div>':'')
       +'<div class="room-meta">'+(roomData.location?'\uD83D\uDCCD '+roomData.location+'\u3000':'')+'共 '+roomData.entries.length+' 位學生\u3000列印日期：'+today+'</div></div>'
       +'<div class="school-name">音樂術科期末考評量系統</div>'
       +'</div></div>'
