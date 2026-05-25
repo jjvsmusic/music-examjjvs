@@ -19,6 +19,7 @@
 <!-- Splash/icon fallback (inline SVG icon) -->
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' fill='%2318150f'/%3E%3Ctext x='96' y='130' font-size='100' text-anchor='middle' fill='%23b5892a'%3E♩%3C/text%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;500;600;700&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{
   --ink:#0f0c08;--paper:#f6f1e7;--cream:#ede7d9;
@@ -1830,6 +1831,8 @@ tbody td{color:var(--ink)!important}
             <button class="btn btn-b btn-sm" onclick="schResetToRoomDefaults()" title="依目前考場的分類自動勾選對應樂器">↺ 依考場重設</button>
           <button class="btn btn-g btn-sm" onclick="openSchAddModal()">＋ 手動加入學生</button>
           <button class="btn btn-b btn-sm" onclick="exportScheduleCSV()">↓ 匯出 CSV</button>
+          <button class="btn btn-b btn-sm" onclick="exportScheduleXLSX()">↓ 匯出 Excel（本考場）</button>
+          <button class="btn btn-g btn-sm" onclick="exportAllRoomsXLSX()">↓ 統一匯出 Excel（全考場）</button>
           <button class="btn btn-g btn-sm" onclick="publishSchedule()">📢 公告學生</button>
           <span id="sch-count" style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-left:4px"></span>
         </div>
@@ -7728,6 +7731,105 @@ function exportScheduleCSV(){
   exportCSV(entries.map(e=>({'序':e.order,'考場':e.roomName,'班級':e.class,'座號':e.seat,'姓名':e.name,'樂器':e.instName,'類別':typeName(e.type),'指定曲作曲家':e.ac||'','指定曲曲目':e.at||'','自選曲作曲家':e.fc||'','自選曲曲目':e.ft||''})),'考試排程');
 }
 
+// ── 共用：將 entry 陣列轉為 worksheet 資料列 ──
+function _schedEntriesToRows(entries){
+  return entries.map(e=>({
+    '序':e.order,'班級':e.class,'座號':e.seat,'姓名':e.name,
+    '樂器':e.instName,'類別':typeName(e.type),
+    '指定曲作曲家':e.ac||'','指定曲曲目':e.at||'',
+    '自選曲作曲家':e.fc||'','自選曲曲目':e.ft||'',
+  }));
+}
+
+// ── 共用：為 worksheet 套用基本樣式（欄寬）──
+function _applyWsColWidths(ws,cols){
+  ws['!cols']=cols.map(w=>({wch:w}));
+}
+
+// ── 匯出目前考場的出場順序（單一工作表 xlsx）──
+function exportScheduleXLSX(){
+  if(typeof XLSX==='undefined'){showToast('Excel 套件載入中，請稍後重試','err');return;}
+  const roomId=document.getElementById('sch-room')?.value||'';
+  const snap=DB.savedScheduleSnapshot||{};
+  const hasSnap=Object.values(snap).some(a=>a&&a.length>0);
+
+  let entries=[];
+  if(roomId){
+    if(hasSnap&&snap[roomId]&&snap[roomId].length){
+      entries=snap[roomId].map((e,i)=>({...e,order:e.order??i+1,roomName:(DB.rooms.find(r=>r.id===roomId)?.name||roomId)}));
+    } else {
+      entries=getScheduleEntries().filter(e=>e.roomId===roomId);
+    }
+  } else {
+    entries=getScheduleEntries();
+  }
+
+  if(!entries.length){showToast('此考場無出場名單','err');return;}
+  const roomName=roomId?(DB.rooms.find(r=>r.id===roomId)?.name||'考場'):'全部考場';
+  const rows=_schedEntriesToRows(entries);
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.json_to_sheet(rows);
+  _applyWsColWidths(ws,[5,8,6,10,10,8,12,20,12,20]);
+  XLSX.utils.book_append_sheet(wb,ws,roomName.slice(0,31));
+  XLSX.writeFile(wb,`出場順序_${roomName}.xlsx`);
+  showToast(`已匯出「${roomName}」出場名單 ✓`,'ok');
+}
+
+// ── 統一匯出全部考場（每個考場一個工作表，同一個 xlsx）──
+function exportAllRoomsXLSX(){
+  if(typeof XLSX==='undefined'){showToast('Excel 套件載入中，請稍後重試','err');return;}
+  const snap=DB.savedScheduleSnapshot||{};
+  const hasSnap=Object.values(snap).some(a=>a&&a.length>0);
+  const rooms=DB.rooms||[];
+
+  const wb=XLSX.utils.book_new();
+  let sheetCount=0;
+
+  if(hasSnap){
+    // 優先從已儲存排程快照讀取
+    rooms.forEach(room=>{
+      const es=snap[room.id];
+      if(!es||!es.length)return;
+      const entries=es.map((e,i)=>({...e,order:e.order??i+1}));
+      const rows=_schedEntriesToRows(entries);
+      const ws=XLSX.utils.json_to_sheet(rows);
+      _applyWsColWidths(ws,[5,8,6,10,10,8,12,20,12,20]);
+      const sheetName=(room.name||room.id).slice(0,31);
+      XLSX.utils.book_append_sheet(wb,ws,sheetName);
+      sheetCount++;
+    });
+    // 含沒在 DB.rooms 但快照有資料的考場
+    Object.keys(snap).forEach(roomId=>{
+      if(rooms.find(r=>r.id===roomId))return; // 已處理
+      const es=snap[roomId];
+      if(!es||!es.length)return;
+      const entries=es.map((e,i)=>({...e,order:e.order??i+1}));
+      const rows=_schedEntriesToRows(entries);
+      const ws=XLSX.utils.json_to_sheet(rows);
+      _applyWsColWidths(ws,[5,8,6,10,10,8,12,20,12,20]);
+      XLSX.utils.book_append_sheet(wb,(roomId).slice(0,31),ws);
+      sheetCount++;
+    });
+  } else {
+    // 尚未存檔時，從即時計算的資料分組
+    rooms.forEach(room=>{
+      const entries=getScheduleEntries().filter(e=>e.roomId===room.id);
+      if(!entries.length)return;
+      const rows=_schedEntriesToRows(entries);
+      const ws=XLSX.utils.json_to_sheet(rows);
+      _applyWsColWidths(ws,[5,8,6,10,10,8,12,20,12,20]);
+      const sheetName=(room.name||room.id).slice(0,31);
+      XLSX.utils.book_append_sheet(wb,ws,sheetName);
+      sheetCount++;
+    });
+  }
+
+  if(!sheetCount){showToast('目前無任何考場排程資料，請先存檔排程','err');return;}
+  const today=new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit'}).replace(/\//g,'');
+  XLSX.writeFile(wb,`出場順序_全考場_${today}.xlsx`);
+  showToast(`已統一匯出 ${sheetCount} 個考場的出場名單 ✓`,'ok');
+}
+
 async function publishSchedule(){
   if(!requireRole('admin'))return;
   // ★ 自動推送：學生/教師下次登入會自動取得最新排程
@@ -13099,7 +13201,7 @@ const _expose = [
   'doLookup','clearLookup',
   'openTeaModal','swTeaTab','saveTeaComment','teaWizStart','teaWizPickClass','teaWizPickStu','teaWizPickType','teaWizBack','teaWizSaveAndNext','teaWizSubmitAll','teaWizOpenDirect','openTeaStuModal','tsmFilterClass','saveTeaStu','teaWizNameSearch','teaWizS1NameSearch',
   'checkJuryBeforeSubmit','submitJuryAll','confirmSubmitJury','midSaveJury','toggleAbsent','saveJCell',
-  'generateSchedule','exportScheduleCSV','publishSchedule','schResetFilters','schResetToRoomDefaults','schSaveSchedule','schLoadSchedule','schInitSortBar','schAddExcludeRule','schRemoveExcludeRule','renderSchExcludeUI','schToggleSortKey','openDisqModal','saveDisq','removeDisq','importDisqCSV','exportDisqCSV','downloadDisqSample','renderDisqList','onSchRoomChange','schRoomCatToggle','schRoomInstToggle','openSchAddModal','schAddSearch','schAddEntry','schRestoreEntry','schRemoveEntry','schAddCurrentFilter',
+  'generateSchedule','exportScheduleCSV','exportScheduleXLSX','exportAllRoomsXLSX','publishSchedule','schResetFilters','schResetToRoomDefaults','schSaveSchedule','schLoadSchedule','schInitSortBar','schAddExcludeRule','schRemoveExcludeRule','renderSchExcludeUI','schToggleSortKey','openDisqModal','saveDisq','removeDisq','importDisqCSV','exportDisqCSV','downloadDisqSample','renderDisqList','onSchRoomChange','schRoomCatToggle','schRoomInstToggle','openSchAddModal','schAddSearch','schAddEntry','schRestoreEntry','schRemoveEntry','schAddCurrentFilter',
   'openAddDisqIndividual','adimSearch','adimSelect','saveDisqIndividual',
   'renderTeaSchedulePage','teaSchSelectRoom','renderLiveResults','renderTeaJuryComments','renderAdminResults','exportAdminResultsCSV','renderDeleteJurorBar','deleteJurorFromRoom',
   'swAdminTab','swUserTab',
@@ -13125,7 +13227,7 @@ const _expose = [
   'renderJsupAdminPanel','renderJsupOptsList','addJsupOption','jsupUpdateOptLabel','jsupUpdateOptFlag','jsupDelOption','saveJurySignupConfig','saveJsupOptions','renderJsupAdminTable','exportJsupCSV',
 ];
 // ★ 安全暴露到 window（不用 eval，改用函數名對照表）
-const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,midSaveJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,publishSchedule,schResetFilters,schResetToRoomDefaults,schSaveSchedule,schLoadSchedule,schInitSortBar,schAddExcludeRule,schRemoveExcludeRule,renderSchExcludeUI,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,renderLiveResults,renderTeaJuryComments,renderAdminResults,exportAdminResultsCSV,renderDeleteJurorBar,deleteJurorFromRoom,adminJurySelectRoom,initJuryAdminRoomBar,openExportSummaryModal,doExportSummary,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,openStuRoomModal,saveStuRoomModal,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,rfAddRule,rfRemoveRule,rfReadRulesFromDOM,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveBulletin,renderBulletin,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,publishResults,unpublishResults,renderAdminInstChangeNotices,markInstChangeRead,markAllInstChangesRead,updateDelJurorList,deleteJurorScores,cleanGhostJurors,adminPublishSnapshot,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,erShowTab,erAdminTab,erCmd,erInsertTable,erInsertImage,erSave,erInitAdminEditors,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,teaInlineToggle,teaInlineEdit,teaInlineSave,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,_renderJsupSubmittedSummary,_jsupReopenForm,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,saveJsupOptions,renderJsupAdminTable,exportJsupCSV,exportJsupCSVWide};
+const _fnMap = {doLogin,doJuryDirectLogin,saveFirstPassword,doJuryLogin,doLogout,openChPwd,doChangePassword,fbSet,fbDelete,fbLoad,fbSaveInstruments,closeOverlay,openOverlay,showToast,filterRepInst,toggleElective,previewRep,backToRepForm,submitRep,editRep,renderRepDoneInfo,renderRepPage,doLookup,clearLookup,openTeaModal,swTeaTab,saveTeaComment,teaWizStart,teaWizPickClass,teaWizPickStu,teaWizPickType,teaWizBack,teaWizSaveAndNext,teaWizSubmitAll,teaWizOpenDirect,openTeaStuModal,tsmFilterClass,saveTeaStu,teaWizNameSearch,teaWizS1NameSearch,checkJuryBeforeSubmit,submitJuryAll,confirmSubmitJury,midSaveJury,toggleAbsent,saveJCell,generateSchedule,exportScheduleCSV,exportScheduleXLSX,exportAllRoomsXLSX,publishSchedule,schResetFilters,schResetToRoomDefaults,schSaveSchedule,schLoadSchedule,schInitSortBar,schAddExcludeRule,schRemoveExcludeRule,renderSchExcludeUI,openDisqModal,saveDisq,removeDisq,importDisqCSV,exportDisqCSV,downloadDisqSample,renderDisqList,onSchRoomChange,schRoomCatToggle,schRoomInstToggle,openSchAddModal,schAddSearch,schAddEntry,schRestoreEntry,schRemoveEntry,schAddCurrentFilter,openAddDisqIndividual,adimSearch,adimSelect,saveDisqIndividual,renderTeaSchedulePage,teaSchSelectRoom,renderLiveResults,renderTeaJuryComments,renderAdminResults,exportAdminResultsCSV,renderDeleteJurorBar,deleteJurorFromRoom,adminJurySelectRoom,initJuryAdminRoomBar,openExportSummaryModal,doExportSummary,swAdminTab,swUserTab,showAddUser,editUser,resetUserPwd,deleteUser,bulkDeleteUsers,toggleAllCheck,updateBulkBar,importCSV,downloadSample,importTeaStudentsCSV,downloadTeaStudentsSample,sortTeaList,adminStuFilterClass,addCategory,renameCategory,delCategory,addInstrument,renameInst,delInst,renderInstList,openStuRoomModal,saveStuRoomModal,addRoom,editRoom,delRoom,revealCode,addRoomField,removeRoomField,saveRoomFields,renderRoomFields,rfAddRule,rfRemoveRule,rfReadRulesFromDOM,addClass,renameClass,delClass,saveTiming,saveAnnounce,saveBulletin,renderBulletin,saveWeights,addTrim,saveTrimRules,fbSaveConfig,setAccess,saveRepHint,saveTyText,clearData,saveTeaScheduleMsg,publishResults,unpublishResults,renderAdminInstChangeNotices,markInstChangeRead,markAllInstChangesRead,updateDelJurorList,deleteJurorScores,cleanGhostJurors,adminPublishSnapshot,renderResults,editJuryScores,exportResultsCSV,toggleJurorNames,toggleRemarkFilter,setResultView,erShowTab,erAdminTab,erCmd,erInsertTable,erInsertImage,erSave,erInitAdminEditors,npKey,npDel,npConfirm,npBg,npStar,openNP,schSelectRoom,schSeatDir,schApplySort,schInitRoomTabs,schInitSortUI,saveInstRestrict,saveRepConfirmMsg,savePendingMsgs,showPendingPage,renderInstRestrictUI,renderSchCatUI,exportTeaOverviewCSV,renderTeaTable,openTeaSelfAddPanel,tsaSearch,adminCommentInit,adminCommentSave,adminCommentLoadStudent,adminCommentLoadType,adminCommentFromImage,adminCommentImportCSV,adminCommentDownloadSample,doInvigLogin,invigSelectRoom,toggleBlackSign,toggleLivePlay,saveScaleKey,renderInvigPage,saveJRemark,saveJRemarkText,switchTeaSubTab,updateJurySignupTabVisibility,teaCheckAllDone,teaInlineToggle,teaInlineEdit,teaInlineSave,renderJurySignupPage,jsupPickOpt,jsupDraftSave,saveJurySignupDraft,submitJurySignup,_renderJsupSubmittedSummary,_jsupReopenForm,renderJsupAdminPanel,renderJsupOptsList,addJsupOption,jsupUpdateOptLabel,jsupUpdateOptFlag,jsupDelOption,saveJurySignupConfig,saveJsupOptions,renderJsupAdminTable,exportJsupCSV,exportJsupCSVWide};
 Object.keys(_fnMap).forEach(function(name){ window[name] = _fnMap[name]; });
 
 // ★ 頁面載入後立即從 Firebase 同步 users，讓登入時帳密是最新狀態
