@@ -7741,40 +7741,25 @@ function exportScheduleCSV(){
 function _getScheduleByRoom(){
   const snap=DB.savedScheduleSnapshot||{};
   const hasSnap=Object.values(snap).some(a=>Array.isArray(a)&&a.length>0);
-  // ★ 診斷用 log（確認問題後可刪除）
-  console.log('[SCH-DEBUG] snap keys:', Object.keys(snap));
-  console.log('[SCH-DEBUG] hasSnap:', hasSnap);
-  Object.entries(snap).forEach(([rid,arr])=>console.log('[SCH-DEBUG] snap['+rid+'] length:', Array.isArray(arr)?arr.length:'NOT ARRAY', arr&&arr[0]?'first:'+JSON.stringify(arr[0]).slice(0,80):''));
-  console.log('[SCH-DEBUG] DB.rooms:', DB.rooms.map(r=>r.id+'('+r.name+')'));
-  console.log('[SCH-DEBUG] SCH_STATE.roomId:', SCH_STATE.roomId);
-  console.log('[SCH-DEBUG] _SCH_ROOM_STATES keys:', Object.keys(_SCH_ROOM_STATES));
   if(hasSnap){
-    // ★ 修正 Bug1：合併所有考場的 removedEntries，過濾掉快照存檔後才手動刪除的項目
-    // 只收集格式為 "studentId_type" 的合法 key，防止錯誤格式誤殺所有人
-    const allRemoved=new Set();
-    const _addRemoved=set=>{
-      if(!set)return;
-      const iter=set instanceof Set?set:new Set(Array.isArray(set)?set:[]);
-      iter.forEach(k=>{if(typeof k==='string'&&k.includes('_'))allRemoved.add(k);});
-    };
-    Object.values(_SCH_ROOM_STATES).forEach(st=>_addRemoved(st.removedEntries));
-    _addRemoved(SCH_STATE.removedEntries);
     const byRoom={};
+    // ★ 修正：收集所有考場的 removedEntries，過濾已被手動移除的學生
+    const _getRemovedForRoom=(roomId)=>{
+      const st=(SCH_STATE.roomId===roomId)?SCH_STATE:(_SCH_ROOM_STATES[roomId]||{});
+      const raw=st.removedEntries;
+      return raw instanceof Set?raw:new Set(Array.isArray(raw)?raw:[]);
+    };
     DB.rooms.forEach(room=>{
-      const rawEs=snap[room.id]||[];
-      const es=allRemoved.size>0
-        ?rawEs.filter(e=>{const k=e.entryKey||(e.studentId+'_'+e.type);return!allRemoved.has(k);})
-        :rawEs.slice();
+      const removed=_getRemovedForRoom(room.id);
+      const es=(snap[room.id]||[]).filter(e=>!removed.has(e.studentId+'_'+e.type));
       byRoom[room.id]={name:room.name||room.id,location:room.location||'',entries:es.map((e,i)=>({...e,order:e.order??i+1}))};
     });
     Object.keys(snap).forEach(roomId=>{
       if(byRoom[roomId])return;
-      const rawEs=snap[roomId];if(!Array.isArray(rawEs)||!rawEs.length)return;
-      const es=allRemoved.size>0
-        ?rawEs.filter(e=>{const k=e.entryKey||(e.studentId+'_'+e.type);return!allRemoved.has(k);})
-        :rawEs.slice();
-      if(!es.length)return;
-      byRoom[roomId]={name:roomId,location:'',entries:es.map((e,i)=>({...e,order:e.order??i+1}))};
+      const es=snap[roomId];if(!Array.isArray(es)||!es.length)return;
+      const removed=_getRemovedForRoom(roomId);
+      const filtered=es.filter(e=>!removed.has(e.studentId+'_'+e.type));
+      byRoom[roomId]={name:roomId,location:'',entries:filtered.map((e,i)=>({...e,order:e.order??i+1}))};
     });
     return byRoom;
   }
@@ -7934,20 +7919,17 @@ function _openSchedulePrintWindow(rooms){
     +'.rep-lbl{font-weight:700;color:#5a4010;margin-right:3px}'
     +'.no-rep{color:#bbb;font-style:italic;font-size:11px}'
     +'.footer{text-align:right;font-size:10px;color:#aaa;margin-top:14px;padding-top:8px;border-top:1px solid #e8e0d0}'
-    +'@media print{.room-block{padding:16px 18px}@page{margin:14mm 10mm}}'
-    // ★ 修正 Bug2：扣考樣式
     +'.dq-row{background:#fff0f0!important}'
-    +'.dq-badge{display:inline-block;background:#c0392b;color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;margin-left:6px;vertical-align:middle;letter-spacing:.5px}'
-    +'.dq-reason{display:block;font-size:10px;color:#c0392b;margin-top:2px;font-style:italic}'
+    +'.dq-badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:#dc3545;color:#fff;margin-left:6px;vertical-align:middle;letter-spacing:.5px}'
+    +'.dq-reason{display:block;font-size:10px;color:#c00;margin-top:2px;font-style:italic}'
+    +'@media print{.room-block{padding:16px 18px}@page{margin:14mm 10mm}}'
     +'</style></head><body>';
 
   rooms.forEach(function(roomData){
-    // ★ 修正 Bug2：計算實際出場人數（扣考者仍列但不計入出場數時可調整，此處全部列出含扣考）
-    var totalCount=roomData.entries.length;
     html+='<div class="room-block">'
       +'<div class="header"><div class="header-top">'
       +'<div><div class="room-title">\uD83D\uDCCB 出場順序名單\u3000'+roomData.name+'</div>'
-      +'<div class="room-meta">'+(roomData.location?'\uD83D\uDCCD '+roomData.location+'\u3000':'')+'共 '+totalCount+' 位學生\u3000列印日期：'+today+'</div></div>'
+      +'<div class="room-meta">'+(roomData.location?'\uD83D\uDCCD '+roomData.location+'\u3000':'')+'共 '+roomData.entries.length+' 位學生\u3000列印日期：'+today+'</div></div>'
       +'<div class="school-name">音樂術科期末考評量系統</div>'
       +'</div></div>'
       +'<table><thead><tr>'
@@ -7960,29 +7942,28 @@ function _openSchedulePrintWindow(rooms){
     roomData.entries.forEach(function(e){
       var rep=_getEntryRep(e);
       var ac=rep.ac,at=rep.at,fc=rep.fc,ft=rep.ft;
-      // ★ 修正 Bug2：查扣考狀態
-      var entryKey=e.entryKey||(e.studentId+'_'+e.type);
-      var dq=DB.disqualified&&DB.disqualified[entryKey];
-      var assignedHtml=dq?'<span style="color:#bbb;font-style:italic;font-size:11px">（扣考）</span>'
-        :(ac||at)?('<span class="rep-lbl"></span>'+(ac||'')+(at?' \u2014 '+at:'')):'<span class="no-rep">（未填）</span>';
-      var freeHtml=dq?'<span style="color:#bbb;font-style:italic;font-size:11px">（扣考）</span>'
-        :(fc||ft)?('<span class="rep-lbl"></span>'+(fc||'')+(ft?' \u2014 '+ft:'')):'<span class="no-rep">（未填）</span>';
+      var assignedHtml=(ac||at)?('<span class="rep-lbl"></span>'+(ac||'')+(at?' \u2014 '+at:'')):'<span class="no-rep">（未填）</span>';
+      var freeHtml=(fc||ft)?('<span class="rep-lbl"></span>'+(fc||'')+(ft?' \u2014 '+ft:'')):'<span class="no-rep">（未填）</span>';
       var typeCls={major:'major',minor:'minor',elective:'elective'}[e.type]||'major';
+      // ★ 修正：讀取扣考狀態並標注
+      var entryKey=e.studentId+'_'+e.type;
+      var dq=DB.disqualified&&DB.disqualified[entryKey];
       var dqBadge=dq?'<span class="dq-badge">⛔ 扣考</span>':'';
-      var dqReason=dq?'<span class="dq-reason">'+escHtml(dq.reason||'')+(dq.note?'（'+escHtml(dq.note)+'）':'')+'</span>':'';
-      html+='<tr class="'+(dq?'dq-row':'')+'">'
-        +'<td class="seq" style="'+(dq?'color:#c0392b':'')+'">'+String(e.order).padStart(2,'0')+'</td>'
+      var dqReason=dq?('<span class="dq-reason">原因：'+escHtml(dq.reason||'')+'</span>'):'';
+      var trCls=dq?' class="dq-row"':'';
+      html+='<tr'+trCls+'>'
+        +'<td class="seq">'+String(e.order).padStart(2,'0')+'</td>'
         +'<td><span class="sname">'+escHtml(e.name||'')+dqBadge+'</span>'
         +dqReason
         +'<span class="sinfo">'+escHtml(e.class||'')+'\u30FB\u5EA7 '+escHtml(String(e.seat||''))+'</span></td>'
         +'<td><span class="inst">'+escHtml(e.instName||'')+'</span>'
         +'<span class="tbadge '+typeCls+'">'+typeName(e.type)+'</span></td>'
-        +'<td><span class="rep-line">'+assignedHtml+'</span></td>'
-        +'<td><span class="rep-line">'+freeHtml+'</span></td>'
+        +'<td><span class="rep-line">'+(dq?'<span class="no-rep">（扣考）</span>':assignedHtml)+'</span></td>'
+        +'<td><span class="rep-line">'+(dq?'<span class="no-rep">（扣考）</span>':freeHtml)+'</span></td>'
         +'</tr>';
     });
     html+='</tbody></table>'
-      +'<div class="footer">出場順序名單 \u2014 '+roomData.name+'\u3000共 '+totalCount+' 筆</div>'
+      +'<div class="footer">出場順序名單 \u2014 '+roomData.name+'\u3000共 '+roomData.entries.length+' 筆</div>'
       +'</div>';
   });
   html+='</body></html>';
