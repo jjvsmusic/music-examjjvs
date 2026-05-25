@@ -7743,24 +7743,31 @@ function _getScheduleByRoom(){
   const hasSnap=Object.values(snap).some(a=>Array.isArray(a)&&a.length>0);
   if(hasSnap){
     // ★ 修正 Bug1：合併所有考場的 removedEntries，過濾掉快照存檔後才手動刪除的項目
+    // 只收集格式為 "studentId_type" 的合法 key，防止錯誤格式誤殺所有人
     const allRemoved=new Set();
-    Object.entries(_SCH_ROOM_STATES).forEach(([,st])=>{
-      (st.removedEntries instanceof Set?st.removedEntries:new Set(st.removedEntries||[])).forEach(k=>allRemoved.add(k));
-    });
-    // 也加入目前正在操作的考場狀態（SCH_STATE 可能尚未存入 _SCH_ROOM_STATES）
-    if(SCH_STATE.removedEntries instanceof Set)SCH_STATE.removedEntries.forEach(k=>allRemoved.add(k));
+    const _addRemoved=set=>{
+      if(!set)return;
+      const iter=set instanceof Set?set:new Set(Array.isArray(set)?set:[]);
+      iter.forEach(k=>{if(typeof k==='string'&&k.includes('_'))allRemoved.add(k);});
+    };
+    Object.values(_SCH_ROOM_STATES).forEach(st=>_addRemoved(st.removedEntries));
+    _addRemoved(SCH_STATE.removedEntries);
     const byRoom={};
     DB.rooms.forEach(room=>{
-      const es=(snap[room.id]||[]).filter(e=>!allRemoved.has(e.entryKey||(e.studentId+'_'+e.type)));
-      let order=1;
-      byRoom[room.id]={name:room.name||room.id,location:room.location||'',entries:es.map(e=>({...e,order:e.order!==undefined?e.order:order++}))};
+      const rawEs=snap[room.id]||[];
+      const es=allRemoved.size>0
+        ?rawEs.filter(e=>{const k=e.entryKey||(e.studentId+'_'+e.type);return!allRemoved.has(k);})
+        :rawEs.slice();
+      byRoom[room.id]={name:room.name||room.id,location:room.location||'',entries:es.map((e,i)=>({...e,order:e.order??i+1}))};
     });
     Object.keys(snap).forEach(roomId=>{
       if(byRoom[roomId])return;
-      const es=(snap[roomId]||[]).filter(e=>!allRemoved.has(e.entryKey||(e.studentId+'_'+e.type)));
-      if(!Array.isArray(es)||!es.length)return;
-      let order=1;
-      byRoom[roomId]={name:roomId,location:'',entries:es.map(e=>({...e,order:e.order!==undefined?e.order:order++}))};
+      const rawEs=snap[roomId];if(!Array.isArray(rawEs)||!rawEs.length)return;
+      const es=allRemoved.size>0
+        ?rawEs.filter(e=>{const k=e.entryKey||(e.studentId+'_'+e.type);return!allRemoved.has(k);})
+        :rawEs.slice();
+      if(!es.length)return;
+      byRoom[roomId]={name:roomId,location:'',entries:es.map((e,i)=>({...e,order:e.order??i+1}))};
     });
     return byRoom;
   }
