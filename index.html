@@ -1408,10 +1408,19 @@ tbody td{color:var(--ink)!important}
     <!-- ══ STUDENT: SCHEDULE LOOKUP ══ -->
     <div class="pg" id="pg-stu-schedule">
       <div class="ph"><h1>考試順序查詢</h1><span>Schedule Lookup</span></div>
+      <!-- 考場按鈕列 -->
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-t">選擇考場查看</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap" id="stu-schedule-room-btns"></div>
+      </div>
+      <!-- 考場時間資訊 -->
+      <div id="stu-schedule-room-info" style="display:none;margin-bottom:12px;padding:10px 16px;background:var(--cream);border-left:4px solid var(--gold);border-radius:var(--r)">
+        <div id="stu-schedule-room-info-text" style="font-size:13px;color:var(--ink);line-height:1.9"></div>
+      </div>
+      <!-- 搜尋列 -->
       <div class="lookup-bar">
         <input class="lookup-inp" id="lookup-name" type="text" placeholder="輸入姓名搜尋...">
         <select class="lookup-inp" id="lookup-inst" style="flex:none;min-width:130px"><option value="">全部樂器</option></select>
-        <select class="lookup-inp" id="lookup-room" style="flex:none;min-width:130px"><option value="">全部考場</option></select>
         <button class="btn btn-p" onclick="doLookup()">搜尋</button>
         <button class="btn btn-s" onclick="clearLookup()">清除</button>
       </div>
@@ -1685,6 +1694,9 @@ tbody td{color:var(--ink)!important}
           <div class="card-t">選擇考場查看</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap" id="tea-schedule-room-btns"></div>
         </div>
+        <div id="tea-schedule-room-info" style="display:none;margin-bottom:12px;padding:10px 16px;background:var(--cream);border-left:4px solid var(--gold);border-radius:var(--r)">
+          <div id="tea-schedule-room-info-text" style="font-size:13px;color:var(--ink);line-height:1.9"></div>
+        </div>
         <div id="tea-schedule-table-wrap">
           <div class="tw"><table>
             <thead><tr><th>序</th><th>考場</th><th>地點</th><th>班級</th><th>姓名</th><th>樂器</th><th>別</th><th>指定曲</th><th>自選曲</th></tr></thead>
@@ -1755,8 +1767,11 @@ tbody td{color:var(--ink)!important}
     <div class="pg" id="pg-schedule">
       <div class="ph"><h1>考試排程</h1><span>Exam Schedule</span></div>
       <!-- ★ 考場切換按鈕列 -->
-      <div id="sch-room-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+      <div id="sch-room-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
         <button class="btn btn-p btn-sm" onclick="schSelectRoom('',this)">全部考場</button>
+      </div>
+      <div id="sch-room-info" style="display:none;margin-bottom:14px;padding:10px 16px;background:var(--cream);border-left:4px solid var(--gold);border-radius:var(--r)">
+        <div id="sch-room-info-text" style="font-size:13px;color:var(--ink);line-height:1.9"></div>
       </div>
       <!-- 篩選與排序設定 -->
       <div class="card" style="margin-bottom:14px">
@@ -5108,58 +5123,113 @@ function getScheduleEntries(){
   return entries;
 }
 
-function renderStuSchedule(filter){
-  const tbody=document.getElementById('stu-sched-tbody');if(!tbody)return;
-  const nameQ=(filter?.name||'').toLowerCase();
-  const instQ=filter?.inst||'';
-  const roomQ=filter?.room||'';
+// ─── 學生考試順序：初始化考場按鈕 ───
+function renderStuSchedule(){
+  // 建立考場按鈕（與教師介面相同）
+  const btnContainer=document.getElementById('stu-schedule-room-btns');
+  if(btnContainer){
+    const snap=DB.savedScheduleSnapshot||{};
+    const hasSnap=Object.values(snap).some(arr=>arr&&arr.length>0);
+    const activeRooms=hasSnap
+      ? DB.rooms.filter(r=>(snap[r.id]||[]).length>0)
+      : DB.rooms;
+    btnContainer.innerHTML=
+      '<button class="btn btn-p btn-sm" onclick="stuSchSelectRoom(\'\',this)">全部考場</button>'+
+      activeRooms.map(r=>`<button class="btn btn-s btn-sm" onclick="stuSchSelectRoom('${r.id}',this)">${r.name}</button>`).join('');
+  }
+  stuSchSelectRoom('',null);
+}
 
-  // ★ 修正③：優先從 savedScheduleSnapshot 讀取（排程存檔後才有正確考場/順序）
-  // 若快照為空，fallback 到 getScheduleEntries（未存檔時的即時預覽）
-  const snap=DB.savedScheduleSnapshot||{};
-  const hasSnap=Object.values(snap).some(arr=>arr&&arr.length>0);
+let _stuSchActiveRoom='';
+function stuSchSelectRoom(roomId,btn){
+  _stuSchActiveRoom=roomId;
+  // 高亮按鈕
+  const bc=document.getElementById('stu-schedule-room-btns');
+  if(bc){bc.querySelectorAll('button').forEach(b=>{b.className='btn btn-s btn-sm';});if(btn)btn.className='btn btn-p btn-sm';else{const f=bc.querySelector('button');if(f)f.className='btn btn-p btn-sm';}}
 
-  let shown=[];
-  if(hasSnap){
-    const allEntries=[];
-    Object.entries(snap).forEach(([roomId,snaps])=>{
+  // 顯示考場時間資訊
+  const infoDiv=document.getElementById('stu-schedule-room-info');
+  const infoText=document.getElementById('stu-schedule-room-info-text');
+  if(infoDiv&&infoText){
+    if(roomId){
       const room=DB.rooms.find(r=>r.id===roomId);
-      (snaps||[]).forEach(e=>{
-        allEntries.push({
-          order:e.order,roomId,
-          roomName:e.roomName||(room?.name||roomId),
-          roomLocation:e.roomLocation||(room?.location||''),
-          class:e.class,name:e.name,seat:e.seat,studentId:e.studentId,
-          instId:e.instId,instName:e.instName,type:e.type,
-          ac:e.ac||'',at:e.at||'',fc:e.fc||'',ft:e.ft||'',
-        });
-      });
-    });
-    const roomOrder=DB.rooms.map(r=>r.id);
-    allEntries.sort((a,b)=>{
-      const ri=(roomOrder.indexOf(a.roomId)||0)-(roomOrder.indexOf(b.roomId)||0);
-      return ri!==0?ri:(a.order||0)-(b.order||0);
-    });
-    shown=allEntries.filter(e=>(!nameQ||e.name.toLowerCase().includes(nameQ))&&(!instQ||e.instId===instQ)&&(!roomQ||e.roomId===roomQ));
-  } else {
-    const entries=getScheduleEntries();
-    shown=entries.filter(e=>(!nameQ||e.name.toLowerCase().includes(nameQ))&&(!instQ||e.instId===instQ)&&(!roomQ||e.roomId===roomQ));
+      if(room){
+        const dt=_fmtRoomDatetime(room);
+        const loc=room.location?'📍 '+room.location:'';
+        const lines=[dt,loc].filter(Boolean);
+        if(lines.length){
+          infoText.innerHTML='<strong>'+escHtml(room.name)+'</strong>　'+lines.map(l=>escHtml(l)).join('　');
+          infoDiv.style.display='block';
+        } else {infoDiv.style.display='none';}
+      } else {infoDiv.style.display='none';}
+    } else {
+      // 全部考場：列出所有有時間的考場
+      const snap=DB.savedScheduleSnapshot||{};
+      const hasSnap=Object.values(snap).some(arr=>arr&&arr.length>0);
+      const activeRooms=hasSnap?DB.rooms.filter(r=>(snap[r.id]||[]).length>0):DB.rooms;
+      const lines=activeRooms.map(r=>{
+        const dt=_fmtRoomDatetime(r);
+        return dt?('<strong>'+escHtml(r.name)+'</strong>　'+escHtml(dt)+(r.location?'　📍 '+escHtml(r.location):'')):'';
+      }).filter(Boolean);
+      if(lines.length){infoText.innerHTML=lines.join('<br>');infoDiv.style.display='block';}
+      else{infoDiv.style.display='none';}
+    }
   }
 
+  // 渲染名單（邏輯同教師介面 teaSchSelectRoom，並過濾 removedEntries）
+  const tbody=document.getElementById('stu-sched-tbody');if(!tbody)return;
+  const nameQ=(document.getElementById('lookup-name')?.value||'').toLowerCase();
+  const instQ=(document.getElementById('lookup-inst')?.value||'');
+
+  const snap=DB.savedScheduleSnapshot||{};
+  const hasSnap=Object.values(snap).some(arr=>arr&&arr.length>0);
+  let entries=[];
+
+  const _getRemovedForRoom=(rid)=>{
+    const st=(_SCH_ROOM_STATES&&_SCH_ROOM_STATES[rid])||{};
+    const raw=st.removedEntries;
+    return raw instanceof Set?raw:new Set(Array.isArray(raw)?raw:[]);
+  };
+
+  if(hasSnap){
+    if(roomId){
+      const removed=_getRemovedForRoom(roomId);
+      entries=(snap[roomId]||[])
+        .filter(e=>!removed.has(e.studentId+'_'+e.type))
+        .slice().sort((a,b)=>(a.order||0)-(b.order||0));
+      const room=DB.rooms.find(r=>r.id===roomId);
+      entries.forEach((e,i)=>{e._roomName=e.roomName||room?.name||roomId;e._roomLoc=e.roomLocation||room?.location||'';e._displayOrder=e.order||i+1;});
+    } else {
+      DB.rooms.forEach(r=>{
+        const removed=_getRemovedForRoom(r.id);
+        (snap[r.id]||[]).filter(e=>!removed.has(e.studentId+'_'+e.type))
+          .slice().sort((a,b)=>(a.order||0)-(b.order||0))
+          .forEach(e=>{entries.push({...e,_roomName:e.roomName||r.name,_roomLoc:e.roomLocation||r.location||'',_displayOrder:e.order||0});});
+      });
+    }
+  } else {
+    entries=getScheduleEntries();
+    if(roomId)entries=entries.filter(e=>e.roomId===roomId);
+    entries.forEach(e=>{e._roomName=e.roomName;e._roomLoc=e.roomLocation||'';e._displayOrder=e.order||0;});
+  }
+
+  const shown=entries.filter(e=>(!nameQ||e.name.toLowerCase().includes(nameQ))&&(!instQ||e.instId===instQ));
   tbody.innerHTML=shown.map(e=>`<tr>
-    <td style="font-family:'DM Mono',monospace;color:var(--ink);font-weight:600">${e.order}</td>
-    <td style="color:var(--ink)">${escHtml(e.roomName)}</td>
-    <td style="color:var(--ink);font-family:'DM Mono',monospace;font-size:11px">${escHtml(e.roomLocation||'—')}</td>
+    <td style="font-family:'DM Mono',monospace;color:var(--ink);font-weight:600">${e._displayOrder}</td>
+    <td style="color:var(--ink)">${escHtml(e._roomName)}</td>
+    <td style="color:var(--ink);font-family:'DM Mono',monospace;font-size:11px">${escHtml(e._roomLoc||'—')}</td>
     <td style="color:var(--ink)">${escHtml(e.class)}</td>
     <td style="color:var(--ink);font-weight:600">${escHtml(e.name)}</td>
     <td style="color:var(--ink)">${escHtml(e.instName)}</td>
     <td>${typeBadge(e.type)}</td>
     <td style="font-size:12px;color:var(--ink)">${e.ac?escHtml(e.ac)+' — <em>'+escHtml(e.at)+'</em>':'—'}</td>
     <td style="font-size:12px;color:var(--ink)">${e.fc?escHtml(e.fc)+' — <em>'+escHtml(e.ft)+'</em>':'—'}</td>
-  </tr>`).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;font-family:\'DM Mono\',monospace;font-size:12px">查無資料</td></tr>';
+  </tr>`).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;font-family:\'DM Mono\',monospace;font-size:12px">查無資料（請確認管理員已存檔排程）</td></tr>';
 }
-function doLookup(){renderStuSchedule({name:document.getElementById('lookup-name').value,inst:document.getElementById('lookup-inst').value,room:document.getElementById('lookup-room').value});}
-function clearLookup(){['lookup-name'].forEach(id=>document.getElementById(id).value='');['lookup-inst','lookup-room'].forEach(id=>document.getElementById(id).value='');renderStuSchedule();}
+window.stuSchSelectRoom=stuSchSelectRoom;
+
+function doLookup(){stuSchSelectRoom(_stuSchActiveRoom,null);}
+function clearLookup(){const n=document.getElementById('lookup-name');if(n)n.value='';const i=document.getElementById('lookup-inst');if(i)i.value='';stuSchSelectRoom(_stuSchActiveRoom,null);}
 
 // ════════════════════════════════════════════════
 // TEACHER MODULE
@@ -6782,6 +6852,25 @@ function schSelectRoom(roomId,btn){
   }
   schInitSortUI();
   renderSchedule();
+  // ★ 顯示考場時間資訊
+  const _sd=document.getElementById('sch-room-info');
+  const _st=document.getElementById('sch-room-info-text');
+  if(_sd&&_st){
+    if(roomId){
+      const _r=DB.rooms.find(r=>r.id===roomId);
+      if(_r){
+        const dt=_fmtRoomDatetime(_r);
+        const loc=_r.location?'📍 '+_r.location:'';
+        const parts=[dt,loc].filter(Boolean);
+        if(parts.length){_st.innerHTML='<strong>'+escHtml(_r.name)+'</strong>　'+parts.map(p=>escHtml(p)).join('　');_sd.style.display='block';}
+        else _sd.style.display='none';
+      } else _sd.style.display='none';
+    } else {
+      const lines=DB.rooms.map(r=>{const dt=_fmtRoomDatetime(r);return dt?('<strong>'+escHtml(r.name)+'</strong>　'+escHtml(dt)+(r.location?'　📍 '+escHtml(r.location):'')):'';}).filter(Boolean);
+      if(lines.length){_st.innerHTML=lines.join('<br>');_sd.style.display='block';}
+      else _sd.style.display='none';
+    }
+  }
 }
 window.schSelectRoom=schSelectRoom;
 
@@ -7918,69 +8007,65 @@ function exportAllRoomsPDF(){
 // ── 共用：開啟列印視窗 ──
 function _openSchedulePrintWindow(rooms,opts){
   const today=new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric'});
-  const maxPagesPerRoom=(opts&&opts.maxPagesPerRoom)||0; // 0=不限制
+  const maxPagesPerRoom=(opts&&opts.maxPagesPerRoom)||0;
+  const isMultiRoom=rooms.length>1;
 
-  // ★ 每個考場依學生數計算縮放比例（maxPagesPerRoom>0 時才生效）
-  // A4 可用高度 247mm；標準行高約 40px(~14.1mm)；表頭+header 約 90px(~31.8mm)
-  // 估算：每頁可放 n_std 列；超過 maxPages*n_std 就縮放
-  function _calcRoomScale(entryCount){
-    if(!maxPagesPerRoom)return 1;
-    const pageHeightPx=247/25.4*96; // ≈940px
-    const headerPx=110;             // header+table header
-    const rowPx=40;                 // 每列估算高度
-    const footerPx=30;
-    const usablePx=pageHeightPx-headerPx-footerPx;
-    const rowsPerPage=Math.floor(usablePx/rowPx);
+  // ★ 依學生數動態計算 zoom（全考場模式才壓縮）
+  // A4 可用高度（邊距 8mm x2 = 16mm，共 297-16=281mm）
+  // header ≈ 26mm，table-header ≈ 8mm，footer ≈ 6mm → 可用 ≈ 241mm
+  // 每列高度：正常 8.5mm，縮小模式 6mm
+  // zoom 最小 0.6
+  function _calcZoom(n){
+    if(!maxPagesPerRoom||!isMultiRoom)return 1;
+    const usableMmPerPage=241;
+    const rowMm=8.5;
+    const rowsPerPage=Math.floor(usableMmPerPage/rowMm); // ≈28
     const maxRows=rowsPerPage*maxPagesPerRoom;
-    if(entryCount<=maxRows)return 1;
-    // 縮放比例 = maxRows / entryCount，但不低於 0.55
-    return Math.max(0.55, maxRows/entryCount);
+    if(n<=maxRows)return 1;
+    return Math.max(0.6, maxRows/n);
   }
 
   let html='<!DOCTYPE html><html lang="zh-TW"><head><meta charset="UTF-8">'
     +'<title>出場順序名單</title>'
     +'<style>'
     +'*{box-sizing:border-box;margin:0;padding:0}'
-    +'body{font-family:"Noto Serif TC","Microsoft JhengHei",serif;font-size:13px;color:#1a1a1a;background:#fff}'
-    +'.room-block{padding:28px 32px;page-break-after:always}'
+    +'body{font-family:"Noto Serif TC","Microsoft JhengHei",serif;font-size:12px;color:#1a1a1a;background:#fff}'
+    +'@page{margin:8mm 8mm}'
+    +'.room-block{padding:10px 12px;page-break-after:always}'
     +'.room-block:last-child{page-break-after:auto}'
-    +'.room-block.compact{transform-origin:top left;}'
-    +'.header{border-bottom:3px double #8b6914;padding-bottom:12px;margin-bottom:18px}'
+    +'.header{border-bottom:2px solid #8b6914;padding-bottom:6px;margin-bottom:8px}'
     +'.header-top{display:flex;align-items:flex-start;justify-content:space-between}'
-    +'.room-title{font-size:20px;font-weight:700;color:#1a1a1a;margin:0 0 4px}'
-    +'.room-meta{font-size:11px;color:#666}'
-    +'.school-name{font-size:11px;color:#888;letter-spacing:1px;white-space:nowrap;padding-top:4px}'
-    +'table{width:100%;border-collapse:collapse;margin-top:10px}'
+    +'.room-title{font-size:15px;font-weight:700;color:#1a1a1a;margin:0 0 2px}'
+    +'.room-meta{font-size:10px;color:#666}'
+    +'.school-name{font-size:10px;color:#888;letter-spacing:1px;white-space:nowrap;padding-top:2px}'
+    +'table{width:100%;border-collapse:collapse;margin-top:6px}'
     +'thead tr{background:#2c2418;color:#f0e6c8}'
-    +'th{padding:8px 10px;text-align:left;font-size:11px;letter-spacing:1px;font-weight:500;white-space:nowrap}'
+    +'th{padding:4px 6px;text-align:left;font-size:10px;letter-spacing:.5px;font-weight:500;white-space:nowrap}'
     +'tbody tr{border-bottom:1px solid #e8e0d0}'
     +'tbody tr:nth-child(even){background:#faf7f1}'
-    +'td{padding:8px 10px;font-size:13px;vertical-align:top}'
-    +'.seq{font-family:monospace;font-size:14px;font-weight:700;color:#8b6914;text-align:center}'
-    +'.sname{font-weight:700;font-size:14px;display:block}'
-    +'.sinfo{font-size:11px;color:#666;display:block;margin-top:1px}'
+    +'td{padding:4px 6px;font-size:11px;vertical-align:top;line-height:1.4}'
+    +'.seq{font-family:monospace;font-size:12px;font-weight:700;color:#8b6914;text-align:center}'
+    +'.sname{font-weight:700;font-size:12px;display:block}'
+    +'.sinfo{font-size:10px;color:#666;display:block;margin-top:0}'
     +'.inst{font-weight:600;color:#2c4a1c}'
-    +'.tbadge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;margin-left:5px;vertical-align:middle}'
+    +'.tbadge{display:inline-block;padding:0px 5px;border-radius:8px;font-size:9px;font-weight:700;margin-left:4px;vertical-align:middle}'
     +'.major{background:#fff3cd;color:#856404}'
     +'.minor{background:#d1ecf1;color:#0c5460}'
     +'.elective{background:#d4edda;color:#155724}'
-    +'.rep-line{display:block;font-size:11.5px;line-height:1.7;color:#333}'
-    +'.rep-lbl{font-weight:700;color:#5a4010;margin-right:3px}'
-    +'.no-rep{color:#bbb;font-style:italic;font-size:11px}'
-    +'.footer{text-align:right;font-size:10px;color:#aaa;margin-top:14px;padding-top:8px;border-top:1px solid #e8e0d0}'
+    +'.rep-line{display:block;font-size:10.5px;line-height:1.5;color:#333}'
+    +'.rep-lbl{font-weight:700;color:#5a4010;margin-right:2px}'
+    +'.no-rep{color:#bbb;font-style:italic;font-size:10px}'
+    +'.footer{text-align:right;font-size:9px;color:#aaa;margin-top:6px;padding-top:4px;border-top:1px solid #e8e0d0}'
     +'.dq-row{background:#fff0f0!important}'
-    +'.dq-badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:#dc3545;color:#fff;margin-left:6px;vertical-align:middle;letter-spacing:.5px}'
-    +'.dq-reason{display:block;font-size:10px;color:#c00;margin-top:2px;font-style:italic}'
-    +'@media print{.room-block{padding:16px 18px}@page{margin:14mm 10mm}}'
+    +'.dq-badge{display:inline-block;padding:0px 5px;border-radius:8px;font-size:9px;font-weight:700;background:#dc3545;color:#fff;margin-left:4px;vertical-align:middle}'
+    +'.dq-reason{display:block;font-size:9px;color:#c00;margin-top:1px;font-style:italic}'
     +'</style></head><body>';
 
   rooms.forEach(function(roomData){
-    var sc=_calcRoomScale(roomData.entries.length);
-    var scStyle=sc<1?(' style="transform:scale('+sc.toFixed(3)+');transform-origin:top left;width:'+(100/sc).toFixed(2)+'%;"'):'';
-    var scClass=sc<1?' compact':'';
-    // 縮放時在表頭標注縮放比例，方便確認
-    var scNote=sc<1?'<span style="font-size:9px;color:#aaa;margin-left:8px">（縮放 '+(sc*100).toFixed(0)+'%）</span>':'';
-    html+='<div class="room-block'+scClass+'"'+scStyle+'>'
+    var zoom=_calcZoom(roomData.entries.length);
+    var zoomStyle=zoom<1?' style="zoom:'+zoom.toFixed(3)+'"':'';
+    var scNote=zoom<1?'<span style="font-size:9px;color:#aaa;margin-left:8px">（縮放 '+(zoom*100).toFixed(0)+'%）</span>':'';
+    html+='<div class="room-block"'+zoomStyle+'>'
       +'<div class="header"><div class="header-top">'
       +'<div><div class="room-title">\uD83D\uDCCB 出場順序名單\u3000'+roomData.name+scNote+'</div>'
       +'<div class="room-meta">'+(roomData.location?'\uD83D\uDCCD '+roomData.location+'\u3000':'')+'共 '+roomData.entries.length+' 位學生\u3000列印日期：'+today+'</div></div>'
@@ -8027,21 +8112,7 @@ function _openSchedulePrintWindow(rooms,opts){
   win.document.open();
   win.document.write(html);
   win.document.close();
-  win.addEventListener('load',function(){
-    // ★ 修正 transform:scale 後的版面高度：讓縮放後的 block 實際佔用正確空間
-    try{
-      var blocks=win.document.querySelectorAll('.room-block.compact');
-      blocks.forEach(function(el){
-        var sc=parseFloat(el.style.transform.replace('scale(',''));
-        if(!isNaN(sc)&&sc>0&&sc<1){
-          var naturalH=el.scrollHeight;
-          el.style.height=(naturalH*sc)+'px';
-          el.style.overflow='hidden';
-        }
-      });
-    }catch(e){}
-    setTimeout(function(){win.focus();win.print();},600);
-  });
+  win.addEventListener('load',function(){setTimeout(function(){win.focus();win.print();},600);});
 }
 
 async function publishSchedule(){
@@ -11765,6 +11836,27 @@ function exportAdminResultsCSV(allRooms,forceRoomId){
   showToast('已匯出 CSV ✓','ok');
 }
 window.exportAdminResultsCSV=exportAdminResultsCSV;
+// ★ 共用：格式化考場日期時間顯示
+function _fmtRoomDatetime(room){
+  const weekdays=['日','一','二','三','四','五','六'];
+  const fmt=(iso)=>{
+    if(!iso)return null;
+    const d=new Date(iso);
+    if(isNaN(d))return null;
+    const wk=weekdays[d.getDay()];
+    const mo=String(d.getMonth()+1).padStart(2,'0');
+    const da=String(d.getDate()).padStart(2,'0');
+    const hr=String(d.getHours()).padStart(2,'0');
+    const mn=String(d.getMinutes()).padStart(2,'0');
+    return d.getFullYear()+'／'+mo+'／'+da+'（'+wk+'）'+hr+':'+mn;
+  };
+  const s=fmt(room.dateStart);
+  const e=fmt(room.dateEnd);
+  if(s&&e)return '📅 '+s+' ～ '+e;
+  if(s)return '📅 '+s;
+  return null;
+}
+
 function renderTeaSchedulePage(){
   const msgDiv=document.getElementById('tea-schedule-access-msg');
   const contentDiv=document.getElementById('tea-schedule-content');
@@ -11793,6 +11885,29 @@ function teaSchSelectRoom(roomId,btn){
   // highlight button
   const bc=document.getElementById('tea-schedule-room-btns');
   if(bc){bc.querySelectorAll('button').forEach(b=>{b.className='btn btn-s btn-sm';});if(btn){btn.className='btn btn-p btn-sm';} else {const first=bc.querySelector('button');if(first)first.className='btn btn-p btn-sm';}}
+  // 顯示考場時間資訊
+  const _infoDiv=document.getElementById('tea-schedule-room-info');
+  const _infoText=document.getElementById('tea-schedule-room-info-text');
+  if(_infoDiv&&_infoText){
+    const _snap2=DB.savedScheduleSnapshot||{};
+    const _hasSnap2=Object.values(_snap2).some(arr=>arr&&arr.length>0);
+    if(roomId){
+      const _r=DB.rooms.find(r=>r.id===roomId);
+      if(_r){
+        const dt=_fmtRoomDatetime(_r);
+        const loc=_r.location?'📍 '+_r.location:'';
+        const lines=[dt,loc].filter(Boolean);
+        if(lines.length){_infoText.innerHTML='<strong>'+escHtml(_r.name)+'</strong>　'+lines.map(l=>escHtml(l)).join('　');_infoDiv.style.display='block';}
+        else{_infoDiv.style.display='none';}
+      } else {_infoDiv.style.display='none';}
+    } else {
+      const _activeRooms=_hasSnap2?DB.rooms.filter(r=>(_snap2[r.id]||[]).length>0):DB.rooms;
+      const lines=_activeRooms.map(r=>{const dt=_fmtRoomDatetime(r);return dt?('<strong>'+escHtml(r.name)+'</strong>　'+escHtml(dt)+(r.location?'　📍 '+escHtml(r.location):'')):'';}).filter(Boolean);
+      if(lines.length){_infoText.innerHTML=lines.join('<br>');_infoDiv.style.display='block';}
+      else{_infoDiv.style.display='none';}
+    }
+  }
+
   const tbody=document.getElementById('tea-sched-tbody');if(!tbody)return;
 
   // ★ Bug2 修正：優先使用已存檔的排程快照，讓各考場篩選正確反映管理員設定的排程
