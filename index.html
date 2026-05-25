@@ -7737,9 +7737,8 @@ function exportScheduleCSV(){
 // SCHEDULE EXPORT — XLSX / PDF
 // ════════════════════════════════════════════════
 
-// ── 核心：取得各考場已去重的出場名單（與 renderSchedule / schSaveSchedule 邏輯完全一致）──
+// ── 核心：取得各考場已去重的出場名單 ──
 function _getScheduleByRoom(){
-  // 如果已存檔快照：直接用（最準確）
   const snap=DB.savedScheduleSnapshot||{};
   const hasSnap=Object.values(snap).some(a=>Array.isArray(a)&&a.length>0);
   if(hasSnap){
@@ -7748,7 +7747,6 @@ function _getScheduleByRoom(){
       const es=snap[room.id]||[];
       byRoom[room.id]={name:room.name||room.id,location:room.location||'',entries:es.map((e,i)=>({...e,order:e.order??i+1}))};
     });
-    // 含不在 DB.rooms 的孤立快照
     Object.keys(snap).forEach(roomId=>{
       if(byRoom[roomId])return;
       const es=snap[roomId];if(!Array.isArray(es)||!es.length)return;
@@ -7756,8 +7754,6 @@ function _getScheduleByRoom(){
     });
     return byRoom;
   }
-
-  // 未存檔時：重跑 renderSchedule 的完整去重邏輯
   const _origRoomId=SCH_STATE.roomId;
   _saveRoomState(_origRoomId);
   const allCandidates={};
@@ -7768,8 +7764,6 @@ function _getScheduleByRoom(){
   });
   SCH_STATE.roomId=_origRoomId;
   _loadRoomState(_origRoomId);
-
-  // 去重
   const assignment={};
   DB.rooms.forEach(room=>{
     (allCandidates[room.id]||[]).forEach(e=>{
@@ -7784,7 +7778,6 @@ function _getScheduleByRoom(){
       if(!assignment[key])assignment[key]=room.id;
     });
   });
-
   const byRoom={};
   DB.rooms.forEach(room=>{
     const entries=(allCandidates[room.id]||[]).filter(e=>assignment[e.studentId+'_'+e.type]===room.id);
@@ -7794,87 +7787,82 @@ function _getScheduleByRoom(){
   return byRoom;
 }
 
-// ── 共用：將 entry 陣列轉為欄位列 ──
-function _entryToRow(e){
-  const repParts=[];
-  if(e.ac||e.at)repParts.push('指定：'+(e.ac||'')+(e.at?' — '+e.at:''));
-  if(e.fc||e.ft)repParts.push('自選：'+(e.fc||'')+(e.ft?' — '+e.ft:''));
-  return {
-    '序號':String(e.order).padStart(2,'0'),
-    '班級':e.class||'',
-    '座號':String(e.seat||''),
-    '姓名':e.name||'',
-    '樂器':e.instName||'',
-    '修別':typeName(e.type),
-    '曲目':repParts.join(' ／ '),
-  };
+// ── 共用：從 entry 取曲目（相容快照及即時 entry，均備從 DB 補回）──
+function _getEntryRep(e){
+  let ac=e.ac||'',at=e.at||'',fc=e.fc||'',ft=e.ft||'';
+  if(!ac&&!at&&!fc&&!ft&&e.studentId){
+    const stu=DB.users.find(u=>u.id===e.studentId);
+    if(stu){
+      if(e.type==='major'){ac=stu.major_ac||'';at=stu.major_at||'';fc=stu.major_fc||'';ft=stu.major_ft||'';}
+      else if(e.type==='minor'){ac=stu.minor_ac||'';at=stu.minor_at||'';fc=stu.minor_fc||'';ft=stu.minor_ft||'';}
+      else if(e.type==='elective'){ac=stu.elec_ac||'';at=stu.elec_at||'';fc=stu.elec_fc||'';ft=stu.elec_ft||'';}
+    }
+  }
+  return {ac,at,fc,ft};
 }
 
-// ── 共用：為 worksheet 設欄寬 ──
+// ── 共用：worksheet 欄寬 ──
 function _wsColWidths(ws){
-  ws['!cols']=[{wch:6},{wch:8},{wch:6},{wch:10},{wch:10},{wch:6},{wch:50}];
+  ws['!cols']=[{wch:6},{wch:8},{wch:6},{wch:10},{wch:10},{wch:6},{wch:55}];
 }
 
-// ── 匯出目前考場的出場順序（單一工作表 xlsx）──
+// ── 匯出目前考場 xlsx（單一工作表）──
 function exportScheduleXLSX(){
   if(typeof XLSX==='undefined'){showToast('Excel 套件載入中，請稍後重試','err');return;}
-  const roomId=document.getElementById('sch-room')?.value||'';
-  if(!roomId){showToast('請先選擇考場','err');return;}
+  const roomId=SCH_STATE.roomId||'';
+  if(!roomId){showToast('請先點選一個考場（非「全部考場」）','err');return;}
   const byRoom=_getScheduleByRoom();
   const roomData=byRoom[roomId];
   if(!roomData||!roomData.entries.length){showToast('此考場目前無出場名單','err');return;}
-
   const wb=XLSX.utils.book_new();
-  // 工作表資料：標題列 + 明細
   const wsData=[['出場順序名單 — '+roomData.name+(roomData.location?' ('+roomData.location+')':'')]];
-  wsData.push(['序號','班級','座號','姓名','樂器','修別','曲目']);
+  wsData.push(['序號','班級','座號','姓名','樂器','修別','指定曲','自選曲']);
   roomData.entries.forEach(e=>{
-    const r=_entryToRow(e);
-    wsData.push(Object.values(r));
+    const {ac,at,fc,ft}=_getEntryRep(e);
+    wsData.push([String(e.order).padStart(2,'0'),e.class||'',String(e.seat||''),e.name||'',e.instName||'',typeName(e.type),(ac||at)?(ac||'')+(at?' — '+at:''):'',(fc||ft)?(fc||'')+(ft?' — '+ft:''):'']);
   });
   const ws=XLSX.utils.aoa_to_sheet(wsData);
-  // 合併標題列
-  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:6}}];
-  _wsColWidths(ws);
+  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:7}}];
+  ws['!cols']=[{wch:6},{wch:8},{wch:6},{wch:10},{wch:10},{wch:6},{wch:32},{wch:32}];
   XLSX.utils.book_append_sheet(wb,ws,roomData.name.slice(0,31));
   XLSX.writeFile(wb,'出場順序_'+roomData.name+'.xlsx');
   showToast('已匯出「'+roomData.name+'」出場名單 ✓','ok');
 }
 
-// ── 統一匯出全部考場（每個考場一個工作表，同一個 xlsx）──
+// ── 統一匯出全部考場（每考場一個工作表）──
 function exportAllRoomsXLSX(){
   if(typeof XLSX==='undefined'){showToast('Excel 套件載入中，請稍後重試','err');return;}
   const byRoom=_getScheduleByRoom();
   const wb=XLSX.utils.book_new();
   let sheetCount=0;
   const usedNames=new Set();
-
   Object.values(byRoom).forEach(roomData=>{
     if(!roomData.entries.length)return;
     const wsData=[['出場順序名單 — '+roomData.name+(roomData.location?' ('+roomData.location+')':'')]];
-    wsData.push(['序號','班級','座號','姓名','樂器','修別','曲目']);
-    roomData.entries.forEach(e=>wsData.push(Object.values(_entryToRow(e))));
+    wsData.push(['序號','班級','座號','姓名','樂器','修別','指定曲','自選曲']);
+    roomData.entries.forEach(e=>{
+      const {ac,at,fc,ft}=_getEntryRep(e);
+      wsData.push([String(e.order).padStart(2,'0'),e.class||'',String(e.seat||''),e.name||'',e.instName||'',typeName(e.type),(ac||at)?(ac||'')+(at?' — '+at:''):'',(fc||ft)?(fc||'')+(ft?' — '+ft:''):'']);
+    });
     const ws=XLSX.utils.aoa_to_sheet(wsData);
-    ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:6}}];
-    _wsColWidths(ws);
-    // 工作表名稱去重
+    ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:7}}];
+    ws['!cols']=[{wch:6},{wch:8},{wch:6},{wch:10},{wch:10},{wch:6},{wch:32},{wch:32}];
     let sheetName=roomData.name.slice(0,31);
     if(usedNames.has(sheetName)){let n=2;while(usedNames.has(sheetName.slice(0,28)+'_'+n))n++;sheetName=sheetName.slice(0,28)+'_'+n;}
     usedNames.add(sheetName);
     XLSX.utils.book_append_sheet(wb,ws,sheetName);
     sheetCount++;
   });
-
   if(!sheetCount){showToast('目前無任何考場出場名單，請先完成排程並存檔','err');return;}
   const today=new Date().toLocaleDateString('zh-TW',{month:'2-digit',day:'2-digit'}).replace(/\//g,'');
   XLSX.writeFile(wb,'出場順序_全考場_'+today+'.xlsx');
   showToast('已統一匯出 '+sheetCount+' 個考場的出場名單 ✓','ok');
 }
 
-// ── 匯出目前考場的出場順序（PDF 列印格式）──
+// ── 匯出目前考場 PDF ──
 function exportSchedulePDF(){
-  const roomId=document.getElementById('sch-room')?.value||'';
-  if(!roomId){showToast('請先選擇考場','err');return;}
+  const roomId=SCH_STATE.roomId||'';
+  if(!roomId){showToast('請先點選一個考場（非「全部考場」）','err');return;}
   const byRoom=_getScheduleByRoom();
   const roomData=byRoom[roomId];
   if(!roomData||!roomData.entries.length){showToast('此考場目前無出場名單','err');return;}
@@ -7892,86 +7880,81 @@ function exportAllRoomsPDF(){
 // ── 共用：開啟列印視窗 ──
 function _openSchedulePrintWindow(rooms){
   const today=new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric'});
-  let html=`<!DOCTYPE html><html lang="zh-TW"><head><meta charset="UTF-8">
-<title>出場順序名單</title>
-<style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:"Noto Serif TC","Microsoft JhengHei",serif;font-size:13px;color:#1a1a1a;background:#fff}
-  .room-block{padding:28px 32px;page-break-after:always}
-  .room-block:last-child{page-break-after:auto}
-  .header{border-bottom:3px double #8b6914;padding-bottom:12px;margin-bottom:18px}
-  .header-top{display:flex;align-items:baseline;justify-content:space-between}
-  .school-name{font-size:11px;color:#666;letter-spacing:2px}
-  .room-title{font-size:20px;font-weight:700;color:#1a1a1a;margin:6px 0 2px}
-  .room-meta{font-size:11px;color:#666}
-  table{width:100%;border-collapse:collapse;margin-top:8px}
-  thead tr{background:#2c2418;color:#f0e6c8}
-  th{padding:8px 10px;text-align:left;font-size:11px;letter-spacing:1px;font-weight:500}
-  tbody tr{border-bottom:1px solid #e8e0d0}
-  tbody tr:nth-child(even){background:#faf7f1}
-  td{padding:7px 10px;font-size:12.5px;vertical-align:top}
-  .seq{font-family:monospace;font-size:13px;font-weight:700;color:#8b6914;text-align:center;width:40px}
-  .name{font-weight:600;font-size:14px}
-  .class-seat{font-size:11px;color:#666;white-space:nowrap}
-  .inst{color:#2c4a1c;font-weight:500}
-  .type-badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;margin-left:4px}
-  .major{background:#fff3cd;color:#856404}
-  .minor{background:#d1ecf1;color:#0c5460}
-  .elective{background:#d4edda;color:#155724}
-  .rep{font-size:11px;color:#444;line-height:1.6;margin-top:2px}
-  .footer{text-align:right;font-size:10px;color:#999;margin-top:16px;padding-top:8px;border-top:1px solid #e8e0d0}
-  @media print{
-    .room-block{padding:18px 20px}
-    @page{margin:15mm 12mm}
-  }
-</style></head><body>`;
+  let html='<!DOCTYPE html><html lang="zh-TW"><head><meta charset="UTF-8">'
+    +'<title>出場順序名單</title>'
+    +'<style>'
+    +'*{box-sizing:border-box;margin:0;padding:0}'
+    +'body{font-family:"Noto Serif TC","Microsoft JhengHei",serif;font-size:13px;color:#1a1a1a;background:#fff}'
+    +'.room-block{padding:28px 32px;page-break-after:always}'
+    +'.room-block:last-child{page-break-after:auto}'
+    +'.header{border-bottom:3px double #8b6914;padding-bottom:12px;margin-bottom:18px}'
+    +'.header-top{display:flex;align-items:flex-start;justify-content:space-between}'
+    +'.room-title{font-size:20px;font-weight:700;color:#1a1a1a;margin:0 0 4px}'
+    +'.room-meta{font-size:11px;color:#666}'
+    +'.school-name{font-size:11px;color:#888;letter-spacing:1px;white-space:nowrap;padding-top:4px}'
+    +'table{width:100%;border-collapse:collapse;margin-top:10px}'
+    +'thead tr{background:#2c2418;color:#f0e6c8}'
+    +'th{padding:8px 10px;text-align:left;font-size:11px;letter-spacing:1px;font-weight:500;white-space:nowrap}'
+    +'tbody tr{border-bottom:1px solid #e8e0d0}'
+    +'tbody tr:nth-child(even){background:#faf7f1}'
+    +'td{padding:8px 10px;font-size:13px;vertical-align:top}'
+    +'.seq{font-family:monospace;font-size:14px;font-weight:700;color:#8b6914;text-align:center}'
+    +'.sname{font-weight:700;font-size:14px;display:block}'
+    +'.sinfo{font-size:11px;color:#666;display:block;margin-top:1px}'
+    +'.inst{font-weight:600;color:#2c4a1c}'
+    +'.tbadge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;margin-left:5px;vertical-align:middle}'
+    +'.major{background:#fff3cd;color:#856404}'
+    +'.minor{background:#d1ecf1;color:#0c5460}'
+    +'.elective{background:#d4edda;color:#155724}'
+    +'.rep-line{display:block;font-size:11.5px;line-height:1.7;color:#333}'
+    +'.rep-lbl{font-weight:700;color:#5a4010;margin-right:3px}'
+    +'.no-rep{color:#bbb;font-style:italic;font-size:11px}'
+    +'.footer{text-align:right;font-size:10px;color:#aaa;margin-top:14px;padding-top:8px;border-top:1px solid #e8e0d0}'
+    +'@media print{.room-block{padding:16px 18px}@page{margin:14mm 10mm}}'
+    +'</style></head><body>';
 
-  rooms.forEach(roomData=>{
-    html+=`<div class="room-block">
-      <div class="header">
-        <div class="header-top">
-          <div>
-            <div class="room-title">📋 出場順序名單　${roomData.name}</div>
-            <div class="room-meta">${roomData.location?'📍 '+roomData.location+'　':''}共 ${roomData.entries.length} 位學生　列印日期：${today}</div>
-          </div>
-          <div class="school-name">音樂術科期末考評量系統</div>
-        </div>
-      </div>
-      <table>
-        <thead><tr>
-          <th style="width:40px;text-align:center">序</th>
-          <th style="width:90px">班級・座號</th>
-          <th>姓名</th>
-          <th style="width:100px">樂器・修別</th>
-          <th>指定曲 ／ 自選曲</th>
-        </tr></thead>
-        <tbody>`;
-    roomData.entries.forEach(e=>{
-      const repParts=[];
-      if(e.ac||e.at)repParts.push('<b>指：</b>'+(e.ac||'')+(e.at?' — '+e.at:''));
-      if(e.fc||e.ft)repParts.push('<b>自：</b>'+(e.fc||'')+(e.ft?' — '+e.ft:''));
-      const typeCls={major:'major',minor:'minor',elective:'elective'}[e.type]||'major';
-      html+=`<tr>
-        <td class="seq">${String(e.order).padStart(2,'0')}</td>
-        <td class="class-seat">${e.class||''}・座 ${e.seat||''}</td>
-        <td><span class="name">${e.name||''}</span></td>
-        <td><span class="inst">${e.instName||''}</span><span class="type-badge ${typeCls}">${typeName(e.type)}</span></td>
-        <td class="rep">${repParts.join('<br>')}</td>
-      </tr>`;
+  rooms.forEach(function(roomData){
+    html+='<div class="room-block">'
+      +'<div class="header"><div class="header-top">'
+      +'<div><div class="room-title">\uD83D\uDCCB 出場順序名單\u3000'+roomData.name+'</div>'
+      +'<div class="room-meta">'+(roomData.location?'\uD83D\uDCCD '+roomData.location+'\u3000':'')+'共 '+roomData.entries.length+' 位學生\u3000列印日期：'+today+'</div></div>'
+      +'<div class="school-name">音樂術科期末考評量系統</div>'
+      +'</div></div>'
+      +'<table><thead><tr>'
+      +'<th style="width:38px;text-align:center">序</th>'
+      +'<th style="width:90px">班級・座號<br><span style="font-weight:400;opacity:.7">姓名</span></th>'
+      +'<th style="width:110px">樂器・修別</th>'
+      +'<th>指定曲</th>'
+      +'<th>自選曲</th>'
+      +'</tr></thead><tbody>';
+    roomData.entries.forEach(function(e){
+      var rep=_getEntryRep(e);
+      var ac=rep.ac,at=rep.at,fc=rep.fc,ft=rep.ft;
+      var assignedHtml=(ac||at)?('<span class="rep-lbl"></span>'+(ac||'')+(at?' \u2014 '+at:'')):'<span class="no-rep">（未填）</span>';
+      var freeHtml=(fc||ft)?('<span class="rep-lbl"></span>'+(fc||'')+(ft?' \u2014 '+ft:'')):'<span class="no-rep">（未填）</span>';
+      var typeCls={major:'major',minor:'minor',elective:'elective'}[e.type]||'major';
+      html+='<tr>'
+        +'<td class="seq">'+String(e.order).padStart(2,'0')+'</td>'
+        +'<td><span class="sname">'+escHtml(e.name||'')+'</span>'
+        +'<span class="sinfo">'+escHtml(e.class||'')+'\u30FB\u5EA7 '+escHtml(String(e.seat||''))+'</span></td>'
+        +'<td><span class="inst">'+escHtml(e.instName||'')+'</span>'
+        +'<span class="tbadge '+typeCls+'">'+typeName(e.type)+'</span></td>'
+        +'<td><span class="rep-line">'+assignedHtml+'</span></td>'
+        +'<td><span class="rep-line">'+freeHtml+'</span></td>'
+        +'</tr>';
     });
-    html+=`</tbody></table>
-      <div class="footer">出場順序名單 — ${roomData.name}　共 ${roomData.entries.length} 筆</div>
-    </div>`;
+    html+='</tbody></table>'
+      +'<div class="footer">出場順序名單 \u2014 '+roomData.name+'\u3000共 '+roomData.entries.length+' 筆</div>'
+      +'</div>';
   });
+  html+='</body></html>';
 
-  html+=`</body></html>`;
-  const win=window.open('','_blank','width=900,height=700');
-  if(!win){showToast('請允許彈出視窗以列印 PDF','err');return;}
+  var win=window.open('','_blank','width=1050,height=780');
+  if(!win){showToast('請允許彈出視窗以列印 PDF（瀏覽器可能封鎖了彈出視窗）','err');return;}
+  win.document.open();
   win.document.write(html);
   win.document.close();
-  win.onload=function(){
-    setTimeout(()=>{win.focus();win.print();},400);
-  };
+  win.addEventListener('load',function(){setTimeout(function(){win.focus();win.print();},600);});
 }
 
 async function publishSchedule(){
