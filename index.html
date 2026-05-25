@@ -1419,11 +1419,11 @@ tbody td{color:var(--ink)!important}
       </div>
       <!-- 搜尋列 -->
       <div class="lookup-bar">
-        <input class="lookup-inp" id="lookup-name" type="text" placeholder="輸入姓名搜尋...">
-        <select class="lookup-inp" id="lookup-inst" style="flex:none;min-width:130px"><option value="">全部樂器</option></select>
-        <button class="btn btn-p" onclick="doLookup()">搜尋</button>
+        <input class="lookup-inp" id="lookup-name" type="text" placeholder="輸入姓名搜尋…（即時顯示該生所有考試）" oninput="onStuNameInput()" style="flex:1;min-width:180px">
         <button class="btn btn-s" onclick="clearLookup()">清除</button>
       </div>
+      <!-- 姓名搜尋結果提示 -->
+      <div id="stu-name-search-info" style="display:none;margin-bottom:8px;padding:8px 14px;background:#e8f4fd;border-left:3px solid var(--steel);border-radius:var(--r);font-size:12px;color:var(--ink)"></div>
       <div class="tw"><table>
         <thead><tr><th>序</th><th>考場</th><th>地點</th><th>班級</th><th>姓名</th><th>樂器</th><th>別</th><th>指定曲</th><th>自選曲</th></tr></thead>
         <tbody id="stu-sched-tbody"></tbody>
@@ -5228,8 +5228,76 @@ function stuSchSelectRoom(roomId,btn){
 }
 window.stuSchSelectRoom=stuSchSelectRoom;
 
-function doLookup(){stuSchSelectRoom(_stuSchActiveRoom,null);}
-function clearLookup(){const n=document.getElementById('lookup-name');if(n)n.value='';const i=document.getElementById('lookup-inst');if(i)i.value='';stuSchSelectRoom(_stuSchActiveRoom,null);}
+// ★ 即時姓名搜尋
+function onStuNameInput(){
+  const nameQ=(document.getElementById('lookup-name')?.value||'').trim();
+  const infoBar=document.getElementById('stu-name-search-info');
+  const roomBtns=document.getElementById('stu-schedule-room-btns');
+  const roomInfo=document.getElementById('stu-schedule-room-info');
+  const roomCard=roomBtns?.closest('.card');
+
+  if(nameQ){
+    // 有姓名：跨所有考場搜尋，隱藏考場按鈕區
+    if(roomCard)roomCard.style.display='none';
+    if(roomInfo)roomInfo.style.display='none';
+
+    // 取全部快照資料
+    const snap=DB.savedScheduleSnapshot||{};
+    const hasSnap=Object.values(snap).some(arr=>arr&&arr.length>0);
+    let allEntries=[];
+    const _getRemovedForRoom=(rid)=>{const st=(_SCH_ROOM_STATES&&_SCH_ROOM_STATES[rid])||{};const raw=st.removedEntries;return raw instanceof Set?raw:new Set(Array.isArray(raw)?raw:[]);};
+
+    if(hasSnap){
+      DB.rooms.forEach(r=>{
+        const removed=_getRemovedForRoom(r.id);
+        (snap[r.id]||[]).filter(e=>!removed.has(e.studentId+'_'+e.type))
+          .slice().sort((a,b)=>(a.order||0)-(b.order||0))
+          .forEach(e=>allEntries.push({...e,_roomName:e.roomName||r.name,_roomLoc:e.roomLocation||r.location||'',_displayOrder:e.order||0}));
+      });
+    } else {
+      allEntries=getScheduleEntries().map(e=>({...e,_roomName:e.roomName,_roomLoc:e.roomLocation||'',_displayOrder:e.order||0}));
+    }
+
+    // 模糊比對姓名
+    const q=nameQ.toLowerCase();
+    const matched=allEntries.filter(e=>e.name&&e.name.toLowerCase().includes(q));
+
+    // 更新提示列
+    if(infoBar){
+      if(matched.length){
+        // 找出匹配的不重複姓名
+        const names=[...new Set(matched.map(e=>e.name))];
+        infoBar.innerHTML='🔍 找到 <strong>'+escHtml(names.join('、'))+'</strong> 共 '+matched.length+' 筆考試記錄';
+        infoBar.style.display='block';
+      } else {
+        infoBar.innerHTML='🔍 查無符合「'+escHtml(nameQ)+'」的學生';
+        infoBar.style.display='block';
+      }
+    }
+
+    // 渲染結果
+    const tbody=document.getElementById('stu-sched-tbody');if(!tbody)return;
+    tbody.innerHTML=matched.map(e=>`<tr>
+      <td style="font-family:'DM Mono',monospace;color:var(--ink);font-weight:600">${e._displayOrder}</td>
+      <td style="color:var(--ink)">${escHtml(e._roomName)}</td>
+      <td style="color:var(--ink);font-family:'DM Mono',monospace;font-size:11px">${escHtml(e._roomLoc||'—')}</td>
+      <td style="color:var(--ink)">${escHtml(e.class)}</td>
+      <td style="color:var(--ink);font-weight:600">${escHtml(e.name)}</td>
+      <td style="color:var(--ink)">${escHtml(e.instName)}</td>
+      <td>${typeBadge(e.type)}</td>
+      <td style="font-size:12px;color:var(--ink)">${e.ac?escHtml(e.ac)+' — <em>'+escHtml(e.at)+'</em>':'—'}</td>
+      <td style="font-size:12px;color:var(--ink)">${e.fc?escHtml(e.fc)+' — <em>'+escHtml(e.ft)+'</em>':'—'}</td>
+    </tr>`).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;font-family:\'DM Mono\',monospace;font-size:12px">查無資料</td></tr>';
+  } else {
+    // 清空搜尋：恢復考場按鈕區，顯示目前選定考場
+    if(roomCard)roomCard.style.display='';
+    if(infoBar)infoBar.style.display='none';
+    stuSchSelectRoom(_stuSchActiveRoom,null);
+  }
+}
+
+function doLookup(){onStuNameInput();}
+function clearLookup(){const n=document.getElementById('lookup-name');if(n)n.value='';onStuNameInput();}
 
 // ════════════════════════════════════════════════
 // TEACHER MODULE
