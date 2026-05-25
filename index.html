@@ -7741,6 +7741,13 @@ function exportScheduleCSV(){
 function _getScheduleByRoom(){
   const snap=DB.savedScheduleSnapshot||{};
   const hasSnap=Object.values(snap).some(a=>Array.isArray(a)&&a.length>0);
+  // ★ 診斷用 log（確認問題後可刪除）
+  console.log('[SCH-DEBUG] snap keys:', Object.keys(snap));
+  console.log('[SCH-DEBUG] hasSnap:', hasSnap);
+  Object.entries(snap).forEach(([rid,arr])=>console.log('[SCH-DEBUG] snap['+rid+'] length:', Array.isArray(arr)?arr.length:'NOT ARRAY', arr&&arr[0]?'first:'+JSON.stringify(arr[0]).slice(0,80):''));
+  console.log('[SCH-DEBUG] DB.rooms:', DB.rooms.map(r=>r.id+'('+r.name+')'));
+  console.log('[SCH-DEBUG] SCH_STATE.roomId:', SCH_STATE.roomId);
+  console.log('[SCH-DEBUG] _SCH_ROOM_STATES keys:', Object.keys(_SCH_ROOM_STATES));
   if(hasSnap){
     // ★ 修正 Bug1：合併所有考場的 removedEntries，過濾掉快照存檔後才手動刪除的項目
     // 只收集格式為 "studentId_type" 的合法 key，防止錯誤格式誤殺所有人
