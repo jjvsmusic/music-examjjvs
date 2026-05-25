@@ -7839,6 +7839,11 @@ function _wsColWidths(ws){
   ws['!cols']=[{wch:6},{wch:8},{wch:6},{wch:10},{wch:10},{wch:6},{wch:55}];
 }
 
+// ★ 清除 Excel sheet name 非法字元（: \ / ? * [ ] 及超過31字元）
+function _sanitizeSheetName(name){
+  return name.replace(/[:\\\/?*\[\]]/g,'_').slice(0,31)||'考場';
+}
+
 // ── 匯出目前考場 xlsx（單一工作表）──
 function exportScheduleXLSX(){
   if(typeof XLSX==='undefined'){showToast('Excel 套件載入中，請稍後重試','err');return;}
@@ -7857,7 +7862,7 @@ function exportScheduleXLSX(){
   const ws=XLSX.utils.aoa_to_sheet(wsData);
   ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:7}}];
   ws['!cols']=[{wch:6},{wch:8},{wch:6},{wch:10},{wch:10},{wch:6},{wch:32},{wch:32}];
-  XLSX.utils.book_append_sheet(wb,ws,roomData.name.slice(0,31));
+  XLSX.utils.book_append_sheet(wb,ws,_sanitizeSheetName(roomData.name));
   XLSX.writeFile(wb,'出場順序_'+roomData.name+'.xlsx');
   showToast('已匯出「'+roomData.name+'」出場名單 ✓','ok');
 }
@@ -7880,7 +7885,7 @@ function exportAllRoomsXLSX(){
     const ws=XLSX.utils.aoa_to_sheet(wsData);
     ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:7}}];
     ws['!cols']=[{wch:6},{wch:8},{wch:6},{wch:10},{wch:10},{wch:6},{wch:32},{wch:32}];
-    let sheetName=roomData.name.slice(0,31);
+    let sheetName=_sanitizeSheetName(roomData.name);
     if(usedNames.has(sheetName)){let n=2;while(usedNames.has(sheetName.slice(0,28)+'_'+n))n++;sheetName=sheetName.slice(0,28)+'_'+n;}
     usedNames.add(sheetName);
     XLSX.utils.book_append_sheet(wb,ws,sheetName);
