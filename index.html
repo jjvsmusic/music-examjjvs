@@ -1157,9 +1157,9 @@ tbody td{color:var(--ink)!important}
       </div>
       <div id="hs-reason-target" style="font-size:13px;color:var(--ink);margin-top:2px"></div>
     </div>
-    <div style="font-size:13px;color:var(--muted);line-height:1.8;margin-bottom:10px">
-      您給予的分數達 90 分（含）以上（分數已儲存）。<br>
-      依本系統規定，達 90 分（含）以上的分數需向管理員<strong>提供具體理由說明</strong>，請於下方填寫您給予此分數的理由：
+    <div style="font-size:13px;color:var(--muted);line-height:1.8;margin-bottom:10px" id="hs-reason-desc">
+      您給予的分數超過該生年級的評分上限（分數已暫存）。<br>
+      依本系統規定，超過上限的分數需向管理員<strong>提供具體理由說明</strong>並經審核通過，否則此項將暫以 <strong id="hs-reason-cap"></strong> 分（該年級上限）計分，請於下方填寫您給予此分數的理由：
     </div>
     <div class="lf">
       <label style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">給予高分的理由（必填，至少 5 字）</label>
@@ -2001,9 +2001,10 @@ tbody td{color:var(--ink)!important}
             <span style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--muted);margin-left:4px">排序：</span>
             <button class="btn btn-s btn-sm" id="tea-sort-asc" onclick="sortTeaList(1)">筆畫↑</button>
             <button class="btn btn-s btn-sm" id="tea-sort-desc" onclick="sortTeaList(-1)">筆畫↓</button>
+            <button class="btn btn-s btn-sm" id="tea-sort-inst" onclick="sortTeaListByInst()">依樂器別</button>
           </div>
           <div class="tw"><table>
-            <thead><tr><th style="width:32px;text-align:center"><input type="checkbox" id="tea-chk-all" onclick="toggleAllCheck('teacher',this)" title="全選／取消全選" style="cursor:pointer;width:14px;height:14px"></th><th>姓名</th><th>帳號</th><th>指導的學生</th><th>操作</th></tr></thead>
+            <thead><tr><th style="width:32px;text-align:center"><input type="checkbox" id="tea-chk-all" onclick="toggleAllCheck('teacher',this)" title="全選／取消全選" style="cursor:pointer;width:14px;height:14px"></th><th>姓名</th><th>帳號</th><th>專長樂器</th><th>指導的學生</th><th>操作</th></tr></thead>
             <tbody id="admin-tea-tbody"></tbody>
           </table></div>
         </div>
@@ -2075,6 +2076,18 @@ tbody td{color:var(--ink)!important}
               <div class="fg"><label>自選曲 %</label><input type="number" id="w-free" value="40" min="0" max="100"></div>
             </div>
             <button class="btn btn-p" onclick="saveWeights()">儲存預設權重</button>
+          </div>
+
+          <div class="card">
+            <div class="card-t">各年級評分上限</div>
+            <p style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.7">評審打分數（音階/指定曲/自選曲等任一單項）超過該生年級上限時，系統會要求評審填寫說明，並暫以該年級上限計分，直到管理員審核通過才採用評審實際輸入的分數。年級由學生班級名稱第一個數字判斷（如「音一莊」→高一）。</p>
+            <div class="fr">
+              <div class="fg"><label>高一上限</label><input type="number" id="cap-g1" value="85" min="0" max="100"></div>
+              <div class="fg"><label>高二上限</label><input type="number" id="cap-g2" value="87" min="0" max="100"></div>
+              <div class="fg"><label>高三上限</label><input type="number" id="cap-g3" value="89" min="0" max="100"></div>
+            </div>
+            <button class="btn btn-p" onclick="saveScoreCaps()">儲存評分上限</button>
+            <div id="cap-pending-summary" style="margin-top:12px;font-family:\'DM Mono\',monospace;font-size:11px;color:var(--rust)"></div>
           </div>
           <div class="card">
             <div class="card-t">去頭去尾規則（各項目分別套用）</div>
@@ -2689,6 +2702,7 @@ const DB = {
     tyTitle:'感謝您的評分',
     tyText:'感謝老師本學期的辛苦指導與細心評分，您的專業意見將是學生最珍貴的回饋。',
     weights:{scale:0.2,assigned:0.4,free:0.4},
+    scoreCaps:{1:85,2:87,3:89}, // ★ 各年級評分上限：超過需評審說明並經管理員審核
     trimRules:[
       {id:1,minJ:0,maxJ:3,trimH:0,trimT:0},
       {id:2,minJ:4,maxJ:5,trimH:0,trimT:1},
@@ -2773,6 +2787,21 @@ function getRoomFields(roomId){
 }
 
 // ★ 判斷某 entry 是否被某欄的 skipRules 命中（任一 rule OR；rule 內各條件 AND，空=不限）
+// ★ 取得學生某修別的扣考資訊（若無則 null）
+function _getDQ(studentId,type){
+  return DB.disqualified?.[studentId+'_'+type]||null;
+}
+window._getDQ=_getDQ;
+
+// ★ 扣考徽章 HTML（用於各考試順序頁面）
+function _dqBadgeHtml(studentId,type){
+  const dq=_getDQ(studentId,type);
+  if(!dq)return '';
+  const reason=escHtml(dq.reason||dq.note||'');
+  return `<span class="badge b-absent" style="margin-left:6px;font-size:9px" title="扣考原因：${reason}">⛔ 扣考${reason?'：'+reason:''}</span>`;
+}
+window._dqBadgeHtml=_dqBadgeHtml;
+
 function isFieldSkipped(field, entry){
   if(!field)return false;
   const rules=field.skipRules||[];
@@ -3726,6 +3755,7 @@ function loadAllFromFirebase(done, lightMode){
     if(cfg){
       const{id,_updatedAt,...rest}=cfg;
       if(rest.weights)DB.config.weights=rest.weights;
+      if(rest.scoreCaps)DB.config.scoreCaps=rest.scoreCaps;
       if(rest.trimRules)DB.config.trimRules=rest.trimRules;
       if(rest.pages)Object.assign(DB.config.pages,rest.pages);
       if(rest.studentAccess)Object.assign(DB.config.studentAccess,rest.studentAccess);
@@ -4185,7 +4215,11 @@ function buildNav(){
     b.className='nb';b.textContent=item.label;b.dataset.page=item.page;
     b.onclick=()=>{
       nav.querySelectorAll('.nb').forEach(x=>x.classList.remove('on'));b.classList.add('on');
-      // ★ 若為 pending，顯示提示頁而非正式頁面
+      // ★ 若為 pending，顯示提示頁而非正式頁面（管理員不受此限制，後台一律可見）
+      if(ST.role==='admin'){
+        showPage(item.page);
+        return;
+      }
       const accKey=ST.role==='student'?'studentAccess':'teacherAccess';
       const accVal=DB.config[accKey]?.[item.page];
       if(accVal==='pending'){
@@ -4357,6 +4391,14 @@ function filterRepInst(type){
 // ════════════════════════════════════════════════
 
 // 從學生班級名稱推測年級（取第一個中文數字字元，例：「音一莊」→ 1）
+// ★ 取得某筆考試 entry 對應的評分上限（依學生班級年級）
+function _scoreCapForEntry(e){
+  const grade=aprGradeFromClass(e?.class);
+  const caps=DB.config.scoreCaps||{1:85,2:87,3:89};
+  return caps[grade]??99;
+}
+window._scoreCapForEntry=_scoreCapForEntry;
+
 function aprGradeFromClass(cls){
   if(!cls)return '';
   const m=String(cls).match(/[一二三四五六七八九十1-9]/);
@@ -4624,7 +4666,7 @@ function renderAll(){
     renderRepPage();renderRepHint();renderTeaTable();
     renderAdminStudents();renderAdminTeachers();renderAdminAdmins();
     renderCatList();renderInstDropdown();renderRooms();renderClassList();renderTiming();
-    renderTrimRules();renderRoomFields();schInitRoomTabs();schInitSortUI();
+    renderTrimRules();renderRoomFields();renderScoreCapsConfig();schInitRoomTabs();schInitSortUI();
     if(pgVisible('pg-schedule'))renderSchedule();
     renderDisqList();
     if(pgVisible('pg-results'))renderResults();
@@ -5287,7 +5329,7 @@ function stuSchSelectRoom(roomId,btn){
     <td style="color:var(--ink)">${escHtml(e._roomName)}</td>
     <td style="color:var(--ink);font-family:'DM Mono',monospace;font-size:11px">${escHtml(e._roomLoc||'—')}</td>
     <td style="color:var(--ink)">${escHtml(e.class)}</td>
-    <td style="color:var(--ink);font-weight:600">${escHtml(e.name)}</td>
+    <td style="color:var(--ink);font-weight:600">${escHtml(e.name)}${_dqBadgeHtml(e.studentId,e.type)}</td>
     <td style="color:var(--ink)">${escHtml(e.instName)}</td>
     <td>${typeBadge(e.type)}</td>
     <td style="font-size:12px;color:var(--ink)">${ac?escHtml(ac)+' — <em>'+escHtml(at)+'</em>':'—'}</td>
@@ -6400,7 +6442,7 @@ function renderInvigTable(){
     return `<tr id="iv-row-${i}" style="${isBlack?'background:rgba(139,105,20,0.13)':isLive?'background:rgba(36,113,163,0.10)':''};transition:background .2s">
       <td style="font-family:\'DM Mono\',monospace;font-size:11px;color:var(--muted);text-align:center">${String(e.order).padStart(2,'0')}</td>
       <td>
-        <div style="font-weight:600;font-size:13px">${e.name}${isLive?'<span style="margin-left:6px;font-size:10px;color:#2471a3;font-family:\'DM Mono\',monospace">● 演奏中</span>':''}</div>
+        <div style="font-weight:600;font-size:13px">${e.name}${isLive?'<span style="margin-left:6px;font-size:10px;color:#2471a3;font-family:\'DM Mono\',monospace">● 演奏中</span>':''}${_dqBadgeHtml(e.studentId,e.type)}</div>
         <div style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--muted)">${e.class}·座${e.seat} · ${e.instName}·${typeName(e.type)}</div>
         ${isBlack?'<div style="font-family:\'DM Mono\',monospace;font-size:8px;color:#8b6914;font-weight:700;margin-top:2px">★ 黑簽全曲</div>':''}
       </td>
@@ -6828,7 +6870,11 @@ function getTrimRule(n){
 function trimmedAvg(scores,field){
   // ★ #6 排除 * 標記的分數（評審選擇不評此項）
   const activeScores=scores.filter(s=>s[field]!=='*'&&s[field+'_skip']!==true);
-  const vals=activeScores.map(s=>parseFloat(s[field])||0);
+  const vals=activeScores.map(s=>{
+    // ★ 評分超過年級上限、尚待管理員審核時，暫以該年級上限計分
+    if(s[field+'_pendingCap']!=null)return s[field+'_pendingCap'];
+    return parseFloat(s[field])||0;
+  });
   const n=vals.length;
   if(!n)return{avg:0,kept:[],removed:[],rule:{trimH:0,trimT:0},skipped:scores.length-n};
   const rule=getTrimRule(n);
@@ -8632,17 +8678,45 @@ function renderAdminStudents(){
 }
 
 let _teaSortDir=1; // 1=筆畫正序 -1=倒序
+let _teaSortMode='stroke'; // 'stroke' = 依姓名筆畫；'inst' = 依專長樂器別順序
 function sortTeaList(dir){
   _teaSortDir=dir;
+  _teaSortMode='stroke';
   document.getElementById('tea-sort-asc').className='btn btn-sm '+(dir===1?'btn-p':'btn-s');
   document.getElementById('tea-sort-desc').className='btn btn-sm '+(dir===-1?'btn-p':'btn-s');
+  document.getElementById('tea-sort-inst').className='btn btn-sm btn-s';
   renderAdminTeachers();
 }
 window.sortTeaList=sortTeaList;
+// ★ 依「樂器大項」設定順序排序（同樂器別內再依姓名筆畫排序）；無專長設定者排最後
+function sortTeaListByInst(){
+  _teaSortMode='inst';
+  document.getElementById('tea-sort-asc').className='btn btn-sm btn-s';
+  document.getElementById('tea-sort-desc').className='btn btn-sm btn-s';
+  document.getElementById('tea-sort-inst').className='btn btn-sm btn-p';
+  renderAdminTeachers();
+}
+window.sortTeaListByInst=sortTeaListByInst;
 function renderAdminTeachers(){
   const tbody=document.getElementById('admin-tea-tbody');if(!tbody)return;
-  const sorted=teachers().slice().sort((a,b)=>_teaSortDir*(a.name.localeCompare(b.name,'zh-TW-u-co-stroke')));
+  const cats=DB.instruments.categories||[];
+  const catOrder=id=>{const idx=cats.findIndex(c=>c.id===id);return idx<0?999:idx;};
+  let sorted;
+  if(_teaSortMode==='inst'){
+    sorted=teachers().slice().sort((a,b)=>{
+      const ao=Math.min(...((a.specialtyInsts&&a.specialtyInsts.length)?a.specialtyInsts.map(catOrder):[999]));
+      const bo=Math.min(...((b.specialtyInsts&&b.specialtyInsts.length)?b.specialtyInsts.map(catOrder):[999]));
+      if(ao!==bo)return ao-bo;
+      return a.name.localeCompare(b.name,'zh-TW-u-co-stroke');
+    });
+  } else {
+    sorted=teachers().slice().sort((a,b)=>_teaSortDir*(a.name.localeCompare(b.name,'zh-TW-u-co-stroke')));
+  }
   tbody.innerHTML=sorted.map(t=>{
+    const specHtml=(t.specialtyInsts||[]).map(cid=>{
+      const c=cats.find(x=>x.id===cid);
+      return c?`<span class="badge b-major" style="font-size:9px">${c.name}</span>`:'';
+    }).filter(Boolean).join(' ')||'<span style="color:var(--border);font-size:11px">—</span>';
     const rawStuIds=DB.teacherStudents[t.id]||[];
     // ★ 聯動修正：過濾孤兒 ID（對應學生已被刪除），並自動清理 Firebase
     const validStuIds=rawStuIds.filter(sid=>DB.users.find(u=>u.id===sid));
@@ -8656,6 +8730,7 @@ function renderAdminTeachers(){
     <td style="text-align:center"><input type="checkbox" class="tea-chk" data-id="${t.id}" onchange="updateBulkBar('teacher')" style="cursor:pointer;width:14px;height:14px"></td>
     <td><strong>${t.name}</strong></td>
     <td style="font-family:\'DM Mono\',monospace;font-size:11px">${t.account}</td>
+    <td style="font-size:12px">${specHtml}</td>
     <td style="font-size:12px;color:var(--muted);max-width:220px">${myStus}</td>
     <td><div class="bg">
       <button class="btn btn-b btn-xs" onclick="openTeaStuModal('${t.id}')">指導的學生</button>
@@ -8732,6 +8807,16 @@ function editUser(id){
       <div class="fg"><label>副修</label><select id="em-minor"><option value="">—</option>${DB.instruments.items.map(i=>`<option value="${i.id}" ${i.id===u.minor?'selected':''}>${i.name}</option>`).join('')}</select></div>
       <div class="fg"><label>選修</label><select id="em-elective"><option value="">—</option>${DB.instruments.items.map(i=>`<option value="${i.id}" ${i.id===u.elective?'selected':''}>${i.name}</option>`).join('')}</select></div>
     </div>`;
+  if(u.role==='teacher'){
+    const cats=DB.instruments.categories||[];
+    const sp=u.specialtyInsts||[];
+    const catOpts=(sel)=>`<option value="">—</option>${cats.map(c=>`<option value="${c.id}" ${sel===c.id?'selected':''}>${c.name}</option>`).join('')}`;
+    extra=`
+    <div class="fr">
+      <div class="fg"><label>專長樂器別 1</label><select id="em-spec1">${catOpts(sp[0]||'')}</select></div>
+      <div class="fg"><label>專長樂器別 2（選填）</label><select id="em-spec2">${catOpts(sp[1]||'')}</select></div>
+    </div>`;
+  }
   document.getElementById('edit-modal-body').innerHTML=`
     <div class="fr"><div class="fg"><label>姓名</label><input type="text" id="em-name" value="${u.name}"></div><div class="fg"><label>帳號</label><input type="text" id="em-account" value="${u.account}"></div></div>
     ${extra}
@@ -8742,6 +8827,11 @@ function editUser(id){
     const newPass=document.getElementById('em-pass-edit').value.trim();
     if(newPass) u.pass=_passEncode(newPass,u.id); // ★ 修正 R4：混淆密碼
     if(u.role==='student'){u.class=document.getElementById('em-class').value;u.seat=+document.getElementById('em-seat').value;u.major=document.getElementById('em-major').value;u.minor=document.getElementById('em-minor').value;u.elective=document.getElementById('em-elective').value;}
+    if(u.role==='teacher'){
+      const s1=document.getElementById('em-spec1')?.value||'';
+      const s2=document.getElementById('em-spec2')?.value||'';
+      u.specialtyInsts=[...new Set([s1,s2].filter(Boolean))];
+    }
     // Write complete user object to avoid partial-write issues
     fbSet('users',u.id,u);
     closeOverlay('edit-modal');showToast('已更新 ✓','ok');renderAll();
@@ -9321,6 +9411,7 @@ function renderTiming(){
 function fbSaveConfig(){
   fbSet('config','main',{
     weights:DB.config.weights,
+    scoreCaps:DB.config.scoreCaps,
     trimRules:DB.config.trimRules,
     pages:DB.config.pages,
     studentAccess:DB.config.studentAccess,
@@ -9598,6 +9689,36 @@ function saveWeights(){
   if(s+a+f!==100){showToast('三項必須合計 100%','err');return;}
   DB.config.weights={scale:s/100,assigned:a/100,free:f/100};fbSaveConfig();showToast('權重已儲存 ✓','ok');
 }
+
+// ★ 各年級評分上限：儲存 + 渲染
+function saveScoreCaps(){
+  const g1=+document.getElementById('cap-g1').value||0;
+  const g2=+document.getElementById('cap-g2').value||0;
+  const g3=+document.getElementById('cap-g3').value||0;
+  DB.config.scoreCaps={1:g1,2:g2,3:g3};
+  fbSaveConfig();
+  showToast('評分上限已儲存 ✓','ok');
+  renderPendingCapSummary();
+}
+window.saveScoreCaps=saveScoreCaps;
+
+function renderScoreCapsConfig(){
+  const caps=DB.config.scoreCaps||{1:85,2:87,3:89};
+  const g1=document.getElementById('cap-g1'),g2=document.getElementById('cap-g2'),g3=document.getElementById('cap-g3');
+  if(g1)g1.value=caps[1]??85;
+  if(g2)g2.value=caps[2]??87;
+  if(g3)g3.value=caps[3]??89;
+  renderPendingCapSummary();
+}
+window.renderScoreCapsConfig=renderScoreCapsConfig;
+
+// ★ 顯示目前待審「超過評分上限」筆數摘要
+function renderPendingCapSummary(){
+  const el=document.getElementById('cap-pending-summary');if(!el)return;
+  const pending=Object.values(DB.pendingApprovals||{}).filter(r=>r.kind==='jury'&&r.status==='pending');
+  el.textContent=pending.length?`⚠ 目前有 ${pending.length} 筆現場評分超過上限，待審核（請至「成績總表」分頁的審核區處理）`:'';
+}
+window.renderPendingCapSummary=renderPendingCapSummary;
 
 // ★ #5 渲染各考場評分欄位設定
 function renderRoomFields(){
@@ -11342,7 +11463,8 @@ function _buildSummaryRows(classFilter){
     const ded=DB.deductions[entryKey]||{amount:0,reason:''};
     const finalWithDed=result.finalScore!==null?Math.max(0,result.finalScore-(ded.amount||0)):null;
     const isAbsent=scoreArr.some(s=>s.absent);
-    examScoreMap[entryKey]={final:isAbsent?0:finalWithDed,isAbsent};
+    const isDQ=!!DB.disqualified?.[entryKey];
+    examScoreMap[entryKey]={final:isAbsent?0:finalWithDed,isAbsent,isDQ};
   });
 
   const instById={};
@@ -11352,6 +11474,7 @@ function _buildSummaryRows(classFilter){
     const k=stuId+'_'+type;
     const r=examScoreMap[k];
     if(!r)return '';
+    if(r.isDQ)return '扣考';
     if(r.isAbsent)return '缺考';
     return r.final===null||r.final===undefined?'':r.final.toFixed(2);
   };
@@ -12038,6 +12161,8 @@ function _renderResultsTable(opts){
       const jurorData=DB.juryScores[e.roomId]?.[ek]||{};
       const scoreArr=_safeJurors(jurorData);
       const isAbsent=scoreArr.some(s=>s.absent);
+      const isDQ=!!DB.disqualified?.[ek];
+      const absentLabel=isDQ?'扣考':'缺考';
       const result=scoreArr.length?calcFinal(scoreArr,e.roomId,e):{finalScore:null,fS:null,fA:null,fF:null,fieldAvgs:{}};
       const ded=DB.deductions[ek]||{amount:0,reason:''};
       const finalWithDed=result.finalScore!==null?Math.max(0,result.finalScore-(ded.amount||0)):null;
@@ -12058,11 +12183,11 @@ function _renderResultsTable(opts){
 
         jurorIds.forEach(jid=>{
           const s=jurorData[jid];
-          const v=s?(s.absent?'缺考':(s[f.id]!==undefined&&s[f.id]!=='*'?parseFloat(s[f.id]).toFixed(1):'—')):'—';
-          const color=(v!=='—'&&v!=='缺考'&&parseFloat(v)<60)?'color:var(--red)':'';
+          const v=s?(s.absent?absentLabel:(s[f.id]!==undefined&&s[f.id]!=='*'?parseFloat(s[f.id]).toFixed(1):'—')):'—';
+          const color=(v!=='—'&&v!=='缺考'&&v!=='扣考'&&parseFloat(v)<60)?'color:var(--red)':'';
           // ★ 判斷此分數是否被刪頭刪尾
           let trimMark='';
-          if(v!=='—'&&v!=='缺考'){
+          if(v!=='—'&&v!=='缺考'&&v!=='扣考'){
             const numV=parseFloat(s[f.id]);
             if(removedCount[numV]>0){
               trimMark='text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:var(--rust);opacity:.55';
@@ -12072,15 +12197,15 @@ function _renderResultsTable(opts){
           scoresCells+=`<td style="${tdNum};${color};${trimMark}" title="${trimMark?'此分數已被刪頭/刪尾排除，不計入平均':''}">${v}</td>`;
         });
         const avg=result.fieldAvgs?.[f.id]??null;
-        const avgDisp=isAbsent?'0':(avg!==null?avg.toFixed(2):'—');
+        const avgDisp=isAbsent?(isDQ?'扣考':'0'):(avg!==null?avg.toFixed(2):'—');
         const avgColor=avg!==null&&avg<60?'color:var(--red)':'';
         scoresCells+=`<td style="${tdNum};font-weight:700;background:rgba(181,137,42,.08);${avgColor}">${avgDisp}</td>`;
       });
 
       const dedAmt=ded.amount?('-'+ded.amount):'';
-      const finalDisp=isAbsent?'0':(finalWithDed!==null?finalWithDed.toFixed(2):'—');
+      const finalDisp=isAbsent?(isDQ?'扣考':'0'):(finalWithDed!==null?finalWithDed.toFixed(2):'—');
       const finalColor=finalWithDed!==null&&finalWithDed<60?'color:var(--red);font-weight:700':'font-weight:700;color:var(--gold)';
-      const violation=ded.reason||(isAbsent?'缺考':'');
+      const violation=isDQ?('扣考'+(DB.disqualified[ek]?.reason?'：'+DB.disqualified[ek].reason:'')):(ded.reason||(isAbsent?'缺考':''));
       const rankDisp=rank?rankMedal[rank-1]:'';
 
       // 管理員額外：評審真實姓名欄
@@ -12374,7 +12499,7 @@ function teaSchSelectRoom(roomId,btn){
     <td style="color:var(--ink)">${escHtml(e._roomName)}</td>
     <td style="color:var(--ink);font-family:'DM Mono',monospace;font-size:11px">${escHtml(e._roomLoc||'—')}</td>
     <td style="color:var(--ink)">${escHtml(e.class)}</td>
-    <td style="color:var(--ink);font-weight:600">${escHtml(e.name)}</td>
+    <td style="color:var(--ink);font-weight:600">${escHtml(e.name)}${_dqBadgeHtml(e.studentId,e.type)}</td>
     <td style="color:var(--ink)">${escHtml(e.instName)}</td>
     <td>${typeBadge(e.type)}</td>
     <td style="font-size:12px;color:var(--ink)">${ac?escHtml(ac)+' — <em>'+escHtml(at)+'</em>':'—'}</td>
@@ -12626,9 +12751,9 @@ function npConfirm(){
       // ★ 先寫入分數（立刻生效）
       const inp=document.getElementById(ST.npTarget);if(inp){inp.value=val;inp.style.color='';}
       if(ST.npCallback)ST.npCallback(val);
-      // ★ 現場評分 ≥ 90 分：背景送審 + 請評審填理由（不擋）
+      // ★ 現場評分超過該生年級分數上限：背景送審 + 請評審填理由（暫以上限計分）
       const isJuryCell=typeof ST.npTarget==='string'&&ST.npTarget.startsWith('js-');
-      if(val>=90 && isJuryCell && ST.role!=='admin'){
+      if(isJuryCell && ST.role!=='admin'){
         const m=ST.npTarget.match(/^js-(.+)-(\d+)$/);
         if(m){
           const field=m[1];
@@ -12636,7 +12761,8 @@ function npConfirm(){
           const roomId=ST.juryRoom?.id||(ST._adminJuryRoomId||DB.rooms[0]?.id||'');
           const entries=getJuryEntries();
           const e=entries[i];
-          if(e&&roomId){
+          const cap=_scoreCapForEntry(e);
+          if(e&&roomId&&val>cap){
             const entryKey=e.studentId+'_'+e.type;
             const jurorId=ST.juryId||ST.user?.id||'admin';
             const pendingId='jury_'+roomId+'_'+entryKey+'_'+jurorId+'_'+field;
@@ -12648,6 +12774,7 @@ function npConfirm(){
               openHighScoreReasonModal({
                 kind:'jury',
                 score:val,
+                cap:cap,
                 roomId:roomId,
                 entryKey:entryKey,
                 jurorId:jurorId,
@@ -12681,6 +12808,17 @@ let _hsReasonCtx=null;
 // ★ 理由 modal 關閉後要執行的後續動作（例如：跳下一位、結束 wizard）
 let _hsAfterReason=null;
 
+// ★ 在 juryScores 上標記「此欄分數待審，暫以上限計分」並寫回 Firebase
+function _markJuryPendingCap(roomId,entryKey,jurorId,field,cap){
+  if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
+  if(!DB.juryScores[roomId][entryKey])DB.juryScores[roomId][entryKey]={};
+  if(!DB.juryScores[roomId][entryKey][jurorId])DB.juryScores[roomId][entryKey][jurorId]={};
+  DB.juryScores[roomId][entryKey][jurorId][field+'_pendingCap']=cap;
+  const patch={};patch[jurorId]={...DB.juryScores[roomId][entryKey][jurorId]};
+  if(window._FB)window._FB._set('juryScores/'+roomId+'/entries/'+entryKey,patch);
+}
+window._markJuryPendingCap=_markJuryPendingCap;
+
 // 開啟理由輸入彈窗
 function openHighScoreReasonModal(ctx){
   _hsReasonCtx=ctx;
@@ -12689,7 +12827,17 @@ function openHighScoreReasonModal(ctx){
   const lblTitle=document.getElementById('hs-reason-title');
   const lblTarget=document.getElementById('hs-reason-target');
   if(lblScore)lblScore.textContent=ctx.score;
-  if(lblTitle)lblTitle.textContent=ctx.kind==='teacher'?'平時評量分數達 90 分（含）以上':'現場評分分數達 90 分（含）以上';
+  if(lblTitle)lblTitle.textContent=ctx.kind==='teacher'?'平時評量分數達 90 分（含）以上':'現場評分超過年級評分上限';
+  const capEl=document.getElementById('hs-reason-cap');
+  if(capEl)capEl.textContent=(ctx.cap!=null?ctx.cap:'');
+  const descEl=document.getElementById('hs-reason-desc');
+  if(descEl){
+    if(ctx.kind==='teacher'){
+      descEl.innerHTML='您給予的分數達 90 分（含）以上（分數已儲存）。<br>依本系統規定，達 90 分（含）以上的分數需向管理員<strong>提供具體理由說明</strong>，請於下方填寫您給予此分數的理由：';
+    } else {
+      descEl.innerHTML='您給予的分數超過該生年級的評分上限（分數已暫存）。<br>依本系統規定，超過上限的分數需向管理員<strong>提供具體理由說明</strong>並經審核通過，否則此項將暫以 <strong>'+(ctx.cap!=null?ctx.cap:'')+'</strong> 分（該年級上限）計分，請於下方填寫您給予此分數的理由：';
+    }
+  }
   // 描述對象（學生姓名）
   let targetTxt='';
   if(ctx.kind==='teacher'){
@@ -12739,9 +12887,11 @@ function closeHighScoreReasonModal(){
         record.entryKey=ctx.entryKey;
         record.jurorId=ctx.jurorId;
         record.field=ctx.field;
+        record.cap=ctx.cap;
       }
       DB.pendingApprovals[ctx.pendingId]=record;
       fbSet('pendingApprovals',ctx.pendingId,record);
+      if(ctx.kind==='jury')_markJuryPendingCap(ctx.roomId,ctx.entryKey,ctx.jurorId,ctx.field,ctx.cap);
     }
   }
   closeOverlay('hs-reason-modal');
@@ -12787,13 +12937,15 @@ function submitHighScoreReason(){
     record.entryKey=ctx.entryKey;
     record.jurorId=ctx.jurorId;
     record.field=ctx.field;
+    record.cap=ctx.cap;
   }
   DB.pendingApprovals[ctx.pendingId]=record;
   fbSet('pendingApprovals',ctx.pendingId,record);
+  if(ctx.kind==='jury')_markJuryPendingCap(ctx.roomId,ctx.entryKey,ctx.jurorId,ctx.field,ctx.cap);
   closeOverlay('hs-reason-modal');
   _hsReasonCtx=null;
-  // ★ 分數已生效，這裡只是登記理由給管理員參考；不再提及「審核」字眼
-  showToast('已記錄 ✓','ok');
+  // ★ 分數已暫存，平均計算將暫以上限計分，待管理員審核
+  showToast('已送出，待管理員審核期間將暫以上限計分 ✓','ok');
   // ★ 執行後續動作（例如跳下一位學生、結束 wizard）
   if(typeof _hsAfterReason==='function'){
     const fn=_hsAfterReason;
@@ -12832,22 +12984,19 @@ function approvePendingScore(pendingId){
       }
     }
   } else if(rec.kind==='jury'){
-    const cur=DB.juryScores[rec.roomId]?.[rec.entryKey]?.[rec.jurorId]?.[rec.field];
-    if(cur!==rec.score){
-      if(!DB.juryScores[rec.roomId])DB.juryScores[rec.roomId]={};
-      if(!DB.juryScores[rec.roomId][rec.entryKey])DB.juryScores[rec.roomId][rec.entryKey]={};
-      if(!DB.juryScores[rec.roomId][rec.entryKey][rec.jurorId])DB.juryScores[rec.roomId][rec.entryKey][rec.jurorId]={};
-      DB.juryScores[rec.roomId][rec.entryKey][rec.jurorId][rec.field]=rec.score;
-      delete DB.juryScores[rec.roomId][rec.entryKey][rec.jurorId][rec.field+'_skip'];
-      DB.juryScores[rec.roomId][rec.entryKey][rec.jurorId]._localUpdatedAt=Date.now();
-      fbSet('juryScores',rec.roomId+'_'+rec.entryKey,{
-        ...DB.juryScores[rec.roomId][rec.entryKey],
-        _roomId:rec.roomId,
-        _entryKey:rec.entryKey,
-      });
-    }
+    if(!DB.juryScores[rec.roomId])DB.juryScores[rec.roomId]={};
+    if(!DB.juryScores[rec.roomId][rec.entryKey])DB.juryScores[rec.roomId][rec.entryKey]={};
+    if(!DB.juryScores[rec.roomId][rec.entryKey][rec.jurorId])DB.juryScores[rec.roomId][rec.entryKey][rec.jurorId]={};
+    const s=DB.juryScores[rec.roomId][rec.entryKey][rec.jurorId];
+    s[rec.field]=rec.score;
+    delete s[rec.field+'_skip'];
+    // ★ 審核通過：解除「暫以上限計分」，恢復評審原始分數
+    delete s[rec.field+'_pendingCap'];
+    s._localUpdatedAt=Date.now();
+    const patch={};patch[rec.jurorId]={...s};
+    if(window._FB)window._FB._set('juryScores/'+rec.roomId+'/entries/'+rec.entryKey,patch);
   }
-  showToast('已同意，維持原分數 ✓','ok');
+  showToast('已同意，採用評審原始分數 ✓','ok');
   renderPendingApprovalsPage();
 }
 window.approvePendingScore=approvePendingScore;
@@ -12857,12 +13006,12 @@ function rejectPendingScore(pendingId){
   const rec=DB.pendingApprovals?.[pendingId];
   if(!rec){showToast('找不到審核紀錄','err');return;}
   if(rec.status!=='pending'){showToast('此紀錄已處理','warn');return;}
-  if(!confirm('確定拒絕此分數？\n系統將自動以 89 分作為上限分數寫入。')){return;}
+  if(!confirm('確定拒絕此分數？\n系統將自動以該生年級評分上限（'+(rec.cap??89)+' 分）寫入。')){return;}
   rec.status='rejected';
   rec.reviewedAt=new Date().toISOString();
   rec.reviewedBy=ST.user?.id||'admin';
   rec.reviewedByName=ST.user?.name||'管理員';
-  rec.finalScore=89; // 強制 89 分
+  rec.finalScore=rec.cap??89; // 強制改為年級評分上限
   fbSet('pendingApprovals',pendingId,rec);
   // 將 89 分寫入對應集合
   if(rec.kind==='teacher'){
@@ -12879,16 +13028,16 @@ function rejectPendingScore(pendingId){
     if(!DB.juryScores[rec.roomId])DB.juryScores[rec.roomId]={};
     if(!DB.juryScores[rec.roomId][rec.entryKey])DB.juryScores[rec.roomId][rec.entryKey]={};
     if(!DB.juryScores[rec.roomId][rec.entryKey][rec.jurorId])DB.juryScores[rec.roomId][rec.entryKey][rec.jurorId]={};
-    DB.juryScores[rec.roomId][rec.entryKey][rec.jurorId][rec.field]=89;
-    delete DB.juryScores[rec.roomId][rec.entryKey][rec.jurorId][rec.field+'_skip'];
-    DB.juryScores[rec.roomId][rec.entryKey][rec.jurorId]._localUpdatedAt=Date.now();
-    fbSet('juryScores',rec.roomId+'_'+rec.entryKey,{
-      ...DB.juryScores[rec.roomId][rec.entryKey],
-      _roomId:rec.roomId,
-      _entryKey:rec.entryKey,
-    });
+    const s=DB.juryScores[rec.roomId][rec.entryKey][rec.jurorId];
+    const cap=rec.cap??89;
+    s[rec.field]=cap;
+    delete s[rec.field+'_skip'];
+    delete s[rec.field+'_pendingCap'];
+    s._localUpdatedAt=Date.now();
+    const patch={};patch[rec.jurorId]={...s};
+    if(window._FB)window._FB._set('juryScores/'+rec.roomId+'/entries/'+rec.entryKey,patch);
   }
-  showToast('已拒絕，已自動寫入 89 分上限','warn');
+  showToast('已拒絕，已自動改為 '+(rec.cap??89)+' 分（年級上限）','warn');
   renderPendingApprovalsPage();
 }
 window.rejectPendingScore=rejectPendingScore;
@@ -13052,14 +13201,14 @@ function renderPendingApprovalsPage(){
       ?'<span class="appr-st appr-pending">⏳ 待審核</span>'
       :(r.status==='approved'
         ?'<span class="appr-st appr-ok">✓ 已同意</span>'
-        :'<span class="appr-st appr-no">✗ 已拒絕（89分上限）</span>');
+        :`<span class="appr-st appr-no">✗ 已拒絕（${r.cap??89}分上限）</span>`);
     const reviewInfo=r.status!=='pending'
       ?`<div class="appr-review">${statusBadge} <span class="appr-meta">由 ${r.reviewedByName||r.reviewedBy||'-'} 於 ${fmtTime(r.reviewedAt)}</span></div>`
       :`<div class="appr-review">${statusBadge}</div>`;
     const actions=r.status==='pending'
       ?`<div class="appr-acts">
           <button class="btn btn-g btn-sm" onclick="approvePendingScore('${id}')">✓ 同意（維持原分數）</button>
-          <button class="btn btn-d btn-sm" onclick="rejectPendingScore('${id}')">✗ 不同意（改為 89 分）</button>
+          <button class="btn btn-d btn-sm" onclick="rejectPendingScore('${id}')">✗ 不同意（改為 ${r.kind==='jury'?(r.cap??89):89} 分）</button>
         </div>`
       :`<div class="appr-acts"><button class="btn btn-s btn-sm" onclick="deletePendingApproval('${id}')">🗑 刪除紀錄</button></div>`;
     return `<div class="appr-card ${r.status}">
