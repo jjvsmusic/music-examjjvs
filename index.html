@@ -5011,10 +5011,13 @@ function renderScoresPage(){
 
   el.innerHTML=types.map(t=>{
     const entryKey=u.id+'_'+t.type;
-    const roomId=_findRoomForCat(DB.instruments.items.find(i=>i.id===t.inst)?.cat)?.id||'';
+    const tCatId=DB.instruments.items.find(i=>i.id===t.inst)?.cat;
+    const roomId=_findRoomForCat(tCatId)?.id||'';
     const jurorData=DB.juryScores[roomId]?.[entryKey]||{};
     const scoreArr=_safeJurors(jurorData).filter(s=>!s.absent);
-    const result=scoreArr.length?calcFinal(scoreArr,roomId):{finalScore:null,fS:null,fA:null,fF:null,fieldAvgs:{}};
+    // ★ 修正：傳入 entry 資訊，讓 calcFinal 能正確處理 * 不計分欄位的權重重分配
+    const _entryForCalc={type:t.type,catId:tCatId,class:u.class};
+    const result=scoreArr.length?calcFinal(scoreArr,roomId,_entryForCalc):{finalScore:null,fS:null,fA:null,fF:null,fieldAvgs:{}};
     const fs=result.finalScore;
     // ★ H1：成績未發佈時隱藏分數區，只顯示評語
     const resultsPublished=!!DB.config.resultsPublished;
@@ -10852,26 +10855,51 @@ function editJuryScores(roomId,entryKey,studentName){
   const jurorData=DB.juryScores[roomId]?.[entryKey]||{};
   document.getElementById('edit-modal-title').textContent='修改評分 — '+studentName;
   const jurorIds=Object.keys(jurorData);
+  const fieldRow=(jid,ji,fid,label,s)=>{
+    const isSkip=s[fid]==='*';
+    const val=isSkip?'':(s[fid]||0);
+    return `<div class="fg" style="min-width:90px">
+      <label>${label}</label>
+      <input type="number" id="ej-${fid}-${ji}" value="${val}" min="0" max="99" step="0.5" ${isSkip?'disabled':''} style="${isSkip?'opacity:.4':''}">
+      <label style="display:flex;align-items:center;gap:4px;margin-top:3px;font-size:9px;font-weight:normal">
+        <input type="checkbox" id="ej-${fid}-skip-${ji}" ${isSkip?'checked':''} onchange="document.getElementById('ej-${fid}-${ji}').disabled=this.checked;document.getElementById('ej-${fid}-${ji}').style.opacity=this.checked?'.4':'1'">
+        此項不計分（*）
+      </label>
+    </div>`;
+  };
   document.getElementById('edit-modal-body').innerHTML=jurorIds.length?
     jurorIds.map((jid,ji)=>{const s=jurorData[jid];return `<div style="padding:10px;background:var(--cream);border-radius:var(--r);margin-bottom:8px">
-      <div style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--muted);margin-bottom:8px">評審 ${ji+1} ${s.absent?'（缺考）':''}</div>
+      <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:8px">評審 ${ji+1}${s._jurorName?'：'+s._jurorName:''} ${s.absent?'（缺考）':''}</div>
       <div class="fr">
-        <div class="fg"><label>音階</label><input type="number" id="ej-scale-${ji}" value="${s.scale||0}" min="0" max="99" step="0.5"></div>
-        <div class="fg"><label>指定曲</label><input type="number" id="ej-assigned-${ji}" value="${s.assigned||0}" min="0" max="99" step="0.5"></div>
-        <div class="fg"><label>自選曲</label><input type="number" id="ej-free-${ji}" value="${s.free||0}" min="0" max="99" step="0.5"></div>
+        ${fieldRow(jid,ji,'scale','音階',s)}
+        ${fieldRow(jid,ji,'assigned','指定曲',s)}
+        ${fieldRow(jid,ji,'free','自選曲',s)}
       </div>
+      <div class="fg" style="margin-top:8px"><label>評語</label><textarea id="ej-comment-${ji}" rows="2" style="width:100%;font-size:12px;padding:6px;border:1px solid var(--border);border-radius:var(--r);font-family:inherit">${s.comment||''}</textarea></div>
     </div>`;}).join('')
     :'<p style="color:var(--muted);font-size:13px">尚無評審資料</p>';
-  document.getElementById('edit-modal-save').onclick=()=>{
+  document.getElementById('edit-modal-save').onclick=async ()=>{
     // ★ 分數上限 99 分 — clamp 防止 paste 或手動輸入超過 99
     const clamp99=v=>{const n=parseFloat(v)||0;return Math.max(0,Math.min(99,n));};
+    const patch={};
     jurorIds.forEach((jid,ji)=>{
       const s=DB.juryScores[roomId][entryKey][jid];
-      s.scale=clamp99(document.getElementById(`ej-scale-${ji}`)?.value);
-      s.assigned=clamp99(document.getElementById(`ej-assigned-${ji}`)?.value);
-      s.free=clamp99(document.getElementById(`ej-free-${ji}`)?.value);
+      ['scale','assigned','free'].forEach(fid=>{
+        const skipped=document.getElementById(`ej-${fid}-skip-${ji}`)?.checked;
+        s[fid]=skipped?'*':clamp99(document.getElementById(`ej-${fid}-${ji}`)?.value);
+      });
+      s.comment=document.getElementById(`ej-comment-${ji}`)?.value||'';
+      s._localUpdatedAt=Date.now();
+      patch[jid]={...s};
     });
-    closeOverlay('edit-modal');showToast('評分已更新 ✓','ok');renderResults();
+    closeOverlay('edit-modal');renderResults();
+    // ★ 寫回 Firebase，否則重新整理後修改會消失
+    if(window._FB){
+      const ok=await window._FB._set('juryScores/'+roomId+'/entries/'+entryKey, patch);
+      showToast(ok?'評分已更新並同步 ✓':'評分已更新，但同步失敗（請檢查連線）','warn');
+    }else{
+      showToast('評分已更新（本機）','ok');
+    }
   };
   openOverlay('edit-modal');
 }
@@ -10909,7 +10937,8 @@ function exportResultsCSV(allClasses){
     const rId=e.roomId;
     const jurorData=DB.juryScores[rId]?.[entryKey]||{};
     const scoreArr=_safeJurors(jurorData);
-    const result=scoreArr.length?calcFinal(scoreArr):{finalScore:null,fS:null,fA:null,fF:null};
+    // ★ 修正：傳入 entry(e)，讓 calcFinal 能正確處理 * 不計分欄位的權重重分配
+    const result=scoreArr.length?calcFinal(scoreArr,rId,e):{finalScore:null,fS:null,fA:null,fF:null};
     const ded=DB.deductions[entryKey]||{amount:0,reason:''};
     const finalWithDed=result.finalScore!==null?Math.max(0,result.finalScore-(ded.amount||0)):null;
     const isAbsent=scoreArr.some(s=>s.absent);
@@ -11011,7 +11040,8 @@ function _buildSummaryRows(classFilter){
     const jurorData=DB.juryScores[e.roomId]?.[entryKey]||{};
     const scoreArr=_safeJurors(jurorData);
     if(!scoreArr.length){examScoreMap[entryKey]={final:null,isAbsent:false};return;}
-    const result=calcFinal(scoreArr);
+    // ★ 修正：傳入 entry(e)，讓 calcFinal 能正確處理 * 不計分欄位的權重重分配
+    const result=calcFinal(scoreArr,e.roomId,e);
     const ded=DB.deductions[entryKey]||{amount:0,reason:''};
     const finalWithDed=result.finalScore!==null?Math.max(0,result.finalScore-(ded.amount||0)):null;
     const isAbsent=scoreArr.some(s=>s.absent);
