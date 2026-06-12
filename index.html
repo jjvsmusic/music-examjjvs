@@ -803,6 +803,14 @@ tbody td{color:var(--ink)!important}
     } catch(e) { return null; }
   }
 
+  // ★ 修正：Firestore updateMask.fieldPaths 規定欄位名稱必須符合 [a-zA-Z_][a-zA-Z0-9_]*
+  //   否則整個請求會回 400 Bad Request（例如評審 ID 含中文姓名：JN_r123_王小明）
+  //   不符合此格式的欄位名稱需用反引號包起來，並跳脫反引號/反斜線
+  function _escapeFieldPath(name){
+    if(/^[_a-zA-Z][_a-zA-Z0-9]*$/.test(name)) return name;
+    return '`' + String(name).replace(/\\/g,'\\\\').replace(/`/g,'\\`') + '`';
+  }
+
   async function _fsSet(path, data){
     const token = await _getToken();
     const headers = {'Content-Type':'application/json', ...(token?{Authorization:'Bearer '+token}:{})};
@@ -811,7 +819,7 @@ tbody td{color:var(--ink)!important}
     const mask = [];
     Object.keys(data).forEach(k => {
       fields[k] = _toFS(data[k]);
-      mask.push(k);
+      mask.push(_escapeFieldPath(k));
     });
     // 構造帶 updateMask.fieldPaths 的 URL
     const maskQuery = mask.map(p=>'updateMask.fieldPaths='+encodeURIComponent(p)).join('&');
@@ -6432,29 +6440,24 @@ async function syncPendingToFirebase(){
       try{
         const data=JSON.parse(localStorage.getItem(lsKey)||'null');
         if(!data){unmarkPending(lsKey);return;}
-        // ★ Bug 修正：原本用 split('_') 拆 lsKey 在 studentId 含底線時會切錯（如 's1730_5'）
-        //   改用「以 jurorId 結尾反向切割」，jurorId 從資料裡取最可靠
-        //   方法：1) lsKey 去頭 'jury_' 2) 找最後一個 '_JN_' 或用當前 ST.juryId 當尾巴切
         const stripped=lsKey.replace(/^jury_/,'');
-        // 嘗試用當前評審 ID 當切點（最常見情境）
+        // ★ 修正：roomId 一定是「第一個底線之前」的部分（格式 r+數字，本身不含底線）
+        //   entryKey 一定以 _major / _minor / _elective 結尾，剩下的才是 jurorId
+        //   這個方法不依賴 jurorId 的格式，無論是 JN_roomId_姓名 或老師帳號 ID（如 a001）都能正確切割
         let roomId='', entryKey='', jurorId='';
-        if(ST.juryId && stripped.endsWith('_'+ST.juryId)){
-          jurorId=ST.juryId;
-          const middle=stripped.slice(0, stripped.length-jurorId.length-1);
-          const fi=middle.indexOf('_');
-          if(fi<0){console.warn('[sync] lsKey 缺少 roomId 分隔：',lsKey);return;}
-          roomId=middle.slice(0,fi);
-          entryKey=middle.slice(fi+1);
-        } else {
-          // Fallback：找最右邊的 '_JN_' 切點（jurorId 通常以 'JN_' 開頭）
-          const jnIdx=stripped.lastIndexOf('_JN_');
-          if(jnIdx<0){console.warn('[sync] lsKey 找不到 jurorId 切點：',lsKey);return;}
-          jurorId=stripped.slice(jnIdx+1);
-          const middle=stripped.slice(0,jnIdx);
-          const fi=middle.indexOf('_');
-          if(fi<0){console.warn('[sync] lsKey 缺少 roomId 分隔：',lsKey);return;}
-          roomId=middle.slice(0,fi);
-          entryKey=middle.slice(fi+1);
+        const firstUnderscore=stripped.indexOf('_');
+        if(firstUnderscore<0){console.warn('[sync] lsKey 缺少 roomId 分隔：',lsKey);return;}
+        roomId=stripped.slice(0,firstUnderscore);
+        const rest=stripped.slice(firstUnderscore+1); // studentId_type_jurorId
+        const TYPES=['major','minor','elective'];
+        for(const t of TYPES){
+          const marker='_'+t;
+          const idx=rest.lastIndexOf(marker);
+          if(idx>=0){
+            entryKey=rest.slice(0, idx+marker.length); // studentId_type
+            jurorId=rest.slice(idx+marker.length+1);   // 剩下的是 jurorId（不限格式）
+            break;
+          }
         }
         if(!roomId||!entryKey||!jurorId){console.warn('[sync] lsKey 解析失敗：',lsKey);return;}
         const patch={};
@@ -6713,7 +6716,7 @@ async function submitJuryAll(){
     const submitRoomId=ST.juryRoom?.id||DB.rooms[0]?.id||'';
     if(submitRoomId&&window._FB){
       try{
-        const fresh=await window._FB.loadCollection('juryScores/'+submitRoomId+'/entries');
+        const fresh=await window._FB._list('juryScores/'+submitRoomId+'/entries');
         if(fresh&&fresh.length){
           if(!DB.juryScores[submitRoomId])DB.juryScores[submitRoomId]={};
           fresh.forEach(d=>{const{id,...rest}=d;DB.juryScores[submitRoomId][id]=rest;});
