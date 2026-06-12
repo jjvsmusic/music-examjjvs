@@ -814,10 +814,30 @@ tbody td{color:var(--ink)!important}
   async function _fsSet(path, data){
     const token = await _getToken();
     const headers = {'Content-Type':'application/json', ...(token?{Authorization:'Bearer '+token}:{})};
+    const keys = Object.keys(data);
+    const needsEscape = keys.some(k=>!/^[_a-zA-Z][_a-zA-Z0-9]*$/.test(k));
+
+    if(needsEscape){
+      // ★ 修正：欄位名稱含中文（如評審姓名 JN_xxx_王小明）時，updateMask.fieldPaths
+      //   的反引號跳脫在 Firestore REST API 上不可靠，改用「讀取整份文件 → 本機合併 → 整份寫回」
+      //   避免寫入到跟原欄位不同的路徑、造成重新整理後改動消失的問題。
+      const existing = await _fsGet(path) || {};
+      const merged = {...existing};
+      keys.forEach(k => { merged[k] = data[k]; });
+      const fields = {};
+      Object.keys(merged).forEach(k => { fields[k] = _toFS(merged[k]); });
+      const r = await fetch(`${FS_BASE}/${path}`, {
+        method: 'PATCH', // 無 updateMask -> 整份覆寫（已在上面合併過舊欄位，等同 merge）
+        headers,
+        body: JSON.stringify({fields})
+      });
+      return r.ok;
+    }
+
     // ★ 修正 R1：用 updateMask 做真 merge（否則 PATCH 整個取代會清掉其他欄位）
     const fields = {};
     const mask = [];
-    Object.keys(data).forEach(k => {
+    keys.forEach(k => {
       fields[k] = _toFS(data[k]);
       mask.push(_escapeFieldPath(k));
     });
@@ -10658,7 +10678,7 @@ function openBulkJuryEdit(){
 
   const entries=_getRoomEntries(roomId);
   const fields=getRoomFields(roomId);
-  _bulkJuryCtx={roomId,jurorId,entryKeys:entries.map(e=>e.studentId+'_'+e.type)};
+  _bulkJuryCtx={roomId,jurorId,jurorName,entryKeys:entries.map(e=>e.studentId+'_'+e.type)};
 
   const rows=entries.map((e,i)=>{
     const entryKey=e.studentId+'_'+e.type;
@@ -10704,7 +10724,7 @@ window.openBulkJuryEdit=openBulkJuryEdit;
 
 // ★ 批次編輯：儲存全部修改，逐筆寫回 Firebase
 async function saveBulkJuryEdit(){
-  const {roomId,jurorId,entryKeys}=_bulkJuryCtx;
+  const {roomId,jurorId,jurorName,entryKeys}=_bulkJuryCtx;
   if(!roomId||!jurorId){closeOverlay('bulk-jury-modal');return;}
   const fields=getRoomFields(roomId);
   const clamp99=v=>{const n=parseFloat(v)||0;return Math.max(0,Math.min(99,n));};
@@ -10725,6 +10745,8 @@ async function saveBulkJuryEdit(){
     });
     const commentInp=document.getElementById(`bj-comment-${i}`);
     if(commentInp)s.comment=commentInp.value||'';
+    // ★ 修正：確保 _jurorName 一定存在，否則重新整理時會被「清除無姓名幽靈評審」誤刪
+    if(!s._jurorName)s._jurorName=jurorName;
     s._localUpdatedAt=Date.now();
     DB.juryScores[roomId][entryKey][jurorId]=s;
 
