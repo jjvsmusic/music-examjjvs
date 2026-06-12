@@ -1089,6 +1089,18 @@ tbody td{color:var(--ink)!important}
   </div>
 </div>
 
+<!-- ★ 批次編輯指定評審成績/評語 MODAL -->
+<div class="overlay" id="bulk-jury-modal">
+  <div class="modal" style="width:960px">
+    <h2 class="modal-t" id="bulk-jury-modal-title">批次編輯評審成績</h2>
+    <div id="bulk-jury-modal-body" style="max-height:60vh;overflow:auto"></div>
+    <div class="modal-ft">
+      <button class="btn btn-s" onclick="closeOverlay('bulk-jury-modal')">取消</button>
+      <button class="btn btn-p" onclick="saveBulkJuryEdit()">💾 全部儲存</button>
+    </div>
+  </div>
+</div>
+
 <!-- THANK YOU MODAL -->
 <div class="overlay" id="ty-modal">
   <div class="modal" style="width:400px">
@@ -2427,6 +2439,20 @@ tbody td{color:var(--ink)!important}
           <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">⚠ 刪除後無法復原</span>
         </div>
       </div>
+      <!-- ★ 管理員：批次編輯指定評審成績/評語 -->
+      <div id="results-bulk-juror-bar" style="display:none;margin-bottom:10px">
+        <div style="background:#f0f8ff;border:1px solid var(--steel);border-left:4px solid var(--steel);border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--steel);font-weight:700;flex-shrink:0">✏ 批次編輯指定評審成績/評語</span>
+          <select id="bulk-jury-room" onchange="updateBulkJuryList()" style="padding:6px 12px;border:1px solid var(--border);background:var(--paper);font-family:Noto Serif TC,serif;font-size:14px;outline:none;border-radius:var(--r)">
+            <option value="">選擇考場</option>
+          </select>
+          <select id="bulk-jury-id" style="padding:6px 12px;border:1px solid var(--border);background:var(--paper);font-family:Noto Serif TC,serif;font-size:14px;outline:none;border-radius:var(--r);min-width:200px">
+            <option value="">— 先選考場 —</option>
+          </select>
+          <button class="btn btn-p" style="font-size:14px;padding:8px 18px" onclick="openBulkJuryEdit()">📝 開啟批次編輯</button>
+          <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">可一次修改該評審在此考場對所有學生的分數與評語</span>
+        </div>
+      </div>
       <div id="results-body"></div>
     </div>
 
@@ -2745,6 +2771,10 @@ function isFieldSkipped(field, entry){
     entryCatId=inst?.cat||'';
   }
 
+  // ★ 個別學生例外：不分條件，直接以「學生×修別」(entryKey) 指定哪些考生此欄不計分
+  const entryKey=(entry.studentId||'')+'_'+(entry.type||'');
+  if((field.skipEntries||[]).includes(entryKey))return true;
+
   return rules.some(r=>{
     // ① 班級條件（空=不限）
     const matchCls=!r.cls||r.cls===entry.class;
@@ -2757,6 +2787,10 @@ function isFieldSkipped(field, entry){
     // ③ 樂器大項條件（空=不限；有指定則必須與 entry 的 catId 相同）
     const matchCat=!r.catId||r.catId===entryCatId;
     if(!matchCat)return false;
+
+    // ④ 細項樂器條件（空=不限；有指定則必須與 entry 的 instId 相同）
+    const matchInst=!r.instId||r.instId===entry.instId;
+    if(!matchInst)return false;
 
     return true;
   });
@@ -6795,8 +6829,15 @@ function calcFinal(scoreArr,roomId,entry){
   //    若無設定 redistribution，則按其他欄各自的 pct 比例均攤。
   let finalScore=0;
   if(entry){
-    // 計算各欄是否被 autoSkip
+    // 計算各欄是否被 autoSkip（管理員設定的排除條件）
     const skipped=new Set(fields.filter(f=>isFieldSkipped(f,entry)).map(f=>f.id));
+    // ★ 修正 Q2：即使管理員沒設排除條件，只要「全部評審」都把該欄打 *（不計分），
+    //    也視為該欄被跳過，比重同樣按 redistribution 規則重分配給其他欄
+    fields.forEach(f=>{
+      if(skipped.has(f.id))return;
+      const allStar=active.every(s=>s[f.id]==='*'||s[f.id+'_skip']===true);
+      if(allStar)skipped.add(f.id);
+    });
     const activeFields=fields.filter(f=>!skipped.has(f.id));
     const skippedFields=fields.filter(f=>skipped.has(f.id));
 
@@ -9543,6 +9584,7 @@ function renderRoomFields(){
   const el=document.getElementById('room-fields-body');if(!el)return;
   if(!DB.rooms.length){el.innerHTML='<p style="color:var(--muted);font-size:12px">尚無考場</p>';return;}
   const allCats=DB.instruments.categories||[];
+  const allInsts=DB.instruments.items||[];
   const allClasses=DB.classes||[];
   el.innerHTML=DB.rooms.map(r=>{
     const fields=getRoomFields(r.id);
@@ -9555,6 +9597,10 @@ function renderRoomFields(){
           <select data-rule-cat style="padding:3px 6px;border:1px solid var(--border);border-radius:var(--r);font-size:11px;outline:none;background:var(--white);max-width:100px">
             <option value="">全部大項</option>
             ${allCats.map(c=>`<option value="${c.id}" ${rule.catId===c.id?'selected':''}>${c.name}</option>`).join('')}
+          </select>
+          <select data-rule-inst style="padding:3px 6px;border:1px solid var(--border);border-radius:var(--r);font-size:11px;outline:none;background:var(--white);max-width:110px">
+            <option value="">全部樂器（細項）</option>
+            ${allInsts.map(i=>`<option value="${i.id}" ${rule.instId===i.id?'selected':''}>${i.name}</option>`).join('')}
           </select>
           <select data-rule-type style="padding:3px 6px;border:1px solid var(--border);border-radius:var(--r);font-size:11px;outline:none;background:var(--white)">
             <option value="">全部修別</option>
@@ -9569,6 +9615,27 @@ function renderRoomFields(){
           <button onclick="rfRemoveRule('${r.id}',${fi},${ri})" style="background:none;border:none;cursor:pointer;color:var(--rust);font-size:13px;padding:0 2px;line-height:1" title="刪除此規則">✕</button>
         </div>`).join('')
         :'<div style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--border);padding:4px 2px">尚無排除條件，此欄對所有人計分</div>';
+
+      // ★ 個別學生例外（不受上述條件限制，直接指定特定學生×修別此欄不計分）
+      const skipEntries=f.skipEntries||[];
+      const skipStuHtml=`
+        <div style="margin-top:8px;padding:6px 8px;background:var(--cream);border-radius:var(--r)">
+          <div style="font-family:DM Mono,monospace;font-size:8px;letter-spacing:1px;color:var(--rust);margin-bottom:5px;text-transform:uppercase">👤 個別學生例外（直接指定，不受上方條件限制）</div>
+          <div id="rf-skipstu-${r.id}-${fi}" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px">
+            ${skipEntries.length?skipEntries.map(ek=>{
+              const pe=_parseEntryKey(ek);
+              const stu=DB.users.find(u=>u.id===pe.studentId);
+              const lbl=(stu?stu.name:pe.studentId)+'（'+typeName(pe.type)+'）';
+              return `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:3px 6px;font-size:11px">${lbl}<button onclick="rfRemoveSkipStudent('${r.id}',${fi},'${ek}')" style="background:none;border:none;cursor:pointer;color:var(--rust);font-size:12px;line-height:1;padding:0">✕</button></span>`;
+            }).join(''):'<span style="font-size:10px;color:var(--muted)">尚未指定個別學生</span>'}
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <select id="rf-addstu-${r.id}-${fi}" style="flex:1;min-width:180px;padding:3px 6px;border:1px solid var(--border);border-radius:var(--r);font-size:11px;outline:none;background:var(--white)">
+              ${_allStudentTypeOptions().filter(o=>!skipEntries.includes(o.value)).map(o=>`<option value="${o.value}">${o.label}</option>`).join('')}
+            </select>
+            <button class="btn btn-s btn-xs" onclick="rfAddSkipStudent('${r.id}',${fi})">＋ 新增例外</button>
+          </div>
+        </div>`;
 
       // ★ 新增：重分配 UI（只有在有排除規則時才顯示）
       const otherFields=fields.filter((_,oi)=>oi!==fi);
@@ -9608,10 +9675,11 @@ function renderRoomFields(){
         </div>
         <div style="padding:8px 10px;background:var(--white)">
           <div style="font-family:DM Mono,monospace;font-size:8px;letter-spacing:1px;color:var(--rust);margin-bottom:6px;text-transform:uppercase">
-            ⊘ 此欄自動標 * 不計分的條件（多條件為 OR；同一條件內大項、修別、班級為 AND；以「該筆 entry 本身」的修別＋大項做比對，例：「木管組+選修」只跳「選修木管」，不影響該生主修木管）
+            ⊘ 此欄自動標 * 不計分的條件（多條件為 OR；同一條件內大項、樂器（細項）、修別、班級為 AND；以「該筆 entry 本身」的修別＋大項＋樂器做比對，例：「木管組+選修」只跳「選修木管」，不影響該生主修木管；亦可指定到單一樂器）
           </div>
           <div id="rf-rules-${r.id}-${fi}">${rulesHtml}</div>
           <button class="btn btn-s btn-xs" style="margin-top:4px" onclick="rfAddRule('${r.id}',${fi})">＋ 新增排除條件</button>
+          ${skipStuHtml}
           ${redistHtml}
         </div>
       </div>`;
@@ -9640,10 +9708,57 @@ function rfAddRule(roomId,fi){
   if(!r.scoreFields[fi].skipRules)r.scoreFields[fi].skipRules=[];
   // 先從畫面讀取目前所有規則，避免覆蓋
   rfReadRulesFromDOM(roomId,fi);
-  r.scoreFields[fi].skipRules.push({catId:'',type:'',cls:''});
+  r.scoreFields[fi].skipRules.push({catId:'',instId:'',type:'',cls:''});
   renderRoomFields();
 }
 window.rfAddRule=rfAddRule;
+
+// ★ 取得「學生×修別」下拉選項（給個別學生例外使用）
+function _allStudentTypeOptions(){
+  const opts=[];
+  students().forEach(u=>{
+    ['major','minor','elective'].forEach(t=>{
+      if(u[t]){
+        opts.push({value:u.id+'_'+t, label:`${u.name}（${u.class||'-'}/${u.seat||'-'}）${typeName(t)}・${iname(u[t])}`});
+      }
+    });
+  });
+  opts.sort((a,b)=>a.label.localeCompare(b.label,'zh-TW'));
+  return opts;
+}
+window._allStudentTypeOptions=_allStudentTypeOptions;
+
+// ★ 將 entryKey（studentId_type）拆解回 {studentId,type}
+function _parseEntryKey(ek){
+  for(const t of ['major','minor','elective']){
+    if(ek.endsWith('_'+t))return{studentId:ek.slice(0,-(t.length+1)),type:t};
+  }
+  return{studentId:ek,type:''};
+}
+window._parseEntryKey=_parseEntryKey;
+
+// ★ 新增個別學生例外（指定學生×修別此欄不計分）
+function rfAddSkipStudent(roomId,fi){
+  const r=DB.rooms.find(x=>x.id===roomId);if(!r)return;
+  if(!r.scoreFields)r.scoreFields=getRoomFields(roomId);
+  rfReadRulesFromDOM(roomId,fi);
+  const sel=document.getElementById('rf-addstu-'+roomId+'-'+fi);
+  const val=sel?.value;
+  if(!val){showToast('請先選擇學生','err');return;}
+  if(!r.scoreFields[fi].skipEntries)r.scoreFields[fi].skipEntries=[];
+  if(!r.scoreFields[fi].skipEntries.includes(val))r.scoreFields[fi].skipEntries.push(val);
+  renderRoomFields();
+}
+window.rfAddSkipStudent=rfAddSkipStudent;
+
+// ★ 刪除個別學生例外
+function rfRemoveSkipStudent(roomId,fi,entryKey){
+  const r=DB.rooms.find(x=>x.id===roomId);if(!r||!r.scoreFields)return;
+  rfReadRulesFromDOM(roomId,fi);
+  r.scoreFields[fi].skipEntries=(r.scoreFields[fi].skipEntries||[]).filter(e=>e!==entryKey);
+  renderRoomFields();
+}
+window.rfRemoveSkipStudent=rfRemoveSkipStudent;
 
 // ★ 刪除一條排除規則
 function rfRemoveRule(roomId,fi,ri){
@@ -9663,9 +9778,10 @@ function rfReadRulesFromDOM(roomId,fi){
   r.scoreFields[fi].skipRules=[];
   ruleDivs.forEach(div=>{
     const catId=div.querySelector('[data-rule-cat]')?.value||'';
+    const instId=div.querySelector('[data-rule-inst]')?.value||'';
     const type=div.querySelector('[data-rule-type]')?.value||'';
     const cls=div.querySelector('[data-rule-cls]')?.value||'';
-    r.scoreFields[fi].skipRules.push({catId,type,cls});
+    r.scoreFields[fi].skipRules.push({catId,instId,type,cls});
   });
 }
 window.rfReadRulesFromDOM=rfReadRulesFromDOM;
@@ -9703,9 +9819,10 @@ function saveRoomFields(roomId){
     if(rulesEl){
       rulesEl.querySelectorAll('[id^="rf-rule-"]').forEach(div=>{
         const catId=div.querySelector('[data-rule-cat]')?.value||'';
+        const instId=div.querySelector('[data-rule-inst]')?.value||'';
         const type=div.querySelector('[data-rule-type]')?.value||'';
         const cls=div.querySelector('[data-rule-cls]')?.value||'';
-        skipRules.push({catId,type,cls});
+        skipRules.push({catId,instId,type,cls});
       });
     }
     // ★ 從 DOM 讀取重分配設定
@@ -9720,7 +9837,8 @@ function saveRoomFields(roomId){
         }
       });
     }
-    r.scoreFields.push({id:existingId,label:lbl,pct,skipRules,redistribution});
+    const skipEntries=prevFields[fi]?.skipEntries||[];
+    r.scoreFields.push({id:existingId,label:lbl,pct,skipRules,redistribution,skipEntries});
   });
   fbSet('rooms',r.id,{...r,_order:DB.rooms.indexOf(r)});
   renderRoomFields();
@@ -10476,6 +10594,152 @@ function updateDelJurorList(){
 }
 window.updateDelJurorList=updateDelJurorList;
 
+// ★ 批次編輯：取得指定考場的考試名單（含 studentId/type/catId/instId 等）
+function _getRoomEntries(roomId){
+  const snap=DB.savedScheduleSnapshot||{};
+  if(snap[roomId]&&snap[roomId].length){
+    return snap[roomId].map(e=>({...e,roomId})).sort((a,b)=>(a.order||0)-(b.order||0));
+  }
+  return getScheduleEntries().filter(e=>e.roomId===roomId);
+}
+window._getRoomEntries=_getRoomEntries;
+
+// ★ 批次編輯：依考場更新評審下拉（沿用 updateDelJurorList 的邏輯，但用獨立 id）
+function updateBulkJuryList(){
+  const roomId=document.getElementById('bulk-jury-room')?.value||'';
+  const jurorSel=document.getElementById('bulk-jury-id');
+  if(!jurorSel)return;
+  jurorSel.innerHTML='<option value="">— 選擇評審 —</option>';
+  if(!roomId)return;
+
+  const jurorMap={};
+  Object.entries(DB.juryScores[roomId]||{}).forEach(([entryKey,scores])=>{
+    Object.entries(scores||{}).forEach(([jid,data])=>{
+      if(jid.startsWith('_'))return;
+      if(!data||typeof data!=='object')return;
+      const SYS_KEYS=new Set(['comment','absent']);
+      const hasScore=Object.keys(data).some(fk=>{
+        if(fk.startsWith('_')||SYS_KEYS.has(fk))return false;
+        const v=data[fk];
+        return v!==undefined&&v!==''&&v!==null;
+      });
+      const hasComment=data.comment&&String(data.comment).trim();
+      if(!hasScore&&!hasComment)return;
+      if(!jurorMap[jid]){jurorMap[jid]={name:data._jurorName||'',count:0};}
+      if(data._jurorName)jurorMap[jid].name=data._jurorName;
+      jurorMap[jid].count++;
+    });
+  });
+
+  const entries=Object.entries(jurorMap).sort(([a],[b])=>a.localeCompare(b));
+  if(!entries.length){
+    jurorSel.innerHTML='<option value="">（此考場尚無評分資料）</option>';
+    return;
+  }
+  entries.forEach(([jid,{name,count}],idx)=>{
+    const label=name?`評審${idx+1} — ${name}（${count} 筆）`:`評審${idx+1}（${count} 筆成績，無姓名）`;
+    jurorSel.appendChild(new Option(label,jid));
+  });
+}
+window.updateBulkJuryList=updateBulkJuryList;
+
+// ★ 批次編輯：開啟 modal，列出此考場 × 此評審對所有學生的分數/評語
+let _bulkJuryCtx={roomId:'',jurorId:'',entryKeys:[]};
+function openBulkJuryEdit(){
+  if(!requireRole('admin'))return;
+  const roomId=document.getElementById('bulk-jury-room')?.value||'';
+  const jurorId=document.getElementById('bulk-jury-id')?.value||'';
+  if(!roomId){showToast('請先選擇考場','err');return;}
+  if(!jurorId){showToast('請選擇評審','err');return;}
+
+  const roomName=DB.rooms.find(r=>r.id===roomId)?.name||roomId;
+  const jurorName=Object.values(DB.juryScores[roomId]||{}).map(s=>s?.[jurorId]?._jurorName).find(Boolean)||jurorId;
+  document.getElementById('bulk-jury-modal-title').textContent=`批次編輯 — ${roomName} / ${jurorName}`;
+
+  const entries=_getRoomEntries(roomId);
+  const fields=getRoomFields(roomId);
+  _bulkJuryCtx={roomId,jurorId,entryKeys:entries.map(e=>e.studentId+'_'+e.type)};
+
+  const rows=entries.map((e,i)=>{
+    const entryKey=e.studentId+'_'+e.type;
+    const s=DB.juryScores[roomId]?.[entryKey]?.[jurorId]||{};
+    const cells=fields.map(f=>{
+      const autoSkip=isFieldSkipped(f,e);
+      const isSkipVal=s[f.id]==='*'||autoSkip;
+      const val=isSkipVal?'':(s[f.id]||0);
+      return `<td style="padding:4px;text-align:center">
+        <input type="number" id="bj-${f.id}-${i}" value="${val}" min="0" max="99" step="0.5" ${autoSkip?'disabled title="管理員設定：此欄不適用此學生（不計分）"':''} style="width:56px;padding:4px;text-align:center;border:1px solid var(--border);border-radius:var(--r);${autoSkip?'opacity:.4':''}">
+        <label style="display:flex;align-items:center;justify-content:center;gap:3px;font-size:9px;margin-top:2px;font-weight:normal">
+          <input type="checkbox" id="bj-${f.id}-skip-${i}" style="width:auto" ${isSkipVal?'checked':''} ${autoSkip?'disabled':''} onchange="document.getElementById('bj-${f.id}-${i}').disabled=this.checked;document.getElementById('bj-${f.id}-${i}').style.opacity=this.checked?'.4':'1'">*
+        </label>
+      </td>`;
+    }).join('');
+    return `<tr>
+      <td style="padding:4px 8px;font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">${i+1}</td>
+      <td style="padding:4px 8px;font-size:12px;white-space:nowrap">${e.class||''}/${e.seat||''}</td>
+      <td style="padding:4px 8px;font-size:13px;white-space:nowrap">${e.name||''}</td>
+      <td style="padding:4px 8px;font-size:11px;color:var(--muted);white-space:nowrap">${e.instName||''}（${typeName(e.type)}）</td>
+      ${cells}
+      <td style="padding:4px 8px"><input type="text" id="bj-comment-${i}" value="${(s.comment||'').replace(/"/g,'&quot;')}" placeholder="評語" style="width:160px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--r);font-size:12px"></td>
+    </tr>`;
+  }).join('');
+
+  const headCells=fields.map(f=>`<th style="padding:4px 8px;text-align:center;white-space:nowrap">${f.label}<br><span style="font-size:9px;color:var(--muted)">${f.pct}%</span></th>`).join('');
+
+  document.getElementById('bulk-jury-modal-body').innerHTML=entries.length?`
+    <table style="width:100%;border-collapse:collapse;font-family:'Noto Serif TC',serif">
+      <thead><tr style="border-bottom:2px solid var(--border)">
+        <th style="padding:4px 8px">序</th><th style="padding:4px 8px">班/座</th><th style="padding:4px 8px;text-align:left">姓名</th><th style="padding:4px 8px;text-align:left">樂器/別</th>
+        ${headCells}
+        <th style="padding:4px 8px">評語</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-top:8px">勾選「*」表示此項不計分；變灰且無法勾選的欄位為管理員規則自動排除。</p>
+  `:'<p style="color:var(--muted);font-size:13px">此考場目前沒有排程資料</p>';
+
+  openOverlay('bulk-jury-modal');
+}
+window.openBulkJuryEdit=openBulkJuryEdit;
+
+// ★ 批次編輯：儲存全部修改，逐筆寫回 Firebase
+async function saveBulkJuryEdit(){
+  const {roomId,jurorId,entryKeys}=_bulkJuryCtx;
+  if(!roomId||!jurorId){closeOverlay('bulk-jury-modal');return;}
+  const fields=getRoomFields(roomId);
+  const clamp99=v=>{const n=parseFloat(v)||0;return Math.max(0,Math.min(99,n));};
+
+  showToast('儲存中...','sync');
+  let ok=0,fail=0;
+  for(let i=0;i<entryKeys.length;i++){
+    const entryKey=entryKeys[i];
+    if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
+    if(!DB.juryScores[roomId][entryKey])DB.juryScores[roomId][entryKey]={};
+    const s=DB.juryScores[roomId][entryKey][jurorId]||{};
+    fields.forEach(f=>{
+      const inp=document.getElementById(`bj-${f.id}-${i}`);
+      if(!inp)return; // 此學生此欄被管理員規則排除（沒有輸入框）時不動原值
+      const skipChk=document.getElementById(`bj-${f.id}-skip-${i}`);
+      if(skipChk?.checked){s[f.id]='*';}
+      else{s[f.id]=clamp99(inp.value);}
+    });
+    const commentInp=document.getElementById(`bj-comment-${i}`);
+    if(commentInp)s.comment=commentInp.value||'';
+    s._localUpdatedAt=Date.now();
+    DB.juryScores[roomId][entryKey][jurorId]=s;
+
+    const patch={};patch[jurorId]={...s};
+    try{
+      const r=window._FB?await window._FB._set('juryScores/'+roomId+'/entries/'+entryKey,patch):false;
+      if(r)ok++;else fail++;
+    }catch(e){console.warn('[saveBulkJuryEdit]',entryKey,e);fail++;}
+  }
+  closeOverlay('bulk-jury-modal');
+  renderResults();
+  showToast(`已儲存 ${ok} 筆${fail?`，${fail} 筆同步失敗`:''} ✓`, fail?'warn':'ok');
+}
+window.saveBulkJuryEdit=saveBulkJuryEdit;
+
 async function deleteJurorScores(){
   if(!requireRole('admin'))return;
   const roomId=document.getElementById('del-juror-room')?.value||'';
@@ -10571,6 +10835,17 @@ function renderResults(){
       const delRoomSel=document.getElementById('del-juror-room');
       if(delRoomSel&&delRoomSel.options.length<=1){
         DB.rooms.forEach(r=>delRoomSel.appendChild(new Option(r.name,r.id)));
+      }
+    }
+  }
+  // ★ 批次編輯指定評審成績/評語列
+  const bulkBar=document.getElementById('results-bulk-juror-bar');
+  if(bulkBar){
+    bulkBar.style.display=(ST.role==='admin')?'block':'none';
+    if(ST.role==='admin'){
+      const bulkRoomSel=document.getElementById('bulk-jury-room');
+      if(bulkRoomSel&&bulkRoomSel.options.length<=1){
+        DB.rooms.forEach(r=>bulkRoomSel.appendChild(new Option(r.name,r.id)));
       }
     }
   }
@@ -10858,12 +11133,12 @@ function editJuryScores(roomId,entryKey,studentName){
   const fieldRow=(jid,ji,fid,label,s)=>{
     const isSkip=s[fid]==='*';
     const val=isSkip?'':(s[fid]||0);
-    return `<div class="fg" style="min-width:90px">
+    return `<div class="fg" style="min-width:110px;flex:0 0 auto">
       <label>${label}</label>
       <input type="number" id="ej-${fid}-${ji}" value="${val}" min="0" max="99" step="0.5" ${isSkip?'disabled':''} style="${isSkip?'opacity:.4':''}">
-      <label style="display:flex;align-items:center;gap:4px;margin-top:3px;font-size:9px;font-weight:normal">
-        <input type="checkbox" id="ej-${fid}-skip-${ji}" ${isSkip?'checked':''} onchange="document.getElementById('ej-${fid}-${ji}').disabled=this.checked;document.getElementById('ej-${fid}-${ji}').style.opacity=this.checked?'.4':'1'">
-        此項不計分（*）
+      <label style="display:flex;align-items:center;gap:4px;margin-top:3px;font-size:11px;font-weight:normal;font-family:\'Noto Serif TC\',serif;letter-spacing:normal;text-transform:none;color:var(--ink);white-space:nowrap">
+        <input type="checkbox" id="ej-${fid}-skip-${ji}" style="width:auto" ${isSkip?'checked':''} onchange="document.getElementById('ej-${fid}-${ji}').disabled=this.checked;document.getElementById('ej-${fid}-${ji}').style.opacity=this.checked?'.4':'1'">
+        不計分（*）
       </label>
     </div>`;
   };
