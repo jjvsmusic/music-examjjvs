@@ -2086,6 +2086,9 @@ tbody td{color:var(--ink)!important}
               <div class="fg"><label>高二上限</label><input type="number" id="cap-g2" value="87" min="0" max="100"></div>
               <div class="fg"><label>高三上限</label><input type="number" id="cap-g3" value="89" min="0" max="100"></div>
             </div>
+            <div class="fr" style="margin-top:6px">
+              <div class="fg" style="max-width:220px"><label>全域硬上限（任何分數都不得超過，輸入時直接擋下）</label><input type="number" id="cap-hard" value="95" min="0" max="100"></div>
+            </div>
             <button class="btn btn-p" onclick="saveScoreCaps()">儲存評分上限</button>
             <div id="cap-pending-summary" style="margin-top:12px;font-family:\'DM Mono\',monospace;font-size:11px;color:var(--rust)"></div>
           </div>
@@ -2703,6 +2706,7 @@ const DB = {
     tyText:'感謝老師本學期的辛苦指導與細心評分，您的專業意見將是學生最珍貴的回饋。',
     weights:{scale:0.2,assigned:0.4,free:0.4},
     scoreCaps:{1:85,2:87,3:89}, // ★ 各年級評分上限：超過需評審說明並經管理員審核
+    hardCap:95, // ★ 全域硬上限：所有分數不得超過此值（輸入時直接擋下）
     trimRules:[
       {id:1,minJ:0,maxJ:3,trimH:0,trimT:0},
       {id:2,minJ:4,maxJ:5,trimH:0,trimT:1},
@@ -2804,6 +2808,12 @@ window._dqBadgeHtml=_dqBadgeHtml;
 
 function isFieldSkipped(field, entry){
   if(!field)return false;
+
+  // ★ 個別學生例外：不分條件，直接以「學生×修別」(entryKey) 指定哪些考生此欄不計分
+  //   （必須在 rules.length 檢查之前，否則「只設例外、沒設條件規則」時會被提前 return 跳過）
+  const entryKey=(entry.studentId||'')+'_'+(entry.type||'');
+  if((field.skipEntries||[]).includes(entryKey))return true;
+
   const rules=field.skipRules||[];
   if(!rules.length)return false;
 
@@ -2819,10 +2829,6 @@ function isFieldSkipped(field, entry){
     const inst=DB.instruments.items.find(i=>i.id===entry.instId);
     entryCatId=inst?.cat||'';
   }
-
-  // ★ 個別學生例外：不分條件，直接以「學生×修別」(entryKey) 指定哪些考生此欄不計分
-  const entryKey=(entry.studentId||'')+'_'+(entry.type||'');
-  if((field.skipEntries||[]).includes(entryKey))return true;
 
   return rules.some(r=>{
     // ① 班級條件（空=不限）
@@ -3600,7 +3606,20 @@ function loadAllFromFirebase(done, lightMode){
           if(jid.startsWith('_'))return;
           if(!data||typeof data!=='object'){namelessIds.push(jid);return;}
           const name=(data._jurorName||'').trim();
-          if(!name){namelessIds.push(jid);return;} // 無姓名的幽靈
+          if(!name){
+            // ★ 修正：無姓名但「有實際分數或評語」的記錄一律保留，避免誤刪真實成績
+            //   （例如批次編輯/老師帳號評分等流程產生、尚未補上姓名的記錄）
+            //   只有「無姓名且無內容」才視為幽靈刪除；要強制清理請用手動按鈕。
+            const SYS_KEYS=new Set(['comment','absent']);
+            const hasContent=Object.keys(data).some(fk=>{
+              if(fk.startsWith('_'))return false;
+              const v=data[fk];
+              if(SYS_KEYS.has(fk))return fk==='comment'&&v&&String(v).trim();
+              return v!==undefined&&v!==null&&v!=='';
+            });
+            if(!hasContent)namelessIds.push(jid); // 無姓名又無內容 → 幽靈
+            return;
+          }
           // ★ 有姓名的評審一律保留參與合併（即使暫時沒分數），
           //   避免誤刪剛登入但還沒打分的評審。
           //   若要清「有姓名無分數」的殘留，請管理員手動按「清理幽靈評審」按鈕。
@@ -3756,6 +3775,7 @@ function loadAllFromFirebase(done, lightMode){
       const{id,_updatedAt,...rest}=cfg;
       if(rest.weights)DB.config.weights=rest.weights;
       if(rest.scoreCaps)DB.config.scoreCaps=rest.scoreCaps;
+      if(rest.hardCap!=null)DB.config.hardCap=rest.hardCap;
       if(rest.trimRules)DB.config.trimRules=rest.trimRules;
       if(rest.pages)Object.assign(DB.config.pages,rest.pages);
       if(rest.studentAccess)Object.assign(DB.config.studentAccess,rest.studentAccess);
@@ -6323,7 +6343,8 @@ function saveJCell(i,roomId,entryKey,field,val){
   DB.juryScores[roomId][entryKey][myId][field]=v;
   if(isSkip)DB.juryScores[roomId][entryKey][myId][field+'_skip']=true;
   else if(field!=='comment')delete DB.juryScores[roomId][entryKey][myId][field+'_skip'];
-  if(ST.juryName)DB.juryScores[roomId][entryKey][myId]._jurorName=ST.juryName;
+  const _jn=ST.juryName||ST.user?.name||'';
+  if(_jn)DB.juryScores[roomId][entryKey][myId]._jurorName=_jn;
   // ★ 修正 #A1+#O1：附加本地時間戳，用於衝突偵測
   DB.juryScores[roomId][entryKey][myId]._localUpdatedAt=Date.now();
 
@@ -8677,6 +8698,65 @@ function renderAdminStudents(){
   updateBulkBar('student');
 }
 
+// ★ 專長樂器：解析 id → 顯示名稱與所屬大項（相容舊資料的大項 id 與新的細項樂器 id）
+function _specInfo(id){
+  const cats=DB.instruments.categories||[];
+  const items=DB.instruments.items||[];
+  const item=items.find(i=>i.id===id);
+  if(item){
+    const cat=cats.find(c=>c.id===item.cat);
+    return {name:item.name, catId:item.cat||'', catName:cat?.name||'', catOrder:cats.findIndex(c=>c.id===item.cat)};
+  }
+  const cat=cats.find(c=>c.id===id);
+  if(cat)return {name:cat.name+'（大項）', catId:cat.id, catName:cat.name, catOrder:cats.findIndex(c=>c.id===cat.id)};
+  return {name:id, catId:'', catName:'', catOrder:999};
+}
+
+// ★ 專長樂器下拉選項：依大項分組列出細項樂器
+function _specSelectOptions(){
+  const cats=DB.instruments.categories||[];
+  const items=DB.instruments.items||[];
+  let html='<option value="">— 選擇樂器 —</option>';
+  cats.forEach(c=>{
+    const group=items.filter(i=>i.cat===c.id);
+    if(!group.length)return;
+    html+=`<optgroup label="${c.name}">${group.map(i=>`<option value="${i.id}">${i.name}</option>`).join('')}</optgroup>`;
+  });
+  const orphan=items.filter(i=>!cats.some(c=>c.id===i.cat));
+  if(orphan.length)html+=`<optgroup label="其他">${orphan.map(i=>`<option value="${i.id}">${i.name}</option>`).join('')}</optgroup>`;
+  return html;
+}
+window._specSelectOptions=_specSelectOptions;
+
+// ★ 編輯視窗：渲染專長標籤
+function _renderEmSpecChips(){
+  const el=document.getElementById('em-spec-chips');if(!el)return;
+  const sp=ST._emSpecs||[];
+  el.innerHTML=sp.length?sp.map(id=>{
+    const info=_specInfo(id);
+    return `<span class="badge b-major" style="display:inline-flex;align-items:center;gap:4px;font-size:10px">${info.name}<button type="button" onclick="emRemoveSpec('${id}')" style="background:none;border:none;cursor:pointer;color:inherit;font-size:12px;line-height:1;padding:0">✕</button></span>`;
+  }).join(''):'<span style="font-size:11px;color:var(--muted)">尚未設定專長</span>';
+}
+window._renderEmSpecChips=_renderEmSpecChips;
+
+function emAddSpec(){
+  const sel=document.getElementById('em-spec-add');
+  const v=sel?.value;
+  if(!v){showToast('請先選擇樂器','err');return;}
+  if(!ST._emSpecs)ST._emSpecs=[];
+  if(ST._emSpecs.includes(v)){showToast('已在專長清單中','warn');return;}
+  ST._emSpecs.push(v);
+  sel.value='';
+  _renderEmSpecChips();
+}
+window.emAddSpec=emAddSpec;
+
+function emRemoveSpec(id){
+  ST._emSpecs=(ST._emSpecs||[]).filter(x=>x!==id);
+  _renderEmSpecChips();
+}
+window.emRemoveSpec=emRemoveSpec;
+
 let _teaSortDir=1; // 1=筆畫正序 -1=倒序
 let _teaSortMode='stroke'; // 'stroke' = 依姓名筆畫；'inst' = 依專長樂器別順序
 function sortTeaList(dir){
@@ -8700,7 +8780,7 @@ window.sortTeaListByInst=sortTeaListByInst;
 function renderAdminTeachers(){
   const tbody=document.getElementById('admin-tea-tbody');if(!tbody)return;
   const cats=DB.instruments.categories||[];
-  const catOrder=id=>{const idx=cats.findIndex(c=>c.id===id);return idx<0?999:idx;};
+  const catOrder=id=>{const o=_specInfo(id).catOrder;return o<0?999:o;};
   let sorted;
   if(_teaSortMode==='inst'){
     sorted=teachers().slice().sort((a,b)=>{
@@ -8713,10 +8793,10 @@ function renderAdminTeachers(){
     sorted=teachers().slice().sort((a,b)=>_teaSortDir*(a.name.localeCompare(b.name,'zh-TW-u-co-stroke')));
   }
   tbody.innerHTML=sorted.map(t=>{
-    const specHtml=(t.specialtyInsts||[]).map(cid=>{
-      const c=cats.find(x=>x.id===cid);
-      return c?`<span class="badge b-major" style="font-size:9px">${c.name}</span>`:'';
-    }).filter(Boolean).join(' ')||'<span style="color:var(--border);font-size:11px">—</span>';
+    const specHtml=(t.specialtyInsts||[]).map(id=>{
+      const info=_specInfo(id);
+      return `<span class="badge b-major" style="font-size:9px" title="${info.catName}">${info.name}</span>`;
+    }).join(' ')||'<span style="color:var(--border);font-size:11px">—</span>';
     const rawStuIds=DB.teacherStudents[t.id]||[];
     // ★ 聯動修正：過濾孤兒 ID（對應學生已被刪除），並自動清理 Firebase
     const validStuIds=rawStuIds.filter(sid=>DB.users.find(u=>u.id===sid));
@@ -8808,19 +8888,22 @@ function editUser(id){
       <div class="fg"><label>選修</label><select id="em-elective"><option value="">—</option>${DB.instruments.items.map(i=>`<option value="${i.id}" ${i.id===u.elective?'selected':''}>${i.name}</option>`).join('')}</select></div>
     </div>`;
   if(u.role==='teacher'){
-    const cats=DB.instruments.categories||[];
-    const sp=u.specialtyInsts||[];
-    const catOpts=(sel)=>`<option value="">—</option>${cats.map(c=>`<option value="${c.id}" ${sel===c.id?'selected':''}>${c.name}</option>`).join('')}`;
+    ST._emSpecs=[...(u.specialtyInsts||[])];
     extra=`
-    <div class="fr">
-      <div class="fg"><label>專長樂器別 1</label><select id="em-spec1">${catOpts(sp[0]||'')}</select></div>
-      <div class="fg"><label>專長樂器別 2（選填）</label><select id="em-spec2">${catOpts(sp[1]||'')}</select></div>
+    <div class="fg">
+      <label>專長樂器（可複選，不限數量）</label>
+      <div id="em-spec-chips" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;min-height:24px"></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <select id="em-spec-add" style="flex:1;min-width:180px">${_specSelectOptions()}</select>
+        <button type="button" class="btn btn-s btn-sm" onclick="emAddSpec()">＋ 加入專長</button>
+      </div>
     </div>`;
   }
   document.getElementById('edit-modal-body').innerHTML=`
     <div class="fr"><div class="fg"><label>姓名</label><input type="text" id="em-name" value="${u.name}"></div><div class="fg"><label>帳號</label><input type="text" id="em-account" value="${u.account}"></div></div>
     ${extra}
     <div class="fg" style="max-width:220px"><label>修改密碼（留空則不變）</label><input type="text" id="em-pass-edit" placeholder="輸入新密碼，留空不改"></div>`;
+  if(u.role==='teacher')_renderEmSpecChips();
   document.getElementById('edit-modal-save').onclick=()=>{
     u.name=document.getElementById('em-name').value.trim()||u.name;
     u.account=document.getElementById('em-account').value.trim()||u.account;
@@ -8828,9 +8911,7 @@ function editUser(id){
     if(newPass) u.pass=_passEncode(newPass,u.id); // ★ 修正 R4：混淆密碼
     if(u.role==='student'){u.class=document.getElementById('em-class').value;u.seat=+document.getElementById('em-seat').value;u.major=document.getElementById('em-major').value;u.minor=document.getElementById('em-minor').value;u.elective=document.getElementById('em-elective').value;}
     if(u.role==='teacher'){
-      const s1=document.getElementById('em-spec1')?.value||'';
-      const s2=document.getElementById('em-spec2')?.value||'';
-      u.specialtyInsts=[...new Set([s1,s2].filter(Boolean))];
+      u.specialtyInsts=[...new Set(ST._emSpecs||[])];
     }
     // Write complete user object to avoid partial-write issues
     fbSet('users',u.id,u);
@@ -9412,6 +9493,7 @@ function fbSaveConfig(){
   fbSet('config','main',{
     weights:DB.config.weights,
     scoreCaps:DB.config.scoreCaps,
+    hardCap:DB.config.hardCap,
     trimRules:DB.config.trimRules,
     pages:DB.config.pages,
     studentAccess:DB.config.studentAccess,
@@ -9695,7 +9777,9 @@ function saveScoreCaps(){
   const g1=+document.getElementById('cap-g1').value||0;
   const g2=+document.getElementById('cap-g2').value||0;
   const g3=+document.getElementById('cap-g3').value||0;
+  const hard=+document.getElementById('cap-hard').value||95;
   DB.config.scoreCaps={1:g1,2:g2,3:g3};
+  DB.config.hardCap=hard;
   fbSaveConfig();
   showToast('評分上限已儲存 ✓','ok');
   renderPendingCapSummary();
@@ -9708,6 +9792,8 @@ function renderScoreCapsConfig(){
   if(g1)g1.value=caps[1]??85;
   if(g2)g2.value=caps[2]??87;
   if(g3)g3.value=caps[3]??89;
+  const gh=document.getElementById('cap-hard');
+  if(gh)gh.value=DB.config.hardCap??95;
   renderPendingCapSummary();
 }
 window.renderScoreCapsConfig=renderScoreCapsConfig;
@@ -12740,14 +12826,15 @@ function npConfirm(){
     if(ST.npCallback)ST.npCallback('*');
   } else {
     const val=parseFloat(ST.npVal);
-    // ★ 分數範圍 0–99（最高 99 分）
-    if(!isNaN(val)&&val>99){
-      showToast('分數上限為 99 分','err');
+    // ★ 硬上限：所有分數一律不得超過 95 分（直接擋下，不進審核）
+    const HARD_CAP=DB.config.hardCap||95;
+    if(!isNaN(val)&&val>HARD_CAP){
+      showToast('分數不得超過 '+HARD_CAP+' 分，請重新輸入','err');
       ST.npVal='';
       document.getElementById('np-disp').textContent='—';
       return;
     }
-    if(!isNaN(val)&&val>=0&&val<=99){
+    if(!isNaN(val)&&val>=0&&val<=HARD_CAP){
       // ★ 先寫入分數（立刻生效）
       const inp=document.getElementById(ST.npTarget);if(inp){inp.value=val;inp.style.color='';}
       if(ST.npCallback)ST.npCallback(val);
@@ -12813,6 +12900,11 @@ function _markJuryPendingCap(roomId,entryKey,jurorId,field,cap){
   if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
   if(!DB.juryScores[roomId][entryKey])DB.juryScores[roomId][entryKey]={};
   if(!DB.juryScores[roomId][entryKey][jurorId])DB.juryScores[roomId][entryKey][jurorId]={};
+  // ★ 確保 _jurorName 存在，避免被自動清理視為無姓名記錄
+  if(!DB.juryScores[roomId][entryKey][jurorId]._jurorName){
+    const _jn=ST.juryName||ST.user?.name||'';
+    if(_jn)DB.juryScores[roomId][entryKey][jurorId]._jurorName=_jn;
+  }
   DB.juryScores[roomId][entryKey][jurorId][field+'_pendingCap']=cap;
   const patch={};patch[jurorId]={...DB.juryScores[roomId][entryKey][jurorId]};
   if(window._FB)window._FB._set('juryScores/'+roomId+'/entries/'+entryKey,patch);
@@ -13179,6 +13271,82 @@ function scanExistingHighScores(){
 }
 window.scanExistingHighScores=scanExistingHighScores;
 
+// ★ 修正既有超過硬上限的分數：現場評分 + 平時成績，一律改為硬上限值
+async function fixOverHardCapScores(){
+  if(!requireRole('admin'))return;
+  const HARD=DB.config.hardCap||95;
+  if(!confirm('將掃描所有現場評分與平時成績，把超過 '+HARD+' 分的分數一律改為 '+HARD+' 分。\n\n此操作會直接寫回資料庫且無法復原，確定執行？'))return;
+
+  showToast('掃描中...','sync');
+  const isNum=v=>v!==''&&v!=='*'&&v!=null&&!isNaN(parseFloat(v));
+  let juryFixed=0, teaFixed=0, writeFail=0;
+
+  // ① 現場評分 juryScores[roomId][entryKey][jurorId][fieldId]
+  for(const roomId of Object.keys(DB.juryScores||{})){
+    const fieldIds=getRoomFields(roomId).map(f=>f.id);
+    const entries=DB.juryScores[roomId]||{};
+    for(const entryKey of Object.keys(entries)){
+      const jurors=entries[entryKey]||{};
+      let changedThisEntry=false;
+      const patch={};
+      for(const jid of Object.keys(jurors)){
+        if(jid.startsWith('_'))continue;
+        const s=jurors[jid];
+        if(!s||typeof s!=='object')continue;
+        let changed=false;
+        fieldIds.forEach(fid=>{
+          if(isNum(s[fid])&&parseFloat(s[fid])>HARD){s[fid]=HARD;changed=true;juryFixed++;}
+        });
+        if(changed){
+          s._localUpdatedAt=Date.now();
+          patch[jid]={...s};
+          changedThisEntry=true;
+        }
+      }
+      if(changedThisEntry){
+        try{
+          const ok=window._FB?await window._FB._set('juryScores/'+roomId+'/entries/'+entryKey,patch):false;
+          if(!ok)writeFail++;
+        }catch(e){console.warn('[fixOverHardCap jury]',entryKey,e);writeFail++;}
+      }
+    }
+  }
+
+  // ② 平時成績 teacherComments[studentId][type].score
+  for(const sid of Object.keys(DB.teacherComments||{})){
+    const rec=DB.teacherComments[sid]||{};
+    let changed=false;
+    ['major','minor','elective'].forEach(t=>{
+      const tc=rec[t];
+      if(tc&&isNum(tc.score)&&parseFloat(tc.score)>HARD){tc.score=HARD;changed=true;teaFixed++;}
+    });
+    if(changed){
+      try{ fbSet('teacherComments',sid,{...rec}); }
+      catch(e){console.warn('[fixOverHardCap tea]',sid,e);writeFail++;}
+    }
+  }
+
+  // 清掉相關待審紀錄（分數已被硬性下修，審核已無意義）
+  Object.keys(DB.pendingApprovals||{}).forEach(pid=>{
+    const r=DB.pendingApprovals[pid];
+    if(r&&r.status==='pending'&&isNum(r.score)&&parseFloat(r.score)>HARD){
+      r.status='rejected';r.finalScore=HARD;r.reviewedAt=new Date().toISOString();r.reviewedBy='system(hardcap)';
+      try{fbSet('pendingApprovals',pid,r);}catch(e){}
+    }
+  });
+
+  if(DB._jurorOrderCache)DB._jurorOrderCache={};
+  renderResults();
+  if(typeof renderPendingApprovalsPage==='function')renderPendingApprovalsPage();
+  const total=juryFixed+teaFixed;
+  if(total===0){
+    showToast('掃描完成：沒有發現超過 '+HARD+' 分的分數 ✓','ok');
+  }else{
+    showToast('已修正 '+total+' 筆（現場 '+juryFixed+'、平時 '+teaFixed+'）改為 '+HARD+' 分'+(writeFail?'，'+writeFail+' 筆同步失敗':' ✓'), writeFail?'warn':'ok');
+  }
+}
+window.fixOverHardCapScores=fixOverHardCapScores;
+
 // 渲染管理員審核頁
 function renderPendingApprovalsPage(){
   const tab=document.getElementById('at-approvals');
@@ -13235,13 +13403,20 @@ function renderPendingApprovalsPage(){
   tab.innerHTML=`
     <div class="card">
       <div class="card-t">📋 分數審核 — 待審核（${pending.length}）</div>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">當教師或評審給予 90 分（含）以上的分數時，分數已立即生效寫入，並會在此列出由您事後審核。<br>同意 → 維持原分數；不同意 → 自動將該筆分數覆寫為 89 分上限。<br><span style="color:var(--orange);font-size:12px">※ 教師與評審不會收到審核結果通知，請在所有評分結束後再統一處理。</span></p>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">超過軟上限的分數會在此列出由您事後審核：<br>• <strong>現場評分</strong>超過該生年級上限（高一 ${DB.config.scoreCaps?.[1]??85} / 高二 ${DB.config.scoreCaps?.[2]??87} / 高三 ${DB.config.scoreCaps?.[3]??89} 分）→ 暫以年級上限計分，待審核。<br>• <strong>平時成績</strong>達 90 分（含）以上 → 分數已生效，列此事後審核。<br>同意 → 採用原分數；不同意 → 自動改為該項上限。<br>另外，所有分數一律不得超過 <strong>${DB.config.hardCap||95}</strong> 分（硬上限，輸入時直接擋下，不會進入審核）。<br><span style="color:var(--orange);font-size:12px">※ 教師與評審不會收到審核結果通知，請在所有評分結束後再統一處理。</span></p>
       <div style="background:var(--cream);border:1px dashed var(--gold);border-radius:var(--r);padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
         <div style="font-size:12px;color:var(--muted);line-height:1.6">
           <strong style="color:var(--ink)">🔍 掃描既有 90+ 分紀錄</strong><br>
           若此審核機制建立前已有教師/評審給予 90 分（含）以上的分數，可點此按鈕掃描並回填至待審清單。
         </div>
         <button class="btn btn-p btn-sm" onclick="scanExistingHighScores()" style="white-space:nowrap">🔍 掃描既有 90+ 分</button>
+      </div>
+      <div style="background:#fff4f4;border:1px dashed var(--red);border-radius:var(--r);padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <div style="font-size:12px;color:var(--muted);line-height:1.6">
+          <strong style="color:var(--red)">⚠ 修正既有超過 ${DB.config.hardCap||95} 分的分數</strong><br>
+          硬上限機制建立前若已有分數超過 ${DB.config.hardCap||95} 分（現場評分＋平時成績），可點此一次掃描並全部改為 ${DB.config.hardCap||95} 分。
+        </div>
+        <button class="btn btn-d btn-sm" onclick="fixOverHardCapScores()" style="white-space:nowrap">⚠ 修正超過 ${DB.config.hardCap||95} 分</button>
       </div>
       <div class="appr-list">${pendingHTML}</div>
     </div>
