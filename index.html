@@ -816,8 +816,10 @@ tbody td{color:var(--ink)!important}
     const headers = {'Content-Type':'application/json', ...(token?{Authorization:'Bearer '+token}:{})};
     const keys = Object.keys(data);
     const needsEscape = keys.some(k=>!/^[_a-zA-Z][_a-zA-Z0-9]*$/.test(k));
+    // ★ 含陣列值時，updateMask 合併在某些情況下不可靠，一律改用「讀取-合併-整份寫回」
+    const hasArray = keys.some(k=>Array.isArray(data[k]));
 
-    if(needsEscape){
+    if(needsEscape || hasArray){
       // ★ 修正：欄位名稱含中文（如評審姓名 JN_xxx_王小明）時，updateMask.fieldPaths
       //   的反引號跳脫在 Firestore REST API 上不可靠，改用「讀取整份文件 → 本機合併 → 整份寫回」
       //   避免寫入到跟原欄位不同的路徑、造成重新整理後改動消失的問題。
@@ -8904,7 +8906,7 @@ function editUser(id){
     ${extra}
     <div class="fg" style="max-width:220px"><label>修改密碼（留空則不變）</label><input type="text" id="em-pass-edit" placeholder="輸入新密碼，留空不改"></div>`;
   if(u.role==='teacher')_renderEmSpecChips();
-  document.getElementById('edit-modal-save').onclick=()=>{
+  document.getElementById('edit-modal-save').onclick=async ()=>{
     u.name=document.getElementById('em-name').value.trim()||u.name;
     u.account=document.getElementById('em-account').value.trim()||u.account;
     const newPass=document.getElementById('em-pass-edit').value.trim();
@@ -8913,9 +8915,19 @@ function editUser(id){
     if(u.role==='teacher'){
       u.specialtyInsts=[...new Set(ST._emSpecs||[])];
     }
-    // Write complete user object to avoid partial-write issues
-    fbSet('users',u.id,u);
-    closeOverlay('edit-modal');showToast('已更新 ✓','ok');renderAll();
+    // ★ 修正：改用 await 寫入並確認結果，避免 fire-and-forget 寫入失敗卻仍顯示「已更新」
+    let ok=true;
+    try{
+      const clean=JSON.parse(JSON.stringify({...u, _updatedAt:new Date().toISOString()}));
+      if(window._FB&&window._FB._rest){
+        ok=await window._FB._set('users/'+u.id, clean);
+      }else if(window._FB){
+        await window._FB.db.collection('users').doc(u.id).set(clean,{merge:true});
+      }
+    }catch(e){console.warn('[editUser save]',e);ok=false;}
+    closeOverlay('edit-modal');
+    showToast(ok?'已更新 ✓':'更新失敗，請檢查網路連線後重試','warn');
+    renderAll();
   };
   openOverlay('edit-modal');
 }
