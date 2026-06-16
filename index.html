@@ -1441,6 +1441,8 @@ tbody td{color:var(--ink)!important}
           <div style="margin-left:auto;display:flex;gap:7px;flex-wrap:wrap">
             <button class="btn btn-b btn-sm" onclick="exportAdminResultsCSV()">↓ 匯出目前考場 CSV</button>
             <button class="btn btn-s btn-sm" onclick="exportAdminResultsCSV(true)">↓ 全部考場匯出</button>
+            <button class="btn btn-p btn-sm" onclick="exportAdminResultsPDF(false)">📄 匯出目前考場 PDF</button>
+            <button class="btn btn-d btn-sm" onclick="exportAdminResultsPDF(true)">📄 全部考場 PDF</button>
           </div>
         </div>
       </div>
@@ -2004,6 +2006,8 @@ tbody td{color:var(--ink)!important}
             <button class="btn btn-s btn-sm" id="tea-sort-asc" onclick="sortTeaList(1)">筆畫↑</button>
             <button class="btn btn-s btn-sm" id="tea-sort-desc" onclick="sortTeaList(-1)">筆畫↓</button>
             <button class="btn btn-s btn-sm" id="tea-sort-inst" onclick="sortTeaListByInst()">依樂器別</button>
+            <span style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--muted);margin-left:4px">篩選專長：</span>
+            <select id="tea-spec-filter" onchange="teaSpecFilterChanged()" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;outline:none;background:var(--white)"></select>
           </div>
           <div class="tw"><table>
             <thead><tr><th style="width:32px;text-align:center"><input type="checkbox" id="tea-chk-all" onclick="toggleAllCheck('teacher',this)" title="全選／取消全選" style="cursor:pointer;width:14px;height:14px"></th><th>姓名</th><th>帳號</th><th>專長樂器</th><th>指導的學生</th><th>操作</th></tr></thead>
@@ -8759,6 +8763,43 @@ function emRemoveSpec(id){
 }
 window.emRemoveSpec=emRemoveSpec;
 
+// ★ 取得某專長 id 的「全域樂器順序」index：先依大項順序，再依大項內細項順序
+//   讓「依樂器別」排序符合樂器設定裡的細項排列；回傳大數值代表排最後
+function _specGlobalOrder(id){
+  const cats=DB.instruments.categories||[];
+  const items=DB.instruments.items||[];
+  const item=items.find(i=>i.id===id);
+  if(item){
+    const ci=cats.findIndex(c=>c.id===item.cat);
+    const itemsInCat=items.filter(i=>i.cat===item.cat);
+    const ii=itemsInCat.findIndex(i=>i.id===id);
+    return (ci<0?999:ci)*1000 + (ii<0?999:ii);
+  }
+  // 舊資料：存的是大項 id
+  const ci=cats.findIndex(c=>c.id===id);
+  return (ci<0?999:ci)*1000 + 999;
+}
+
+// ★ 渲染「篩選專長」下拉（依大項分組列出細項樂器）
+function teaSpecFilterChanged(){ renderAdminTeachers(); }
+window.teaSpecFilterChanged=teaSpecFilterChanged;
+
+function _renderTeaSpecFilter(keepVal){
+  const sel=document.getElementById('tea-spec-filter');if(!sel)return;
+  const cur=keepVal!==undefined?keepVal:(sel.value||'');
+  const cats=DB.instruments.categories||[];
+  const items=DB.instruments.items||[];
+  let html='<option value="">全部專長</option><option value="__none__">尚未設定專長</option>';
+  cats.forEach(c=>{
+    const group=items.filter(i=>i.cat===c.id);
+    if(!group.length)return;
+    html+=`<optgroup label="${c.name}">${group.map(i=>`<option value="${i.id}">${i.name}</option>`).join('')}</optgroup>`;
+  });
+  sel.innerHTML=html;
+  sel.value=cur; // 保留目前選擇
+}
+window._renderTeaSpecFilter=_renderTeaSpecFilter;
+
 let _teaSortDir=1; // 1=筆畫正序 -1=倒序
 let _teaSortMode='stroke'; // 'stroke' = 依姓名筆畫；'inst' = 依專長樂器別順序
 function sortTeaList(dir){
@@ -8781,18 +8822,27 @@ function sortTeaListByInst(){
 window.sortTeaListByInst=sortTeaListByInst;
 function renderAdminTeachers(){
   const tbody=document.getElementById('admin-tea-tbody');if(!tbody)return;
-  const cats=DB.instruments.categories||[];
-  const catOrder=id=>{const o=_specInfo(id).catOrder;return o<0?999:o;};
+  // ★ 先讀取目前篩選值，再重建下拉（重建會清掉 value，需先存後復原）
+  const filter=document.getElementById('tea-spec-filter')?.value||'';
+  _renderTeaSpecFilter(filter);
+  let list=teachers().slice();
+  // ★ 篩選專長
+  if(filter==='__none__'){
+    list=list.filter(t=>!(t.specialtyInsts&&t.specialtyInsts.length));
+  } else if(filter){
+    list=list.filter(t=>(t.specialtyInsts||[]).includes(filter));
+  }
   let sorted;
   if(_teaSortMode==='inst'){
-    sorted=teachers().slice().sort((a,b)=>{
-      const ao=Math.min(...((a.specialtyInsts&&a.specialtyInsts.length)?a.specialtyInsts.map(catOrder):[999]));
-      const bo=Math.min(...((b.specialtyInsts&&b.specialtyInsts.length)?b.specialtyInsts.map(catOrder):[999]));
+    // ★ 依「全域樂器順序」（大項順序 → 大項內細項順序）排序
+    sorted=list.sort((a,b)=>{
+      const ao=Math.min(...((a.specialtyInsts&&a.specialtyInsts.length)?a.specialtyInsts.map(_specGlobalOrder):[999999]));
+      const bo=Math.min(...((b.specialtyInsts&&b.specialtyInsts.length)?b.specialtyInsts.map(_specGlobalOrder):[999999]));
       if(ao!==bo)return ao-bo;
       return a.name.localeCompare(b.name,'zh-TW-u-co-stroke');
     });
   } else {
-    sorted=teachers().slice().sort((a,b)=>_teaSortDir*(a.name.localeCompare(b.name,'zh-TW-u-co-stroke')));
+    sorted=list.sort((a,b)=>_teaSortDir*(a.name.localeCompare(b.name,'zh-TW-u-co-stroke')));
   }
   tbody.innerHTML=sorted.map(t=>{
     const specHtml=(t.specialtyInsts||[]).map(id=>{
@@ -12146,15 +12196,18 @@ window.renderAdminResults=renderAdminResults;
 
 // ★ 通用的成績總表渲染（管理員 + 學生 + 教師共用，差別在 DOM 容器和是否顯示真實姓名）
 function _renderResultsTable(opts){
-  const {bodyId,roomFilterId,classFilterId,allowRoles,showRealNames,showExportBtn}=opts;
-  const el=document.getElementById(bodyId);if(!el)return;
-  if(allowRoles&&!allowRoles.includes(ST.role)){el.innerHTML='';return;}
-  const roomId=document.getElementById(roomFilterId)?.value||'';
-  const classF=document.getElementById(classFilterId)?.value||'';
+  const {bodyId,roomFilterId,classFilterId,allowRoles,showRealNames,showExportBtn,returnHtml,forceRoomId,forceClassF}=opts;
+  const el=returnHtml?null:document.getElementById(bodyId);
+  if(!returnHtml&&!el)return;
+  if(allowRoles&&!allowRoles.includes(ST.role)){if(el)el.innerHTML='';return returnHtml?'':undefined;}
+  const roomId=forceRoomId!==undefined?forceRoomId:(document.getElementById(roomFilterId)?.value||'');
+  const classF=forceClassF!==undefined?forceClassF:(document.getElementById(classFilterId)?.value||'');
 
   const entries=_buildAdminResultsData(roomId,classF);
   if(!entries.length){
-    el.innerHTML='<div class="card" style="text-align:center;padding:36px"><div style="font-size:36px;margin-bottom:10px">📭</div><div style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted)">尚無排程資料</div></div>';
+    const emptyHtml='<div class="card" style="text-align:center;padding:36px"><div style="font-size:36px;margin-bottom:10px">📭</div><div style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted)">尚無排程資料</div></div>';
+    if(returnHtml)return emptyHtml;
+    el.innerHTML=emptyHtml;
     return;
   }
   if(DB._jurorOrderCache)DB._jurorOrderCache={};
@@ -12365,9 +12418,83 @@ function _renderResultsTable(opts){
     </div>`;
   });
 
-  el.innerHTML=html||'<p style="color:var(--muted);font-family:\'DM Mono\',monospace;font-size:12px;padding:14px">無符合資料</p>';
+  const finalHtml=html||'<p style="color:var(--muted);font-family:\'DM Mono\',monospace;font-size:12px;padding:14px">無符合資料</p>';
+  if(returnHtml)return finalHtml;
+  el.innerHTML=finalHtml;
 }
 window.renderAdminResults=renderAdminResults;
+
+// ★ 匯出成績總表 PDF：版面與網站「各考場成績總表」相同，可單一考場或全部考場
+//   作法：以相同 HTML + CSS 開新視窗，呼叫瀏覽器列印（可選「另存為 PDF」），離線可用、版面一致
+function exportAdminResultsPDF(allRooms){
+  if(!requireRole('admin'))return;
+  const curRoomId=document.getElementById('ar-room')?.value||'';
+  const curClassF=document.getElementById('ar-class')?.value||'';
+  const targetRoomId=allRooms?'':curRoomId; // 全部=空字串
+  const bodyHtml=_renderResultsTable({
+    allowRoles:['admin'],
+    showRealNames:_showRealJurorNames,
+    showExportBtn:false,            // PDF 不放匯出按鈕
+    returnHtml:true,
+    forceRoomId:targetRoomId,
+    forceClassF:allRooms?'':curClassF,
+  });
+  const title=allRooms?'各考場成績總表（全部）':('成績總表 — '+(DB.rooms.find(r=>r.id===curRoomId)?.name||'目前考場'));
+  _openResultsPrintWindow(title, bodyHtml);
+}
+window.exportAdminResultsPDF=exportAdminResultsPDF;
+
+// 取出目前頁面的 :root CSS 變數，組成列印用樣式（確保 PDF 配色與網站一致）
+function _collectRootVars(){
+  const names=['--ink','--paper','--cream','--gold','--gold-l','--gold-bg','--rust','--sage','--steel','--muted','--border','--white','--shadow','--r','--red','--green','--blue','--orange'];
+  const cs=getComputedStyle(document.documentElement);
+  return names.map(n=>`${n}:${cs.getPropertyValue(n).trim()}`).join(';');
+}
+
+function _openResultsPrintWindow(title, bodyHtml){
+  const rootVars=_collectRootVars();
+  const win=window.open('','_print','width=1200,height=800');
+  if(!win){showToast('瀏覽器封鎖了彈出視窗，請允許後再試','err');return;}
+  // 列印用樣式：移除網站的 sticky/捲動限制，讓表格完整展開分頁列印
+  const doc=`<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8"><title>${title}</title>
+  <style>
+    :root{${rootVars}}
+    *{box-sizing:border-box}
+    body{margin:0;padding:18px 16px;font-family:'Noto Serif TC',serif;color:var(--ink);background:#fff}
+    h1.print-title{font-family:'Cormorant Garamond','Noto Serif TC',serif;font-size:22px;font-weight:600;margin:0 0 4px}
+    .print-sub{font-family:monospace;font-size:10px;color:var(--muted);margin-bottom:16px}
+    .score-table-wrap{overflow:visible !important;max-height:none !important;border:1px solid var(--border);border-top:none}
+    .score-tbl{border-collapse:collapse;width:100%;table-layout:auto}
+    .score-tbl thead th{position:static !important;background:var(--ink) !important;color:var(--paper) !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .score-tbl .st-seq,.score-tbl .st-name,.score-tbl tbody tr td.st-seq,.score-tbl tbody tr td.st-name{position:static !important;background:inherit}
+    .score-tbl thead .st-seq,.score-tbl thead .st-name{background:var(--ink) !important}
+    table,tr,td,th{ -webkit-print-color-adjust:exact;print-color-adjust:exact }
+    /* 每個考場區塊儘量不要被分頁切斷 */
+    .score-table-wrap{page-break-inside:auto}
+    tr{page-break-inside:avoid}
+    thead{display:table-header-group}
+    @page{size:A4 landscape;margin:10mm}
+    @media print{ .no-print{display:none} }
+    .print-toolbar{position:fixed;top:8px;right:12px;display:flex;gap:8px;z-index:99}
+    .print-toolbar button{font-family:'Noto Serif TC',serif;font-size:13px;padding:8px 16px;border:1px solid var(--gold);background:var(--gold);color:#fff;border-radius:4px;cursor:pointer}
+    .print-toolbar button.sec{background:#fff;color:var(--ink);border-color:var(--border)}
+  </style></head>
+  <body>
+    <div class="print-toolbar no-print">
+      <button onclick="window.print()">🖨 列印／存成 PDF</button>
+      <button class="sec" onclick="window.close()">關閉</button>
+    </div>
+    <h1 class="print-title">${title}</h1>
+    <div class="print-sub">${new Date().toLocaleString('zh-TW')}　音樂術科評量系統</div>
+    ${bodyHtml}
+  </body></html>`;
+  win.document.open();
+  win.document.write(doc);
+  win.document.close();
+  // 等內容渲染後自動跳出列印對話框
+  win.focus();
+  setTimeout(()=>{ try{ win.print(); }catch(e){} }, 600);
+}
 
 function exportAdminResultsCSV(allRooms,forceRoomId){
   if(ST.role!=='admin')return;
