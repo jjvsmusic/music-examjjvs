@@ -2446,6 +2446,7 @@ tbody td{color:var(--ink)!important}
           <button class="btn btn-b btn-sm" onclick="exportResultsCSV()">↓ 匯出本場 CSV</button>
           <button class="btn btn-s btn-sm" onclick="exportResultsCSV(true)">↓ 全部匯出</button>
           <button class="btn btn-b btn-sm" onclick="openExportSummaryModal()" title="按學生彙整：含主/副/選修各成績與評語，可分班級下載">📑 彙整成績下載（按班級）</button>
+          <button class="btn btn-p btn-sm" onclick="openReportCardModal()" title="產生家長用圖檔式成績單：每位學生一張 A4，含平時評語與現場評分總成績及評語">🎓 成績單下載（家長用）</button>
           <button class="btn btn-g" onclick="publishResults()" id="publish-results-btn">📢 發佈成績給學生/教師</button>
           <button class="btn btn-d btn-sm" onclick="unpublishResults()" id="unpublish-results-btn" style="display:none">🔒 收回發佈</button>
           <button class="btn btn-p btn-sm" onclick="adminPublishSnapshot('scores')" title="推送最新成績資料給學生/教師（會更新他們的快取）">⟳ 推送更新</button>
@@ -11576,6 +11577,210 @@ function openExportSummaryModal(){
   openOverlay('export-summary-modal');
 }
 window.openExportSummaryModal=openExportSummaryModal;
+
+// ════════════════════════════════════════════════
+// ★ 家長用圖檔式成績單（每位學生一張 A4，列印/存PDF）
+// ════════════════════════════════════════════════
+function openReportCardModal(){
+  if(!requireRole('admin'))return;
+  let modal=document.getElementById('report-card-modal');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.className='overlay';
+    modal.id='report-card-modal';
+    modal.innerHTML=`
+      <div class="modal" style="max-width:520px">
+        <div class="modal-h"><span>🎓 成績單下載（家長用）</span><button class="modal-x" onclick="closeOverlay('report-card-modal')">✕</button></div>
+        <div style="padding:4px 2px 12px">
+          <p style="font-size:13px;color:var(--muted);line-height:1.8;margin-bottom:12px">
+            產生每位學生一張 A4 的成績單，內容包含：班級・姓名・座號、各修別樂器、<strong>平時評語</strong>（不含平時成績）、<strong>現場評分總成績與評審評語</strong>，若有違規扣分會顯示扣分原因。<br>
+            開啟後可用瀏覽器「列印 → 另存為 PDF」整批下載。
+          </p>
+          <div class="fg" style="margin-bottom:10px">
+            <label>選擇班級</label>
+            <select id="rc-class-sel" style="width:100%"></select>
+          </div>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-bottom:4px">
+            <input type="checkbox" id="rc-only-published" style="width:auto"> 僅產生已發佈成績（未發佈者不顯示分數，只顯示評語）
+          </label>
+        </div>
+        <div class="modal-ft">
+          <button class="btn btn-s" onclick="closeOverlay('report-card-modal')">取消</button>
+          <button class="btn btn-p" onclick="generateReportCards()">🎓 產生成績單</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+  // 填入班級選項
+  const sel=modal.querySelector('#rc-class-sel');
+  const classes=[...new Set(DB.users.filter(u=>u.role==='student'&&u.class).map(u=>u.class))]
+    .sort((a,b)=>a.localeCompare(b,'zh-TW-u-co-stroke'));
+  sel.innerHTML='<option value="__all__">全部班級</option>'+classes.map(c=>`<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+  openOverlay('report-card-modal');
+}
+window.openReportCardModal=openReportCardModal;
+
+// 組出單一學生的成績單資料（與學生端「我的成績」走相同資料路徑）
+function _buildStudentReportData(u){
+  const types=[];
+  ['major','minor','elective'].forEach(tp=>{
+    if(!u[tp])return;
+    const instId=u[tp];
+    const catId=DB.instruments.items.find(i=>i.id===instId)?.cat;
+    const roomId=_findRoomForCat(catId)?.id||'';
+    const ek=u.id+'_'+tp;
+    const jurorData=DB.juryScores[roomId]?.[ek]||{};
+    const scoreArr=_safeJurors(jurorData);
+    const isAbsent=scoreArr.some(s=>s.absent);
+    const isDQ=!!DB.disqualified?.[ek];
+    const result=scoreArr.length?calcFinal(scoreArr,roomId,{type:tp,catId,class:u.class}):{finalScore:null};
+    const ded=DB.deductions[ek]||{amount:0,reason:''};
+    const finalWithDed=result.finalScore!==null?Math.max(0,result.finalScore-(ded.amount||0)):null;
+    const tc=DB.teacherComments[u.id]?.[tp]||{};
+    // 評審評語（依評審順序，跳過缺考、空白）
+    const allIds=new Set();
+    Object.values(DB.juryScores[roomId]||{}).forEach(ed=>Object.keys(ed||{}).forEach(k=>{if(!k.startsWith('_'))allIds.add(k);}));
+    const order=[...allIds].sort();
+    const localIds=Object.keys(jurorData).filter(k=>!k.startsWith('_'));
+    const sortedIds=order.filter(id=>localIds.includes(id));
+    localIds.forEach(id=>{if(!sortedIds.includes(id))sortedIds.push(id);});
+    const juryComments=sortedIds.map((jid,ji)=>({idx:ji+1, name:jurorData[jid]?._jurorName||'', comment:jurorData[jid]?.comment||'', absent:jurorData[jid]?.absent}))
+      .filter(j=>!j.absent&&j.comment);
+    types.push({
+      type:tp, typeName:typeName(tp), instName:iname(instId),
+      finalScore: isDQ?'扣考':(isAbsent?'缺考':(finalWithDed!==null?finalWithDed.toFixed(2):'—')),
+      finalIsNumber: !isDQ&&!isAbsent&&finalWithDed!==null,
+      teacherComment: tc.comment||'',
+      dedAmount: ded.amount||0, dedReason: ded.reason||'',
+      isDQ, dqReason: isDQ?(DB.disqualified[ek]?.reason||DB.disqualified[ek]?.note||''):'',
+      juryComments,
+    });
+  });
+  return {name:u.name, class:u.class||'', seat:u.seat||'', types};
+}
+
+// 單張學生成績單的 HTML（一張 A4）
+function _reportCardHtml(stu, resultsPublished){
+  const typeBlocks=stu.types.map(t=>{
+    const scoreLine = resultsPublished
+      ? `<div style="display:flex;align-items:baseline;gap:8px">
+           <span style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted)">現場評分總成績</span>
+           <span style="font-family:'Cormorant Garamond',serif;font-size:30px;font-weight:600;color:${t.finalIsNumber&&parseFloat(t.finalScore)<60?'var(--red)':'var(--gold)'}">${escHtml(t.finalScore)}</span>
+         </div>`
+      : `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">成績待發佈</div>`;
+    const dedLine = (t.dedAmount>0)
+      ? `<div style="font-size:11px;color:var(--rust);margin-top:3px">⚠ 違規扣分 -${t.dedAmount}　原因：${escHtml(t.dedReason||'—')}</div>`
+      : '';
+    const dqLine = t.isDQ
+      ? `<div style="font-size:11px;color:var(--rust);margin-top:3px">⛔ 扣考${t.dqReason?'　原因：'+escHtml(t.dqReason):''}</div>`
+      : '';
+    const teaBlock = `
+      <div style="background:var(--cream);border-left:3px solid var(--steel);border-radius:0 3px 3px 0;padding:8px 12px;margin-top:8px">
+        <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1px;color:var(--steel);margin-bottom:4px">指導老師平時評語</div>
+        <div style="font-size:12px;line-height:1.7;color:var(--ink);white-space:pre-wrap">${escHtml(t.teacherComment)||'（老師尚未填寫評語）'}</div>
+      </div>`;
+    const juryBlock = `
+      <div style="background:#f0f4ff;border-left:3px solid var(--blue);border-radius:0 3px 3px 0;padding:8px 12px;margin-top:6px">
+        <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1px;color:var(--blue);margin-bottom:4px">現場評審評語</div>
+        ${t.juryComments.length
+          ? t.juryComments.map(j=>`<div style="font-size:12px;line-height:1.7;color:var(--ink);margin-bottom:3px;white-space:pre-wrap"><span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-right:5px">評審${j.idx}</span>${escHtml(j.comment)}</div>`).join('')
+          : '<div style="font-size:11px;color:var(--muted)">（無評審評語）</div>'}
+      </div>`;
+    return `
+      <div style="border:1px solid var(--border);border-radius:4px;padding:12px 14px;margin-bottom:12px;break-inside:avoid">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+          <div>
+            <span style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--gold)">${escHtml(t.typeName)}</span>
+            <span style="font-size:16px;font-weight:700;margin-left:6px">${escHtml(t.instName)}</span>
+          </div>
+          ${scoreLine}
+        </div>
+        ${dqLine}${dedLine}
+        ${teaBlock}
+        ${juryBlock}
+      </div>`;
+  }).join('');
+
+  return `
+  <div class="report-card" style="width:190mm;min-height:277mm;padding:14mm 14mm;box-sizing:border-box;page-break-after:always;break-after:page;background:#fff;color:var(--ink);font-family:'Noto Serif TC',serif">
+    <div style="text-align:center;border-bottom:2px solid var(--gold);padding-bottom:10px;margin-bottom:14px">
+      <div style="font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600;letter-spacing:2px">音樂科術科成績單</div>
+      <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:2px">Music Practical Exam Report</div>
+    </div>
+    <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:16px;padding:10px 14px;background:var(--cream);border-radius:4px">
+      <div><span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px">班級</span><div style="font-size:15px;font-weight:600">${escHtml(stu.class||'—')}</div></div>
+      <div><span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px">座號</span><div style="font-size:15px;font-weight:600">${escHtml(String(stu.seat||'—'))}</div></div>
+      <div><span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px">姓名</span><div style="font-size:15px;font-weight:600">${escHtml(stu.name||'—')}</div></div>
+    </div>
+    ${typeBlocks||'<div style="font-size:13px;color:var(--muted);padding:20px;text-align:center">（此學生尚無樂器別/成績資料）</div>'}
+    <div style="margin-top:auto;padding-top:14px;border-top:1px solid var(--border);font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);text-align:center;letter-spacing:1px">
+      本成績單由音樂術科評量系統產生　${new Date().toLocaleDateString('zh-TW')}
+    </div>
+  </div>`;
+}
+
+function generateReportCards(){
+  if(!requireRole('admin'))return;
+  const sel=document.getElementById('rc-class-sel');
+  const classF=sel?.value||'__all__';
+  const onlyPub=document.getElementById('rc-only-published')?.checked;
+  const resultsPublished=!!DB.config.resultsPublished;
+  if(onlyPub && !resultsPublished){
+    showToast('目前成績尚未發佈，無法只產生已發佈成績','warn');
+    return;
+  }
+  let students=DB.users.filter(u=>u.role==='student');
+  if(classF!=='__all__')students=students.filter(u=>u.class===classF);
+  // 排序：班級 → 座號
+  students.sort((a,b)=>{
+    const c=(a.class||'').localeCompare(b.class||'','zh-TW-u-co-stroke');
+    if(c!==0)return c;
+    return (parseInt(a.seat)||0)-(parseInt(b.seat)||0);
+  });
+  if(!students.length){showToast('此班級沒有學生','warn');return;}
+
+  const cards=students.map(u=>_reportCardHtml(_buildStudentReportData(u), resultsPublished)).join('');
+  const title=classF==='__all__'?'全校成績單':(classF+' 成績單');
+  closeOverlay('report-card-modal');
+  _openReportCardPrintWindow(title, cards, students.length);
+}
+window.generateReportCards=generateReportCards;
+
+function _openReportCardPrintWindow(title, cardsHtml, count){
+  const rootVars=_collectRootVars();
+  const win=window.open('','_rcprint','width=900,height=1000');
+  if(!win){showToast('瀏覽器封鎖了彈出視窗，請允許後再試','err');return;}
+  const doc=`<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8"><title>${escHtml(title)}</title>
+  <style>
+    :root{${rootVars}}
+    *{box-sizing:border-box}
+    body{margin:0;background:#e9e6df;font-family:'Noto Serif TC',serif}
+    .report-card{margin:0 auto 8mm;box-shadow:0 1px 6px rgba(0,0,0,.15);display:flex;flex-direction:column}
+    .print-toolbar{position:fixed;top:8px;right:12px;display:flex;gap:8px;z-index:99}
+    .print-toolbar button{font-family:'Noto Serif TC',serif;font-size:13px;padding:8px 16px;border:1px solid var(--gold);background:var(--gold);color:#fff;border-radius:4px;cursor:pointer}
+    .print-toolbar button.sec{background:#fff;color:var(--ink);border-color:var(--border)}
+    .rc-hint{text-align:center;font-family:'DM Mono',monospace;font-size:11px;color:#555;padding:10px}
+    @page{size:A4;margin:0}
+    @media print{
+      body{background:#fff}
+      .no-print{display:none !important}
+      .report-card{margin:0;box-shadow:none;width:210mm;min-height:297mm;padding:14mm}
+      *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    }
+  </style></head>
+  <body>
+    <div class="print-toolbar no-print">
+      <button onclick="window.print()">🖨 列印／存成 PDF（共 ${count} 張）</button>
+      <button class="sec" onclick="window.close()">關閉</button>
+    </div>
+    <div class="rc-hint no-print">共 ${count} 位學生，每位一張 A4。請按上方按鈕列印或「另存為 PDF」。列印時請選 A4、邊界設為「無」、並勾選「背景圖形」。</div>
+    ${cardsHtml}
+  </body></html>`;
+  win.document.open();
+  win.document.write(doc);
+  win.document.close();
+  win.focus();
+}
 
 // ★ 計算彙整成績資料（給定班級或全部，回傳 row 物件陣列）
 function _buildSummaryRows(classFilter){
