@@ -6151,6 +6151,7 @@ function renderJuryTable(){
     // 曲目欄 header：依後台有無 assigned/free 欄動態顯示
     const hasA=roomFields.some(f=>f.id==='assigned');
     const hasF=roomFields.some(f=>f.id==='free');
+    // ★ 修正：自訂評分欄位的考場（如聲樂／流行演唱）也要顯示曲目欄標題
     const pieceColLabel=(hasA&&hasF)?'指定曲／自選曲':hasA?'指定曲':hasF?'自選曲':'曲目';
     jthWrap.innerHTML=
       '<tr>'+
@@ -6219,10 +6220,27 @@ function renderJuryTable(){
     const _atKey=e.type==='elective'?'elec_at':e.type+'_at';
     const _fcKey=e.type==='elective'?'elec_fc':e.type+'_fc';
     const _ftKey=e.type==='elective'?'elec_ft':e.type+'_ft';
-    const _ac=_stu[_acKey]||e.ac||'';
-    const _at=_stu[_atKey]||e.at||'';
-    const _fc=_stu[_fcKey]||e.fc||'';
-    const _ft=_stu[_ftKey]||e.ft||'';
+    let _ac=_stu[_acKey]||e.ac||'';
+    let _at=_stu[_atKey]||e.at||'';
+    let _fc=_stu[_fcKey]||e.fc||'';
+    let _ft=_stu[_ftKey]||e.ft||'';
+    // ★ 修正：某些考場（如聲樂／流行演唱）學生的曲目可能填在「與本考場記錄修別不同」的修別下
+    //   （例如以選修身分排入流行演唱考場，但曲目填在主修欄）。
+    //   若本修別四個欄位皆為空，則自動回退到該生其他修別已填的曲目，避免曲目欄整列空白。
+    if(!_ac&&!_at&&!_fc&&!_ft){
+      const _fallbackTypes=['major','minor','elective'].filter(t=>t!==e.type);
+      for(const _t of _fallbackTypes){
+        const _ak=_t==='elective'?'elec_ac':_t+'_ac';
+        const _tk=_t==='elective'?'elec_at':_t+'_at';
+        const _ck=_t==='elective'?'elec_fc':_t+'_fc';
+        const _fk=_t==='elective'?'elec_ft':_t+'_ft';
+        if(_stu[_ak]||_stu[_tk]||_stu[_ck]||_stu[_fk]){
+          _ac=_stu[_ak]||'';_at=_stu[_tk]||'';
+          _fc=_stu[_ck]||'';_ft=_stu[_fk]||'';
+          break;
+        }
+      }
+    }
     const pieceCell=(composer,title)=>`<td class="piece-cell" style="min-width:180px">
       <div class="pc-composer" title="${composer||''}" style="word-break:break-word">${composer||'<span style="color:var(--border)">—</span>'}</div>
       <div class="pc-title" title="${title||''}" style="word-break:break-word;white-space:normal">${title||''}</div>
@@ -6263,28 +6281,37 @@ function renderJuryTable(){
     // 列2（評語行）      ：評語（colspan = 評分欄數+1，延伸至曲目欄下方）
     const scoreColCount=roomFields.length;
 
-    // 指定曲／自選曲曲目格：每首一行，作曲家＋曲目同行
+    // ★ 修正：曲目顯示不應綁定評分欄位 id。某些考場（如聲樂／流行演唱）使用自訂評分欄位
+    //   （非 assigned/free），舊邏輯會因此完全不顯示曲目。改為「只要有指定曲或自選曲資料就顯示」，
+    //   並在兩者皆無資料但有 assigned/free 欄位時仍保留空欄位提示。
     const _hasAssigned=roomFields.some(f=>f.id==='assigned');
     const _hasFree=roomFields.some(f=>f.id==='free');
+    const _hasAssignedData=!!(_ac||_at);
+    const _hasFreeData=!!(_fc||_ft);
+    const _showAssigned=_hasAssigned||_hasAssignedData;
+    const _showFree=_hasFree||_hasFreeData;
     const pieceLineStyle=`display:flex;gap:4px;align-items:baseline;line-height:1.55;word-break:break-word;flex-wrap:wrap`;
     const composerStyle=`font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap`;
     const titleStyle=`font-size:11px;font-style:italic;color:var(--steel)`;
     const labelStyle=`font-family:DM Mono,monospace;font-size:9px;color:var(--muted);letter-spacing:.5px;white-space:nowrap;flex-shrink:0`;
     const pieceCellContent=
       `<div style="padding:5px 0 4px 0">`+
-        (_hasAssigned
+        (_showAssigned
           ?`<div style="${pieceLineStyle}">
               <span style="${labelStyle}">指定</span>
               <span style="${composerStyle}">${_ac||'<span style="color:var(--border)">—</span>'}</span>
               ${_at?`<span style="font-size:10px;color:var(--border)">/</span><span style="${titleStyle}">${_at}</span>`:''}
             </div>`
           :'')+
-        (_hasFree
-          ?`<div style="${pieceLineStyle};margin-top:4px;padding-top:4px;border-top:1px dashed var(--border)">
+        (_showFree
+          ?`<div style="${pieceLineStyle}${_showAssigned?';margin-top:4px;padding-top:4px;border-top:1px dashed var(--border)':''}">
               <span style="${labelStyle}">自選</span>
               <span style="${composerStyle}">${_fc||'<span style="color:var(--border)">—</span>'}</span>
               ${_ft?`<span style="font-size:10px;color:var(--border)">/</span><span style="${titleStyle}">${_ft}</span>`:''}
             </div>`
+          :'')+
+        ((!_showAssigned&&!_showFree)
+          ?`<div style="font-size:11px;color:var(--border)">—</div>`
           :'')+
       `</div>`;
 
@@ -12680,6 +12707,9 @@ function _renderResultsTable(opts){
   // 各考場前三名
   const roomRankMap={};
   const roomGroups={};
+  // ★ 各考場「第一名是否從缺」：第一名須達 80 分，未達則第一名從缺
+  const FIRST_PLACE_MIN=80;
+  const roomFirstVacant={};
   entries.forEach(e=>{
     if(!roomGroups[e.roomId])roomGroups[e.roomId]=[];
     const ek=e.studentId+'_'+e.type;
@@ -12693,7 +12723,15 @@ function _renderResultsTable(opts){
   });
   Object.entries(roomGroups).forEach(([rId,arr])=>{
     arr.sort((a,b)=>b.score-a.score);
-    arr.slice(0,3).forEach((item,i)=>{roomRankMap[rId+'_'+item.ek]=i+1;});
+    // ★ 第一名須達 80 分；最高分未達標時，第一名從缺，名次往下遞補
+    //   （從缺：原第1名→第2名、原第2名→第3名、原第3名落榜無名次）
+    roomFirstVacant[rId]=arr.length>0&&arr[0].score<FIRST_PLACE_MIN;
+    if(roomFirstVacant[rId]){
+      // 遞補：從第 2 名開始發牌，故第 i 名（0-based）對應名次 i+2，只取前兩位
+      arr.slice(0,2).forEach((item,i)=>{roomRankMap[rId+'_'+item.ek]=i+2;});
+    } else {
+      arr.slice(0,3).forEach((item,i)=>{roomRankMap[rId+'_'+item.ek]=i+1;});
+    }
   });
   const rankMedal=['🥇','🥈','🥉'];
 
@@ -12817,11 +12855,14 @@ function _renderResultsTable(opts){
       </tr>`;
     });
 
-    // 前三名摘要
-    const top3=(roomGroups[room.id]||[]).slice(0,3);
-    const top3Html=top3.map((item,i)=>`
+    // 前三名摘要（第一名從缺時遞補：前兩名得 🥈🥉，原第三名落榜）
+    const _firstVacant=roomFirstVacant[room.id];
+    const _winners=(roomGroups[room.id]||[]).slice(0,_firstVacant?2:3);
+    // 從缺時 medalOffset=1（從 🥈 開始），否則 0（從 🥇 開始）
+    const _medalOffset=_firstVacant?1:0;
+    const top3Html=_winners.map((item,i)=>`
       <span style="display:inline-flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border:1px solid var(--border);border-radius:20px;margin:3px 3px 3px 0">
-        <span style="font-size:16px">${rankMedal[i]}</span>
+        <span style="font-size:16px">${rankMedal[i+_medalOffset]}</span>
         <strong style="font-size:13px">${escHtml(item.name)}</strong>
         <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">${escHtml(item.class)}·座${escHtml(item.seat)}</span>
         <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--steel)">${escHtml(typeName(item.type))} ${escHtml(item.instName)}</span>
@@ -12847,8 +12888,9 @@ function _renderResultsTable(opts){
       </div>
       <div style="border:1px solid var(--border);border-top:2px solid var(--gold);border-radius:0 0 var(--r) var(--r);padding:10px 14px;background:var(--cream);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         <span style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--gold);font-weight:700;flex-shrink:0">本考場名次</span>
-        ${top3.length?top3Html:'<span style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted)">尚無評分資料</span>'}
+        ${_winners.length?top3Html:'<span style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted)">尚無評分資料</span>'}
       </div>
+      ${_firstVacant?`<div style="border:1px solid var(--border);border-top:none;border-radius:0 0 var(--r) var(--r);padding:8px 14px;background:var(--white);font-family:'DM Mono',monospace;font-size:10px;color:var(--rust);font-weight:700;letter-spacing:1px">⚠ 未達八十分，第一名從缺</div>`:''}
     </div>`;
   });
 
@@ -12982,12 +13024,18 @@ function exportAdminResultsCSV(allRooms,forceRoomId){
     const fin=r.finalScore!==null?Math.max(0,r.finalScore-(ded.amount||0)):null;
     if(fin!==null)roomGroups[e.roomId].push({ek,score:fin});
   });
+  // ★ 第一名須達 80 分；最高分未達標時，第一名從缺，名次往下遞補
+  const FIRST_PLACE_MIN=80;
+  const roomFirstVacant={};
   Object.entries(roomGroups).forEach(([rId,arr])=>{
     arr.sort((a,b)=>b.score-a.score);
-    arr.slice(0,3).forEach((item,i)=>{roomRankMap[rId+'_'+item.ek]=i+1;});
+    roomFirstVacant[rId]=arr.length>0&&arr[0].score<FIRST_PLACE_MIN;
+    if(roomFirstVacant[rId]){
+      arr.slice(0,2).forEach((item,i)=>{roomRankMap[rId+'_'+item.ek]=i+2;});
+    } else {
+      arr.slice(0,3).forEach((item,i)=>{roomRankMap[rId+'_'+item.ek]=i+1;});
+    }
   });
-
-  const rows=[];
   entries.slice().sort((a,b)=>(a.order||0)-(b.order||0)).forEach((e,i)=>{
     const ek=e.studentId+'_'+e.type;
     const rId=e.roomId;
