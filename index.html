@@ -5140,7 +5140,7 @@ function renderScoresPage(){
   el.innerHTML=types.map(t=>{
     const entryKey=u.id+'_'+t.type;
     const tCatId=DB.instruments.items.find(i=>i.id===t.inst)?.cat;
-    const roomId=_findRoomForCat(tCatId)?.id||'';
+    const roomId=_findScoredRoomForEntry(u.id, t.type, tCatId);
     const jurorData=DB.juryScores[roomId]?.[entryKey]||{};
     const scoreArr=_safeJurors(jurorData).filter(s=>!s.absent);
     // ★ 修正：傳入 entry 資訊，讓 calcFinal 能正確處理 * 不計分欄位的權重重分配
@@ -5231,6 +5231,36 @@ function _findRoomForCat(catId){
       || null;
 }
 window._findRoomForCat=_findRoomForCat;
+
+// ★ 修正：找出某學生某修別「實際被排入並有評分」的考場 id。
+//   舊作法只用 _findRoomForCat（依樂器大項反查），當學生實際被排到非預設考場
+//   （例如同一大項分多考場、手動排場、聲樂流行等跨類考場）時會抓錯考場，
+//   導致成績單／我的成績「分數與評語整段帶不進來」。
+//   優先順序：
+//     ① 排程快照中記錄此 studentId_type 的考場
+//     ② DB.juryScores 中真的存有此 entryKey 評分的考場
+//     ③ fallback：_findRoomForCat（樂器大項預設考場）
+function _findScoredRoomForEntry(studentId, type, catId){
+  const ek=studentId+'_'+type;
+  // ① 排程快照
+  const snap=DB.savedScheduleSnapshot||{};
+  for(const rId of Object.keys(snap)){
+    const arr=snap[rId]||[];
+    if(arr.some(e=>e&&(e.entryKey===ek||(e.studentId===studentId&&e.type===type)))){
+      return rId;
+    }
+  }
+  // ② 實際有評分的考場（含任一評分欄位或評語）
+  for(const rId of Object.keys(DB.juryScores||{})){
+    const ed=DB.juryScores[rId]?.[ek];
+    if(ed&&Object.keys(ed).some(k=>!k.startsWith('_'))){
+      return rId;
+    }
+  }
+  // ③ fallback：樂器大項預設考場
+  return _findRoomForCat(catId)?.id||'';
+}
+window._findScoredRoomForEntry=_findScoredRoomForEntry;
 function getScheduleEntries(){
   // ★ 每個學生每個修別都放入「全部考場清單」，roomId 固定為當前排程選擇的考場。
   // 考場歸屬完全由排程篩選決定，不依賴 allowedCats。
@@ -10285,9 +10315,10 @@ function adminCommentLoadType(){
   // Load existing jury comments for this student/type
   const stu=DB.users.find(u=>u.id===sid);
   if(!stu)return;
-  const room=_findRoomForCat(DB.instruments.items.find(i=>i.id===stu[type])?.cat);
+  const _catId=DB.instruments.items.find(i=>i.id===stu[type])?.cat;
+  const roomId=_findScoredRoomForEntry(sid, type, _catId);
+  const room=DB.rooms.find(r=>r.id===roomId)||null;
   const entryKey=sid+'_'+type;
-  const roomId=room?.id||'';
   const jurorData=roomId&&DB.juryScores[roomId]?.[entryKey]?{}:null;
   const existing=jurorData?_safeJurors(jurorData).filter(j=>!j.absent&&j.comment).map(j=>j.comment).join('\n\n'):'';
   const ta=document.getElementById('admin-comment-text');
@@ -10302,8 +10333,8 @@ function adminCommentSave(){
   if(!sid||!type){showToast('請選擇學生及修別','err');return;}
   // Save as a special admin juror entry
   const stu=DB.users.find(u=>u.id===sid);if(!stu)return;
-  const room=_findRoomForCat(DB.instruments.items.find(i=>i.id===stu[type])?.cat);
-  const roomId=room?.id;if(!roomId){showToast('找不到對應考場','err');return;}
+  const _catId=DB.instruments.items.find(i=>i.id===stu[type])?.cat;
+  const roomId=_findScoredRoomForEntry(sid, type, _catId);if(!roomId){showToast('找不到對應考場','err');return;}
   const entryKey=sid+'_'+type;
   if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
   if(!DB.juryScores[roomId][entryKey])DB.juryScores[roomId][entryKey]={};
@@ -10367,8 +10398,8 @@ function adminCommentImportCSV(){
         if(!account||!type||!comment){errors.push('第'+(li+2)+'行格式錯誤');return;}
         const stu=DB.users.find(u=>u.account===account&&u.role==='student');
         if(!stu){errors.push('帳號不存在：'+account);return;}
-        const room=_findRoomForCat(DB.instruments.items.find(i=>i.id===stu[type])?.cat);
-        const roomId=room?.id;if(!roomId){errors.push('找不到考場：'+account);return;}
+        const _catId=DB.instruments.items.find(i=>i.id===stu[type])?.cat;
+        const roomId=_findScoredRoomForEntry(stu.id, type, _catId);if(!roomId){errors.push('找不到考場：'+account);return;}
         const entryKey=stu.id+'_'+type;
         if(!DB.juryScores[roomId])DB.juryScores[roomId]={};
         if(!DB.juryScores[roomId][entryKey])DB.juryScores[roomId][entryKey]={};
@@ -11844,7 +11875,7 @@ function _buildStudentReportData(u){
     if(!u[tp])return;
     const instId=u[tp];
     const catId=DB.instruments.items.find(i=>i.id===instId)?.cat;
-    const roomId=_findRoomForCat(catId)?.id||'';
+    const roomId=_findScoredRoomForEntry(u.id, tp, catId);
     const ek=u.id+'_'+tp;
     const jurorData=DB.juryScores[roomId]?.[ek]||{};
     const scoreArr=_safeJurors(jurorData);
