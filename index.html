@@ -5144,9 +5144,16 @@ function renderScoresPage(){
     const jurorData=DB.juryScores[roomId]?.[entryKey]||{};
     const scoreArr=_safeJurors(jurorData).filter(s=>!s.absent);
     // ★ 修正：傳入 entry 資訊，讓 calcFinal 能正確處理 * 不計分欄位的權重重分配
-    const _entryForCalc={type:t.type,catId:tCatId,class:u.class};
+    const _entryForCalc={studentId:u.id,type:t.type,catId:tCatId,instId:t.inst,class:u.class};
     const result=scoreArr.length?calcFinal(scoreArr,roomId,_entryForCalc):{finalScore:null,fS:null,fA:null,fF:null,fieldAvgs:{}};
     const fs=result.finalScore;
+    // ★ 動態欄位：只顯示「該生實際有考」的評分項目（過濾掉管理員設定不計分、或全體評審打 * 的欄）
+    const _allFields=getRoomFields(roomId);
+    const _shownFields=_allFields.filter(f=>{
+      if(isFieldSkipped(f,_entryForCalc))return false;          // 管理員設定此生此欄不計分
+      if(scoreArr.length&&scoreArr.every(s=>s[f.id]==='*'||s[f.id+'_skip']===true))return false; // 全體評審皆打 *
+      return true;
+    });
     // ★ H1：成績未發佈時隱藏分數區，只顯示評語
     const resultsPublished=!!DB.config.resultsPublished;
 
@@ -5180,21 +5187,19 @@ function renderScoresPage(){
           : `<div style="font-family:'DM Mono',monospace;font-size:9px;color:rgba(181,137,42,.6);letter-spacing:1px">成績待發佈</div>`}
       </div>
       <div class="isb-b">
-        ${resultsPublished?`<div class="g3" style="margin-bottom:14px">
-          <div>
-            <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">音階/視奏</div>
-            <div style="font-family:Cormorant Garamond,serif;font-size:28px;color:var(--ink)" class="${result.fS!==null&&result.fS<60?'red-score':''}">${result.fS!==null?result.fS.toFixed(1):'—'}</div>
-          </div>
-          <div>
-            <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">指定曲</div>
-            <div style="font-family:Cormorant Garamond,serif;font-size:28px" class="${result.fA!==null&&result.fA<60?'red-score':''}">${result.fA!==null?result.fA.toFixed(1):'—'}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:3px">${escHtml(t.ac||'')} — ${escHtml(t.at||'')}</div>
-          </div>
-          <div>
-            <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">自選曲</div>
-            <div style="font-family:Cormorant Garamond,serif;font-size:28px" class="${result.fF!==null&&result.fF<60?'red-score':''}">${result.fF!==null?result.fF.toFixed(1):'—'}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:3px">${escHtml(t.fc||'')} — ${escHtml(t.ft||'')}</div>
-          </div>
+        ${resultsPublished?`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:14px">
+          ${_shownFields.map(f=>{
+            const avg=result.fieldAvgs?.[f.id]??null;
+            // 內建欄位附帶曲目資訊（指定曲：ac—at；自選曲：fc—ft），自訂欄位則不顯示曲目
+            let songInfo='';
+            if(f.id==='assigned')songInfo=`${escHtml(t.ac||'')} — ${escHtml(t.at||'')}`;
+            else if(f.id==='free')songInfo=`${escHtml(t.fc||'')} — ${escHtml(t.ft||'')}`;
+            return `<div>
+              <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">${escHtml(f.label)}</div>
+              <div style="font-family:Cormorant Garamond,serif;font-size:28px;color:var(--ink)" class="${avg!==null&&avg<60?'red-score':''}">${avg!==null?avg.toFixed(1):'—'}</div>
+              ${songInfo.trim()!=='—'&&songInfo?`<div style="font-size:11px;color:var(--muted);margin-top:3px">${songInfo}</div>`:''}
+            </div>`;
+          }).join('')}
         </div>`:''}
 
         <!-- ① 老師的平時評語（不顯示分數） -->
@@ -5236,28 +5241,37 @@ window._findRoomForCat=_findRoomForCat;
 //   舊作法只用 _findRoomForCat（依樂器大項反查），當學生實際被排到非預設考場
 //   （例如同一大項分多考場、手動排場、聲樂流行等跨類考場）時會抓錯考場，
 //   導致成績單／我的成績「分數與評語整段帶不進來」。
-//   優先順序：
-//     ① 排程快照中記錄此 studentId_type 的考場
-//     ② DB.juryScores 中真的存有此 entryKey 評分的考場
-//     ③ fallback：_findRoomForCat（樂器大項預設考場）
+//   ★ 再修正：原本優先用「排程快照」找考場，但快照只代表「排在哪」，不代表
+//     「分數/評語存在哪」。若現場臨時換考場、或副修集中到另一考場評分，
+//     快照考場可能沒有評語 → 出現「分數有、評語沒帶入」。
+//   新優先順序：
+//     ① DB.juryScores 中『同時存有評語(comment)』的考場（最可靠）
+//     ② DB.juryScores 中存有任一評分資料的考場
+//     ③ 排程快照中記錄此 studentId_type 的考場
+//     ④ fallback：_findRoomForCat（樂器大項預設考場）
 function _findScoredRoomForEntry(studentId, type, catId){
   const ek=studentId+'_'+type;
-  // ① 排程快照
+  const js=DB.juryScores||{};
+  // ① 有「評語」的考場最優先
+  for(const rId of Object.keys(js)){
+    const ed=js[rId]?.[ek];
+    if(ed&&Object.keys(ed).some(k=>!k.startsWith('_')&&ed[k]&&typeof ed[k]==='object'&&ed[k].comment))
+      return rId;
+  }
+  // ② 有任一評分資料（含分數或缺考）的考場
+  for(const rId of Object.keys(js)){
+    const ed=js[rId]?.[ek];
+    if(ed&&Object.keys(ed).some(k=>!k.startsWith('_')))
+      return rId;
+  }
+  // ③ 排程快照
   const snap=DB.savedScheduleSnapshot||{};
   for(const rId of Object.keys(snap)){
     const arr=snap[rId]||[];
-    if(arr.some(e=>e&&(e.entryKey===ek||(e.studentId===studentId&&e.type===type)))){
+    if(arr.some(e=>e&&(e.entryKey===ek||(e.studentId===studentId&&e.type===type))))
       return rId;
-    }
   }
-  // ② 實際有評分的考場（含任一評分欄位或評語）
-  for(const rId of Object.keys(DB.juryScores||{})){
-    const ed=DB.juryScores[rId]?.[ek];
-    if(ed&&Object.keys(ed).some(k=>!k.startsWith('_'))){
-      return rId;
-    }
-  }
-  // ③ fallback：樂器大項預設考場
+  // ④ fallback：樂器大項預設考場
   return _findRoomForCat(catId)?.id||'';
 }
 window._findScoredRoomForEntry=_findScoredRoomForEntry;
@@ -11875,9 +11889,29 @@ function _buildStudentReportData(u){
     if(!u[tp])return;
     const instId=u[tp];
     const catId=DB.instruments.items.find(i=>i.id===instId)?.cat;
-    const roomId=_findScoredRoomForEntry(u.id, tp, catId);
     const ek=u.id+'_'+tp;
-    const jurorData=DB.juryScores[roomId]?.[ek]||{};
+    // ★ 先用 _findScoredRoomForEntry 找考場
+    let roomId=_findScoredRoomForEntry(u.id, tp, catId);
+    let jurorData=DB.juryScores[roomId]?.[ek]||{};
+    // ★ 保險：若解析出的考場該筆為空，掃描所有考場，挑出「資料最完整」(有評語優先，其次評分筆數最多)
+    //   的那個考場，徹底避免副修等跨考場情形抓不到成績/評語。
+    const _hasComment=jd=>Object.keys(jd||{}).some(k=>!k.startsWith('_')&&jd[k]&&typeof jd[k]==='object'&&jd[k].comment);
+    const _scoreCount=jd=>Object.keys(jd||{}).filter(k=>!k.startsWith('_')&&jd[k]&&typeof jd[k]==='object').length;
+    if(!_scoreCount(jurorData)){
+      let bestRoom='', bestData={}, bestComment=false, bestCount=-1;
+      Object.keys(DB.juryScores||{}).forEach(rId=>{
+        const cand=DB.juryScores[rId]?.[ek];
+        if(!cand)return;
+        const cmt=_hasComment(cand), cnt=_scoreCount(cand);
+        // 有評語的優先；同樣有/無評語時取評分筆數較多者
+        if(cmt&&!bestComment || (cmt===bestComment&&cnt>bestCount)){
+          bestRoom=rId; bestData=cand; bestComment=cmt; bestCount=cnt;
+        }
+      });
+      if(_scoreCount(bestData)||_hasComment(bestData)){
+        roomId=bestRoom; jurorData=bestData;
+      }
+    }
     const scoreArr=_safeJurors(jurorData);
     const isAbsent=scoreArr.some(s=>s.absent);
     const isDQ=!!DB.disqualified?.[ek];
@@ -11894,6 +11928,11 @@ function _buildStudentReportData(u){
     localIds.forEach(id=>{if(!sortedIds.includes(id))sortedIds.push(id);});
     const juryComments=sortedIds.map((jid,ji)=>({idx:ji+1, name:jurorData[jid]?._jurorName||'', comment:jurorData[jid]?.comment||'', absent:jurorData[jid]?.absent}))
       .filter(j=>!j.absent&&j.comment);
+    // ★ 診斷：若此修別最終既無成績也無評語，於 console 輸出，方便定位是哪位學生/修別/考場
+    if(!isDQ&&!isAbsent&&finalWithDed===null&&!juryComments.length){
+      const _rooms=Object.keys(DB.juryScores||{}).filter(rId=>DB.juryScores[rId]?.[ek]);
+      console.warn('[成績單] '+u.class+' '+u.name+' / '+typeName(tp)+'('+iname(instId)+') 無成績與評語。ek='+ek+'，解析考場='+(roomId||'(無)')+'，含此筆的考場='+(_rooms.join(',')||'(無)'));
+    }
     const teacherInfo=_resolveTeacherForType(u.id, instId, tp);
     types.push({
       type:tp, typeName:typeName(tp), instName:iname(instId),
