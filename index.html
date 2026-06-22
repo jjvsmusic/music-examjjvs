@@ -405,6 +405,68 @@ td{padding:9px 12px;font-size:13px;vertical-align:middle}
 .scale-key-inp{width:90px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--r);font-family:\'DM Mono\',monospace;font-size:12px;outline:none;background:var(--paper);text-align:center}
 .scale-key-inp:focus{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-bg)}
 
+/* ★ 監考控制台：狀態按鈕群 */
+.iv-status-grp{display:flex;gap:4px;flex-wrap:wrap;justify-content:center}
+.iv-st-btn{padding:4px 9px;border:1px solid var(--border);background:var(--white);border-radius:14px;cursor:pointer;font-family:\\'DM Mono\\',monospace;font-size:8.5px;letter-spacing:.5px;white-space:nowrap;transition:all .15s;color:var(--muted)}
+.iv-st-btn:hover{border-color:var(--gold);background:var(--gold-bg)}
+.iv-st-btn.on-black{background:#1a1a1a;color:#ffd966;border-color:#1a1a1a;font-weight:700}
+.iv-st-btn.on-absent{background:var(--rust);color:#fff;border-color:var(--rust);font-weight:700}
+.iv-st-btn.on-temp{background:#7b4fa0;color:#fff;border-color:#7b4fa0;font-weight:700}
+.iv-draw-row{display:flex;gap:5px;align-items:center;justify-content:center;flex-wrap:wrap}
+.iv-draw-btn{padding:4px 10px;border:none;border-radius:14px;cursor:pointer;font-family:\\'DM Mono\\',monospace;font-size:9px;letter-spacing:.5px;background:var(--gold);color:var(--ink);font-weight:700;transition:all .15s}
+.iv-draw-btn:hover{filter:brightness(1.08)}
+.iv-draw-btn:disabled{opacity:.4;cursor:not-allowed}
+.iv-bigscreen-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;padding:10px 14px;background:#1a1a1a;border-radius:var(--r)}
+.iv-bigscreen-bar .lbl{font-family:\\'DM Mono\\',monospace;font-size:9px;letter-spacing:1.5px;color:#ffd966}
+.iv-open-screen-btn{padding:8px 18px;border:none;border-radius:20px;cursor:pointer;font-family:\\'DM Mono\\',monospace;font-size:10px;letter-spacing:1.5px;background:#ffd966;color:#1a1a1a;font-weight:700;transition:all .2s}
+.iv-open-screen-btn:hover{filter:brightness(1.1);transform:translateY(-1px)}
+.iv-mode-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:14px;background:rgba(255,217,102,.15);border:1px solid rgba(255,217,102,.4);font-family:\\'DM Mono\\',monospace;font-size:8.5px;color:#ffd966;cursor:pointer}
+
+/* ★ 後台：音階規則設定 */
+.scl-rule-grid{display:flex;flex-direction:column;gap:10px}
+.scl-rule-grid-inner{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.scl-cat-group{border:1px solid var(--border);border-radius:var(--r);overflow:hidden;background:var(--white)}
+.scl-cat-head{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;user-select:none;background:var(--cream);transition:background .15s}
+.scl-cat-head:hover{background:var(--gold-bg)}
+.scl-cat-arrow{font-size:11px;color:var(--gold);transition:transform .2s;display:inline-block}
+.scl-cat-head.open .scl-cat-arrow{transform:rotate(90deg)}
+.scl-cat-name{font-family:Noto Serif TC,serif;font-size:15px;font-weight:600;color:var(--ink)}
+.scl-cat-count{margin-left:auto;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted)}
+.scl-cat-body{padding:14px}
+.scl-rule-card{border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;background:var(--paper)}
+.scl-rule-card h4{font-family:\\'DM Mono\\',monospace;font-size:10px;letter-spacing:1px;color:var(--ink);margin:0 0 8px}
+.scl-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;margin:2px;border-radius:12px;background:var(--gold-bg);border:1px solid var(--gold);font-size:11px;font-family:Noto Serif TC,serif}
+.scl-chip button{border:none;background:none;cursor:pointer;color:var(--rust);font-weight:700;font-size:12px;line-height:1;padding:0}
+
+/* ════════ 大螢幕展示頁（display mode）════════ */
+#bigscreen{position:fixed;inset:0;z-index:99999;background:radial-gradient(ellipse at top,#1e2a3a 0%,#0d1420 60%,#070b12 100%);color:#f5eedd;display:none;flex-direction:column;font-family:Noto Serif TC,serif;overflow:hidden}
+#bigscreen.show{display:flex}
+.bs-top{display:flex;justify-content:space-between;align-items:center;padding:3vh 5vw 0;flex-shrink:0}
+.bs-room{font-family:\\'DM Mono\\',monospace;font-size:2.4vh;letter-spacing:.4vw;color:#ffd966;text-transform:uppercase}
+.bs-clock{font-family:\\'DM Mono\\',monospace;font-size:2.4vh;color:rgba(245,238,221,.55);letter-spacing:.2vw}
+.bs-center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 5vw;min-height:0}
+.bs-order{font-family:\\'DM Mono\\',monospace;font-size:3.2vh;letter-spacing:.6vw;color:#ffd966;margin-bottom:1.4vh}
+.bs-name{font-size:13vh;font-weight:600;line-height:1;letter-spacing:.5vw;margin-bottom:1.6vh;text-shadow:0 4px 30px rgba(0,0,0,.5)}
+.bs-meta{font-size:3.6vh;color:rgba(245,238,221,.92);letter-spacing:.2vw;margin-bottom:1vh}
+.bs-meta .sep{color:rgba(255,217,102,.5);margin:0 1.4vw}
+.bs-piece{font-size:3vh;color:rgba(245,238,221,.78);font-style:italic;line-height:1.5;max-width:80vw;margin-top:1.6vh}
+.bs-piece .composer{color:#ffd966;font-style:normal;font-family:\\'DM Mono\\',monospace;font-size:2.4vh;letter-spacing:.1vw}
+.bs-scale{margin-top:3.5vh;display:inline-flex;flex-direction:column;align-items:center;gap:1vh;padding:2.2vh 5vw;border:2px solid rgba(255,217,102,.4);border-radius:2vh;background:rgba(255,217,102,.07)}
+.bs-scale .lbl{font-family:\\'DM Mono\\',monospace;font-size:2vh;letter-spacing:.4vw;color:rgba(255,217,102,.75)}
+.bs-scale .val{font-size:6vh;font-weight:600;color:#ffd966;letter-spacing:.3vw}
+.bs-badge{display:inline-block;margin-top:3vh;padding:2vh 6vw;border-radius:2vh;font-size:6vh;font-weight:700;letter-spacing:1vw;animation:bsPulse 1.6s infinite}
+.bs-badge.black{background:#000;color:#ffd966;border:3px solid #ffd966}
+.bs-badge.absent{background:var(--rust);color:#fff}
+.bs-badge.temp{background:#7b4fa0;color:#fff}
+@keyframes bsPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.03);opacity:.88}}
+.bs-idle{font-size:5vh;color:rgba(245,238,221,.4);font-family:\\'DM Mono\\',monospace;letter-spacing:.5vw}
+.bs-foot{flex-shrink:0;padding:0 5vw 3vh;display:flex;justify-content:space-between;align-items:flex-end}
+.bs-next{font-family:\\'DM Mono\\',monospace;font-size:2.2vh;color:rgba(245,238,221,.5);letter-spacing:.15vw}
+.bs-next b{color:rgba(245,238,221,.85);font-weight:600}
+.bs-exit{font-family:\\'DM Mono\\',monospace;font-size:1.6vh;color:rgba(245,238,221,.3);cursor:pointer;border:1px solid rgba(245,238,221,.2);padding:.8vh 2vw;border-radius:1vh;background:none}
+.bs-exit:hover{color:rgba(245,238,221,.7);border-color:rgba(245,238,221,.5)}
+.bs-type-major{color:#7fd1c4}.bs-type-minor{color:#ffb27f}.bs-type-elective{color:#c9a0ff}
+
 /* ADMIN REMARKS FILTER */
 .remark-filter-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
 .has-remark-card{border-left:3px solid var(--rust)!important}
@@ -2060,6 +2122,26 @@ tbody td{color:var(--ink)!important}
             <div id="class-list"></div>
           </div>
         </div>
+        <!-- ★ 大螢幕：音階調性規則設定（按年級×修別） -->
+        <div class="card" style="margin-top:16px">
+          <div class="card-t">🎲 音階調性規則設定（大螢幕抽籤用 · 依樂器大項×年級×修別）</div>
+          <p style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:12px;line-height:1.7">
+            為每個「樂器大項 × 年級 × 修別」設定一組可抽的調性清單（依樂器家族不同，如鋼琴與長笛的音階要求不同）。考試當天監考人員按「🎲 抽」時，系統會依該考生的樂器大項、年級與修別，從對應清單隨機抽一個顯示在大螢幕；亦可由監考人員直接手動輸入。<br>
+            點各樂器大項標題可展開／收合；每組下方有「套用到此大項全部」可一次填好 9 格。各考場預設「依考生樂器×年級×修別自動」；若某考場想固定用同一份清單，可於下方「各考場套用方式」指定。
+          </p>
+          <div class="scl-rule-grid" id="scl-rule-grid"></div>
+          <div style="margin-top:18px">
+            <div class="card-t" style="border:none;padding:0;margin-bottom:8px">各考場套用方式</div>
+            <div id="scl-room-mode" style="display:flex;flex-direction:column;gap:8px"></div>
+          </div>
+          <div class="bg" style="margin-top:14px">
+            <button class="btn btn-g" onclick="saveScaleRules()">💾 儲存音階規則</button>
+            <label style="display:inline-flex;align-items:center;gap:6px;margin-left:14px;font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);cursor:pointer">
+              <input type="checkbox" id="scl-cross-device" style="width:15px;height:15px;accent-color:var(--gold)">
+              跨裝置同步大螢幕（電視為另一台電腦時勾選；會使用 Firebase）
+            </label>
+          </div>
+        </div>
       </div>
 
       <!-- Timing Tab -->
@@ -2401,7 +2483,7 @@ tbody td{color:var(--ink)!important}
       <div id="invig-room-tabs" class="invig-room-tabs"></div>
       <!-- 說明 -->
       <div style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--muted);margin-bottom:12px;padding:8px 12px;background:var(--cream);border-radius:var(--r);border-left:3px solid var(--steel)">
-        📋 點擊「🎵 演奏中」指定目前演奏的學生，評審電腦（有網路時）將同步顯示淡藍色。輸入音階調性後按 Enter 確認。勾選「黑簽」代表該生須演奏全曲，評審分數欄將標示提示。
+        📋 流程：①先按上方「開啟大螢幕」拖到電視全螢幕。②下一位考生在預備席時，走到監考電腦按自己那列的「🎲 抽籤」抽音階調性（先暫存、不會立刻顯示於大螢幕）。③輪到他上台，監考按該列「▶ 上場」，大螢幕才顯示他的資訊與預抽的調性。④監考可隨時「↺ 重置」讓考生重抽，或直接修改調性。狀態標記（黑籤須演奏全曲／缺考／臨時號）會在上台時醒目顯示於大螢幕。
       </div>
       <div style="overflow:auto;max-height:calc(100vh - 240px);border:1px solid var(--border);border-radius:var(--r)">
         <table class="invig-table" id="invig-table">
@@ -2410,9 +2492,9 @@ tbody td{color:var(--ink)!important}
               <th style="width:32px">序</th>
               <th style="min-width:130px">學生資訊</th>
               <th style="min-width:130px">曲目</th>
-              <th style="width:90px;text-align:center">黑簽全曲</th>
-              <th style="width:120px;text-align:center">演奏狀態</th>
-              <th style="width:110px;text-align:center">音階調性</th>
+              <th style="width:90px;text-align:center">狀態標記</th>
+              <th style="width:140px;text-align:center">大螢幕顯示</th>
+              <th style="width:140px;text-align:center">音階抽籤（預備席）</th>
             </tr>
           </thead>
           <tbody id="invig-tbody"></tbody>
@@ -2502,6 +2584,21 @@ tbody td{color:var(--ink)!important}
 
   </div><!-- /main -->
 </div><!-- /app -->
+
+<!-- ════════ 大螢幕展示層（評審用大電視）════════ -->
+<div id="bigscreen">
+  <div class="bs-top">
+    <div class="bs-room" id="bs-room">—</div>
+    <div class="bs-clock" id="bs-clock">--:--</div>
+  </div>
+  <div class="bs-center" id="bs-center">
+    <div class="bs-idle">等待考生上場…</div>
+  </div>
+  <div class="bs-foot">
+    <div class="bs-next" id="bs-next"></div>
+    <button class="bs-exit" onclick="exitBigScreen()">離開大螢幕</button>
+  </div>
+</div>
 <script>
 (function(){
 'use strict';
@@ -2522,6 +2619,17 @@ if(!DEBUG){
   window._enableLog=()=>{console.log=_origLog;console.log('[DEBUG] log 已啟用');};
 }
 window.DEBUG=DEBUG;
+
+// ★ 大螢幕展示模式：?display=1&room=xxx — 此視窗只顯示大電視畫面，跳過登入
+// 資料完全由監考分頁透過 BroadcastChannel 送來（或跨裝置時由 Firebase liveScreen 輪詢）
+if(new URLSearchParams(location.search).get('display')==='1'){
+  const _bootDisplay=()=>{
+    const ls=document.getElementById('login-screen'); if(ls)ls.classList.add('gone');
+    if(typeof window._initDisplayMode==='function')window._initDisplayMode();
+  };
+  // 延遲到 init 結束、所有函式都掛上 window 後再啟動
+  setTimeout(_bootDisplay,0);
+}
 
 // XSS 防護：所有使用者輸入插入 innerHTML 前都應該 escape
 function escHtml(s){
@@ -2705,6 +2813,7 @@ const DB = {
   disqualified: {}, // {entryKey: {reason, note}} - 扣考名單
   blackSign: {}, // {roomId: {entryKey: true}} - 黑簽全曲
   liveExam: {}, // {roomId: {playing: entryKey, scaleKey: string}} - 現場演奏同步
+  drawnScales: {}, // {roomId: {entryKey: '調性'}} - 考生預備席預抽的音階調性（暫存，上台才顯示於大螢幕）
   savedScheduleSnapshot: {}, // {roomId: [{entryKey,studentId,name,class,seat,instId,instName,type,order,...}]}
   jurySignup: {}, // {teacherId: {roomId, status, subName, subPhone, note, submittedAt}} - 評分報名
   pendingApprovals: {}, // ★ 90分以上分數審核：{id: {kind:'teacher'|'jury', score, reason, status:'pending'|'approved'|'rejected', submittedBy, submittedByName, submittedAt, reviewedAt, reviewedBy, ...其他依kind不同的欄位}}
@@ -2714,6 +2823,10 @@ const DB = {
     tyText:'感謝老師本學期的辛苦指導與細心評分，您的專業意見將是學生最珍貴的回饋。',
     weights:{scale:0.2,assigned:0.4,free:0.4},
     scoreCaps:{1:85,2:87,3:89}, // ★ 各年級評分上限：超過需評審說明並經管理員審核
+    // ★ 大螢幕：音階調性規則庫，按「年級_修別」存：{ '1_major':['C 大調','G 大調',...], ... }
+    scaleRules:{},
+    // ★ 大螢幕：每考場套用的調性規則模式（'auto'＝依考生年級×修別自動取池；或指定 key）
+    roomScaleMode:{}, // {roomId:'auto'|'1_major'|...}
     hardCap:95, // ★ 全域硬上限：所有分數不得超過此值（輸入時直接擋下）
     trimRules:[
       {id:1,minJ:0,maxJ:3,trimH:0,trimT:0},
@@ -2755,6 +2868,7 @@ DB.deductions = DB.deductions || {};
 DB.teacherComments = DB.teacherComments || {};
 DB.blackSign = DB.blackSign || {};
 DB.liveExam = DB.liveExam || {};
+DB.drawnScales = DB.drawnScales || {};
 DB.pendingApprovals = DB.pendingApprovals || {};
 DB.teacherTypeOverrides = DB.teacherTypeOverrides || {}; // ★ 師生修別人工指定：key = studentId_type，值 = {teacherName} 或 {none:true}
 const ST = {user:null,role:null,juryRoom:null,juryName:'',juryId:'',
@@ -4698,7 +4812,7 @@ function renderAll(){
     renderRepPage();renderRepHint();renderTeaTable();
     renderAdminStudents();renderAdminTeachers();renderAdminAdmins();
     renderCatList();renderInstDropdown();renderRooms();renderClassList();renderTiming();
-    renderTrimRules();renderRoomFields();renderScoreCapsConfig();schInitRoomTabs();schInitSortUI();
+    renderTrimRules();renderRoomFields();renderScoreCapsConfig();renderScaleRules();schInitRoomTabs();schInitSortUI();
     if(pgVisible('pg-schedule'))renderSchedule();
     renderDisqList();
     if(pgVisible('pg-results'))renderResults();
@@ -5640,7 +5754,11 @@ function teaInlineSave(sid,type){
   if(score>99){showToast('分數上限為 99 分','err');return;}
   if(score<0){showToast('分數不可為負','err');return;}
   if(!DB.teacherComments[sid])DB.teacherComments[sid]={};
-  DB.teacherComments[sid][type]={score,comment};
+  // ★ 記錄填寫此評語的老師（供成績單顯示指導老師用）
+  {const _a=ST.user&&ST.user.role==='teacher'?ST.user:null;
+   DB.teacherComments[sid][type]={score,comment,
+     teacherId:_a?_a.id:(DB.teacherComments[sid][type]?.teacherId||''),
+     teacherName:_a?_a.name:(DB.teacherComments[sid][type]?.teacherName||'')};}
   const s=DB.users.find(u=>u.id===sid);
   if(s){
     const types=['major','minor','elective'].filter(k=>s[k]);
@@ -5920,7 +6038,11 @@ function teaWizSave(){
   if(score<0){showToast('分數不可為負','err');return;}
   // ★ 分數立刻生效寫入（不擋）
   if(!DB.teacherComments[sid])DB.teacherComments[sid]={};
-  DB.teacherComments[sid][type]={score,comment};
+  // ★ 記錄填寫此評語的老師（供成績單顯示指導老師用）
+  {const _a=ST.user&&ST.user.role==='teacher'?ST.user:null;
+   DB.teacherComments[sid][type]={score,comment,
+     teacherId:_a?_a.id:(DB.teacherComments[sid][type]?.teacherId||''),
+     teacherName:_a?_a.name:(DB.teacherComments[sid][type]?.teacherName||'')};}
   const s=DB.users.find(u=>u.id===sid);
   if(s){
     const types=['major','minor','elective'].filter(k=>s[k]);
@@ -6515,11 +6637,9 @@ function invigSelectRoom(roomId,btn){
 }
 window.invigSelectRoom=invigSelectRoom;
 
-function renderInvigTable(){
-  const tbody=document.getElementById('invig-tbody');if(!tbody)return;
-  const roomId=ST.invigRoom?.id;
-  if(!roomId){tbody.innerHTML='<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">請先選擇考場</td></tr>';return;}
-  // ★ 優先使用已存檔的排程快照
+// ★ 取得某考場的排程 entries（供監考頁與大螢幕共用）
+function _invigEntries(roomId){
+  if(!roomId)return [];
   let entries;
   if(DB.savedScheduleSnapshot[roomId]&&DB.savedScheduleSnapshot[roomId].length){
     entries=DB.savedScheduleSnapshot[roomId].map(snap=>{
@@ -6533,45 +6653,188 @@ function renderInvigTable(){
   } else {
     entries=getScheduleEntries().filter(e=>e.roomId===roomId);
   }
+  return entries;
+}
+window._invigEntries=_invigEntries;
+
+// ★ 取得某考生（此修別）適用的音階調性池：依「樂器大項 × 年級 × 修別」
+function _scalePoolFor(roomId,entry){
+  const mode=(DB.config.roomScaleMode||{})[roomId]||'auto';
+  const rules=DB.config.scaleRules||{};
+  if(mode!=='auto'){return rules[mode]||[];}
+  const grade=aprGradeFromClass(entry.class);
+  // 取考生樂器的大項（catId）；若 entry 沒帶 catId 則從樂器表查
+  let catId=entry.catId;
+  if(!catId&&entry.instId){
+    const inst=(DB.instruments.items||[]).find(i=>i.id===entry.instId);
+    catId=inst?inst.cat:'';
+  }
+  // 優先：樂器大項_年級_修別；退而求其次：年級_修別（相容舊資料）
+  const key3=catId+'_'+grade+'_'+entry.type;
+  if(rules[key3]&&rules[key3].length)return rules[key3];
+  const key2=grade+'_'+entry.type;
+  return rules[key2]||[];
+}
+window._scalePoolFor=_scalePoolFor;
+
+function renderInvigTable(){
+  const tbody=document.getElementById('invig-tbody');if(!tbody)return;
+  const roomId=ST.invigRoom?.id;
+  _renderInvigBigScreenBar(roomId);
+  if(!roomId){tbody.innerHTML='<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">請先選擇考場</td></tr>';return;}
+  const entries=_invigEntries(roomId);
   if(!entries.length){tbody.innerHTML='<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">此考場尚無排程資料（請先在後台「存檔排程」）</td></tr>';return;}
   if(!DB.blackSign[roomId])DB.blackSign[roomId]={};
+  if(!DB.drawnScales[roomId])DB.drawnScales[roomId]={};
   const liveState=DB.liveExam[roomId]||{};
   const liveKey=liveState.playing||'';
+  const liveStatus=liveState.status||'';
+  const drawn=DB.drawnScales[roomId]||{};
 
   tbody.innerHTML=entries.map((e,i)=>{
     const entryKey=e.studentId+'_'+e.type;
-    const isBlack=!!(DB.blackSign[roomId][entryKey]);
     const isLive=liveKey===entryKey;
-    const scaleKey=isLive?(liveState.scaleKey||''):'';
-    return `<tr id="iv-row-${i}" style="${isBlack?'background:rgba(139,105,20,0.13)':isLive?'background:rgba(36,113,163,0.10)':''};transition:background .2s">
-      <td style="font-family:\'DM Mono\',monospace;font-size:11px;color:var(--muted);text-align:center">${String(e.order).padStart(2,'0')}</td>
+    const isBlack=isLive&&liveStatus==='black';
+    const isAbsent=isLive&&liveStatus==='absent';
+    const isTemp=isLive&&liveStatus==='temp';
+    const pool=_scalePoolFor(roomId,e);
+    const drawnVal=drawn[entryKey]||'';
+    const hasDrawn=!!drawnVal;
+    const rowBg=isBlack?'background:rgba(20,20,20,.10)':isAbsent?'background:rgba(166,77,53,.10)':isTemp?'background:rgba(123,79,160,.10)':isLive?'background:rgba(36,113,163,0.10)':'';
+    // 抽籤欄：已抽→大字顯示調性(可改/重抽/清除)；未抽→抽籤鈕(有池) + 內建手動輸入(免彈窗)
+    let drawCell;
+    if(hasDrawn){
+      drawCell=`<div style="display:flex;flex-direction:column;align-items:center;gap:5px">
+        <div style="display:flex;align-items:center;gap:4px;background:var(--gold-bg);border:1.5px solid var(--gold);border-radius:14px;padding:3px 10px">
+          <span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--sage);font-weight:700">✓</span>
+          <input class="scale-key-inp" id="iv-scale-${i}" type="text" value="${escHtml(drawnVal)}" style="width:84px;border:none;background:transparent;font-size:14px;font-weight:600;color:var(--ink);text-align:center" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="invigEditScale('${roomId}','${entryKey}',this.value)" onkeydown="if(event.key==='Enter'){this.blur();}">
+        </div>
+        <div style="display:flex;gap:5px">
+          ${pool.length?`<button class="iv-draw-btn" style="font-size:8.5px;padding:3px 10px" onclick="invigDrawScale('${roomId}','${entryKey}',${i})" title="重新隨機抽一次">🎲 重抽</button>`:''}
+          <button class="iv-st-btn" style="font-size:8px" onclick="invigResetScale('${roomId}','${entryKey}',${i})" title="清除此考生的抽籤">↺ 清除</button>
+        </div>
+      </div>`;
+    } else {
+      drawCell=`<div style="display:flex;flex-direction:column;align-items:center;gap:5px">
+        ${pool.length?`<button class="iv-draw-btn" style="font-size:12px;padding:7px 18px" onclick="invigDrawScale('${roomId}','${entryKey}',${i})" title="${escHtml('調性池：'+pool.join('、'))}">🎲 抽籤</button>
+        <span style="font-family:'DM Mono',monospace;font-size:7.5px;color:var(--muted)">考生上場前自行抽</span>`:''}
+        <div style="display:flex;align-items:center;gap:3px;margin-top:${pool.length?'2px':'0'}">
+          <input class="scale-key-inp" id="iv-scale-${i}" type="text" placeholder="或手動輸入調性" style="width:96px;font-size:12px" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" onkeydown="if(event.key==='Enter'){event.preventDefault();invigEditScale('${roomId}','${entryKey}',this.value,true);}" onblur="if(this.value.trim())invigEditScale('${roomId}','${entryKey}',this.value,true);">
+        </div>
+        ${pool.length?'':'<span style="font-family:\'DM Mono\',monospace;font-size:7.5px;color:var(--orange)">未設調性池·請手動輸入</span>'}
+      </div>`;
+    }
+    return `<tr id="iv-row-${i}" style="${rowBg};transition:background .2s">
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);text-align:center">${String(e.order).padStart(2,'0')}</td>
       <td>
-        <div style="font-weight:600;font-size:13px">${e.name}${isLive?'<span style="margin-left:6px;font-size:10px;color:#2471a3;font-family:\'DM Mono\',monospace">● 演奏中</span>':''}${_dqBadgeHtml(e.studentId,e.type)}</div>
-        <div style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--muted)">${e.class}·座${e.seat} · ${e.instName}·${typeName(e.type)}</div>
-        ${isBlack?'<div style="font-family:\'DM Mono\',monospace;font-size:8px;color:#8b6914;font-weight:700;margin-top:2px">★ 黑簽全曲</div>':''}
+        <div style="font-weight:600;font-size:13px">${escHtml(e.name)}${isLive?'<span style="margin-left:6px;font-size:10px;color:#2471a3;font-family:\'DM Mono\',monospace">● 螢幕顯示中</span>':''}${hasDrawn&&!isLive?'<span style="margin-left:6px;font-size:9px;color:var(--sage);font-family:\'DM Mono\',monospace">●已抽待上台</span>':''}${_dqBadgeHtml(e.studentId,e.type)}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">${escHtml(e.class)}·座${e.seat} · ${escHtml(e.instName)}·${typeName(e.type)}</div>
       </td>
       <td style="font-size:11px;color:var(--muted)">
-        ${e.ac?`<div><span style="color:var(--ink)">${e.ac}</span> — ${e.at}</div>`:'—'}
-        ${e.fc?`<div style="margin-top:2px;opacity:.7"><span style="color:var(--ink)">${e.fc}</span> — ${e.ft}</div>`:''}
+        ${e.ac?`<div><span style="color:var(--ink)">${escHtml(e.ac)}</span> — ${escHtml(e.at)}</div>`:'—'}
+        ${e.fc?`<div style="margin-top:2px;opacity:.7"><span style="color:var(--ink)">${escHtml(e.fc)}</span> — ${escHtml(e.ft)}</div>`:''}
       </td>
       <td style="text-align:center">
-        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none">
-          <input type="checkbox" ${isBlack?'checked':''} onchange="toggleBlackSign('${roomId}','${entryKey}',${i},this.checked)" style="width:16px;height:16px;accent-color:#8b6914">
-          <span style="font-family:\'DM Mono\',monospace;font-size:9px;${isBlack?'color:#8b6914;font-weight:700':'color:var(--muted)'}">黑簽</span>
-        </label>
+        <div class="iv-status-grp">
+          <button class="iv-st-btn ${isBlack?'on-black':''}" onclick="invigSetStatus('${roomId}','${entryKey}',${i},'black')" title="黑籤：須演奏全曲">★ 黑籤</button>
+          <button class="iv-st-btn ${isAbsent?'on-absent':''}" onclick="invigSetStatus('${roomId}','${entryKey}',${i},'absent')" title="缺考">缺考</button>
+          <button class="iv-st-btn ${isTemp?'on-temp':''}" onclick="invigSetStatus('${roomId}','${entryKey}',${i},'temp')" title="臨時號">臨時號</button>
+        </div>
       </td>
       <td style="text-align:center">
         <button class="playing-btn ${isLive?'playing':'idle'}" id="iv-play-${i}" onclick="toggleLivePlay('${roomId}','${entryKey}',${i})">
-          ${isLive?'🎵 演奏中（點擊結束）':'▶ 點此開始演奏'}
+          ${isLive?'🎵 螢幕顯示中（點擊結束）':'▶ 上場顯示於大螢幕'}
         </button>
       </td>
-      <td style="text-align:center">
-        <input class="scale-key-inp" id="iv-scale-${i}" type="text" value="${scaleKey}" placeholder="如：Bb 調" ${!isLive?'disabled title="請先點擊演奏中"':''} autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="saveScaleKey('${roomId}','${entryKey}',this.value)" onkeydown="if(event.key==='Enter'){this.blur();}">
-      </td>
+      <td style="text-align:center">${drawCell}</td>
     </tr>`;
   }).join('');
 }
 window.renderInvigTable=renderInvigTable;
+
+// ★ 監考頁頂部：大螢幕控制列
+function _renderInvigBigScreenBar(roomId){
+  let bar=document.getElementById('invig-bigscreen-bar');
+  const tabs=document.getElementById('invig-room-tabs');
+  if(!bar){
+    bar=document.createElement('div');bar.id='invig-bigscreen-bar';bar.className='iv-bigscreen-bar';
+    if(tabs&&tabs.parentNode)tabs.parentNode.insertBefore(bar,tabs.nextSibling);
+  }
+  const room=DB.rooms.find(r=>r.id===roomId);
+  const mode=(DB.config.roomScaleMode||{})[roomId]||'auto';
+  const modeLabel=mode==='auto'?'依考生年級×修別自動':_scaleRuleLabel(mode);
+  bar.innerHTML=`
+    <span class="lbl">🖥 大電視螢幕</span>
+    <button class="iv-open-screen-btn" onclick="openBigScreen()">開啟大螢幕（新視窗）</button>
+    <span class="lbl" style="margin-left:8px">音階規則：</span>
+    <span class="iv-mode-pill" title="此考場套用的調性規則來源，可於管理後台設定">${escHtml(modeLabel)}</span>
+    <span style="font-family:'DM Mono',monospace;font-size:8px;color:rgba(245,238,221,.5);margin-left:auto">${room?escHtml(room.name):''} · 上場時才把考生預抽的調性顯示到大螢幕</span>`;
+}
+
+// ★ 設定當前上場者狀態（black/absent/temp 三選一，再按一次取消）
+function invigSetStatus(roomId,entryKey,rowIdx,status){
+  if(!DB.liveExam[roomId])DB.liveExam[roomId]={};
+  const cur=DB.liveExam[roomId];
+  if(cur.playing!==entryKey){cur.playing=entryKey;}
+  cur.status=(cur.status===status&&cur.playing===entryKey)?'':status;
+  _afterLiveChange(roomId);
+}
+window.invigSetStatus=invigSetStatus;
+
+// ★ 考生預抽：從調性池隨機抽一個，存到該考生暫存（不影響台上、不上大螢幕）
+function invigDrawScale(roomId,entryKey,rowIdx){
+  const entries=_invigEntries(roomId);
+  const e=entries.find(x=>(x.studentId+'_'+x.type)===entryKey);
+  if(!e)return;
+  const pool=_scalePoolFor(roomId,e);
+  if(!pool.length){
+    // 沒有調性池：不彈窗（WebView/手機常被擋），改提示用該列的手動輸入框
+    showToast(e.name+'：此樂器/年級/修別尚未設定調性池，請用右側欄位手動輸入調性','warn');
+    // 把游標移到該列的手動輸入框，方便直接打字
+    setTimeout(()=>{ const inp=document.getElementById('iv-scale-'+rowIdx); if(inp){inp.focus();} },50);
+    return;
+  }
+  const pick=pool[Math.floor(Math.random()*pool.length)];
+  if(!DB.drawnScales[roomId])DB.drawnScales[roomId]={};
+  DB.drawnScales[roomId][entryKey]=pick;
+  renderInvigTable();
+  // 若這位剛好正在台上，立即同步到大螢幕
+  if((DB.liveExam[roomId]||{}).playing===entryKey)_broadcastLive(roomId);
+  showToast(e.name+' 抽到：'+pick,'ok');
+}
+window.invigDrawScale=invigDrawScale;
+
+// ★ 監考手動修改/登記考生抽到的調性。commit=true 表示提交（會重繪以切換為「已抽」顯示）
+function invigEditScale(roomId,entryKey,val,commit){
+  if(!DB.drawnScales[roomId])DB.drawnScales[roomId]={};
+  const had=!!DB.drawnScales[roomId][entryKey];
+  if(val.trim()===''){delete DB.drawnScales[roomId][entryKey];}
+  else DB.drawnScales[roomId][entryKey]=val.trim();
+  const has=!!DB.drawnScales[roomId][entryKey];
+  if((DB.liveExam[roomId]||{}).playing===entryKey)_broadcastLive(roomId);
+  // 從「未抽」變「已抽」(或相反)時重繪，讓欄位切換成大字顯示／清除鈕
+  if(commit||had!==has){
+    const ae=document.activeElement;
+    renderInvigTable();
+    if(has){ const inp=document.getElementById('iv-scale-'+_rowIdxOf(roomId,entryKey)); if(inp&&ae&&ae.tagName==='INPUT'){/* 已切換顯示，不強制 focus */} }
+  }
+}
+window.invigEditScale=invigEditScale;
+// 找某 entryKey 在目前考場排序中的列索引
+function _rowIdxOf(roomId,entryKey){
+  const es=_invigEntries(roomId);
+  for(let i=0;i<es.length;i++){ if((es[i].studentId+'_'+es[i].type)===entryKey)return i; }
+  return -1;
+}
+
+// ★ 監考重置考生抽籤（清空，可重抽）
+function invigResetScale(roomId,entryKey,rowIdx){
+  if(DB.drawnScales[roomId])delete DB.drawnScales[roomId][entryKey];
+  renderInvigTable();
+  if((DB.liveExam[roomId]||{}).playing===entryKey)_broadcastLive(roomId);
+  showToast('已重置，可重新抽籤','ok');
+}
+window.invigResetScale=invigResetScale;
 
 // ★ 修正 R6：debounce helper for high-freq Firebase writes
 const _fbDebouncers={};
@@ -6585,36 +6848,211 @@ function _debouncedFbSet(col,docId,data,ms=600){
 }
 
 function toggleBlackSign(roomId,entryKey,rowIdx,checked){
-  // ★ 黑簽功能已停用（離線化方案）
-  showToast('黑簽功能已停用','warn');
+  // ★ 舊黑簽改由 invigSetStatus('black') 處理，此函式保留相容
+  invigSetStatus(roomId,entryKey,rowIdx,'black');
 }
 window.toggleBlackSign=toggleBlackSign;
 
 function toggleLivePlay(roomId,entryKey,rowIdx){
-  // ★ 離線化：只更新本機 UI 顯示「目前演奏中」，不寫雲端、不通知評審
   if(!DB.liveExam[roomId])DB.liveExam[roomId]={};
   const cur=DB.liveExam[roomId].playing||'';
   if(cur===entryKey){
-    DB.liveExam[roomId]={playing:'',scaleKey:''};
+    DB.liveExam[roomId]={playing:'',scaleKey:'',status:''};
   }else{
-    DB.liveExam[roomId]={playing:entryKey,scaleKey:''};
+    DB.liveExam[roomId]={playing:entryKey,scaleKey:'',status:''};
   }
-  if(document.getElementById('pg-invigilator')?.classList.contains('on')){
-    if(typeof window._patchInvigLive==='function')window._patchInvigLive();
-    else renderInvigTable();
-  }
-  // ★ 已移除：Firebase 寫入、通知評審頁
+  _afterLiveChange(roomId);
 }
 window.toggleLivePlay=toggleLivePlay;
 
 function saveScaleKey(roomId,entryKey,val){
-  // ★ 離線化：調號只本機紀錄，不上傳
   if(!DB.liveExam[roomId])DB.liveExam[roomId]={};
+  if(DB.liveExam[roomId].playing!==entryKey)DB.liveExam[roomId].playing=entryKey;
   DB.liveExam[roomId].scaleKey=val;
-  // 監考頁面用局部更新，不重建（保護正在輸入的 input focus）
-  if(document.getElementById('pg-invigilator')?.classList.contains('on')&&typeof window._patchInvigLive==='function')window._patchInvigLive();
+  // 不重建監考表格（保護輸入 focus），但要把狀態推到大螢幕
+  _broadcastLive(roomId);
 }
 window.saveScaleKey=saveScaleKey;
+
+// ════════════════════════════════════════════════
+// ★ 大螢幕同步層（BroadcastChannel + 選用 Firebase）
+// ════════════════════════════════════════════════
+// 切換考生/狀態後：更新本機監考頁 + 廣播到大螢幕
+function _afterLiveChange(roomId){
+  if(document.getElementById('pg-invigilator')&&document.getElementById('pg-invigilator').classList.contains('on')){
+    renderInvigTable();
+  }
+  _broadcastLive(roomId);
+}
+window._afterLiveChange=_afterLiveChange;
+
+// 取得某考場目前要顯示的完整資料（給大螢幕用）
+function _liveDisplayData(roomId){
+  const room=DB.rooms.find(r=>r.id===roomId);
+  const st=DB.liveExam[roomId]||{};
+  const entries=_invigEntries(roomId);
+  const liveKey=st.playing||'';
+  let cur=null,curIdx=-1;
+  entries.forEach((e,i)=>{ if((e.studentId+'_'+e.type)===liveKey){cur=e;curIdx=i;} });
+  let nextEntry=null;
+  for(let i=curIdx+1;i<entries.length;i++){ nextEntry=entries[i]; break; }
+  return {
+    roomId,
+    roomName:room?room.name:'',
+    roomLocation:room?(room.location||''):'',
+    playing:liveKey,
+    status:st.status||'',
+    scaleKey: liveKey ? ((DB.drawnScales[roomId]||{})[liveKey]||'') : '',
+    current: cur?{
+      order:cur.order, name:cur.name, class:cur.class, seat:cur.seat,
+      instName:cur.instName, type:cur.type, typeName:typeName(cur.type),
+      ac:cur.ac||'', at:cur.at||'', fc:cur.fc||'', ft:cur.ft||''
+    }:null,
+    next: nextEntry?{order:nextEntry.order,name:nextEntry.name}:null,
+    ts: Date.now()
+  };
+}
+window._liveDisplayData=_liveDisplayData;
+
+// BroadcastChannel（同瀏覽器跨分頁，零延遲、零 Firebase 讀取）
+let _liveBC=null;
+function _getLiveBC(){
+  if(_liveBC)return _liveBC;
+  try{ _liveBC=new BroadcastChannel('exam_live_screen'); }catch(e){ _liveBC=null; }
+  return _liveBC;
+}
+function _broadcastLive(roomId){
+  const data=_liveDisplayData(roomId);
+  // 1) 本機（同一分頁就是大螢幕的情況）
+  if(typeof window._renderBigScreen==='function')window._renderBigScreen(data);
+  // 2) 跨分頁
+  const bc=_getLiveBC();
+  if(bc){ try{ bc.postMessage(data); }catch(e){} }
+  // 3) 跨裝置（選用）：寫一份到 Firebase，讓另一台電腦的大螢幕輪詢
+  if(window._FB && (DB.config.liveScreenCrossDevice)){
+    if(typeof _debouncedFbSet==='function')_debouncedFbSet('liveScreen',roomId,data,400);
+    else fbSet('liveScreen',roomId,data);
+  }
+}
+window._broadcastLive=_broadcastLive;
+
+// 規則 key → 標籤
+function _scaleRuleLabel(key){
+  if(!key||key==='auto')return '依考生樂器×年級×修別自動';
+  const gname=g=>'高'+({'1':'一','2':'二','3':'三'}[g]||g);
+  const m3=String(key).match(/^([a-zA-Z]+)_(\d+)_(major|minor|elective)$/);
+  if(m3){
+    const cat=(DB.instruments.categories||[]).find(c=>c.id===m3[1]);
+    return (cat?cat.name:m3[1])+'·'+gname(m3[2])+'·'+typeName(m3[3]);
+  }
+  const m2=String(key).match(/^(\d+)_(major|minor|elective)$/);
+  if(m2){ return gname(m2[1])+' · '+typeName(m2[2]); }
+  return key;
+}
+window._scaleRuleLabel=_scaleRuleLabel;
+
+// ════════ 大螢幕：開啟 / 渲染 / 離開 ════════
+function openBigScreen(){
+  const roomId=ST.invigRoom?.id;
+  if(!roomId){showToast('請先選擇考場','warn');return;}
+  // 在新視窗開啟同一頁，帶上 display 參數與考場
+  const url=location.pathname+'?display=1&room='+encodeURIComponent(roomId);
+  const w=window.open(url,'exam_bigscreen_'+roomId,'width=1280,height=720');
+  if(!w){showToast('瀏覽器阻擋了新視窗，請允許彈出視窗','warn');return;}
+  // 立即推一次目前狀態
+  setTimeout(()=>_broadcastLive(roomId),600);
+  showToast('已開啟大螢幕視窗，請拖曳到電視並按 F11 全螢幕','ok');
+}
+window.openBigScreen=openBigScreen;
+
+function exitBigScreen(){
+  const bs=document.getElementById('bigscreen');
+  if(bs)bs.classList.remove('show');
+  // 若是獨立 display 視窗，直接關閉
+  if(new URLSearchParams(location.search).get('display')==='1'){ window.close(); }
+}
+window.exitBigScreen=exitBigScreen;
+
+// 渲染大螢幕內容
+window._renderBigScreen=function(data){
+  const bs=document.getElementById('bigscreen');
+  if(!bs)return;
+  // 只有在「display 模式視窗」或使用者主動切到大螢幕時才顯示
+  if(!bs.classList.contains('show') && new URLSearchParams(location.search).get('display')!=='1')return;
+  const roomEl=document.getElementById('bs-room');
+  const centerEl=document.getElementById('bs-center');
+  const nextEl=document.getElementById('bs-next');
+  if(roomEl)roomEl.textContent=(data.roomName||'考場')+(data.roomLocation?(' · '+data.roomLocation):'');
+  const c=data.current;
+  if(!c){
+    centerEl.innerHTML='<div class="bs-idle">等待考生上場…</div>';
+    if(nextEl)nextEl.innerHTML = data.next?('下一位：<b>'+escHtml(data.next.name)+'</b>'):'';
+    return;
+  }
+  let html='';
+  html+='<div class="bs-order">第 '+String(c.order).padStart(2,'0')+' 號</div>';
+  html+='<div class="bs-name">'+escHtml(c.name)+'</div>';
+  html+='<div class="bs-meta">'+escHtml(c.class)+'<span class="sep">·</span>座號 '+escHtml(String(c.seat))
+      +'<span class="sep">·</span><span class="bs-type-'+c.type+'">'+escHtml(c.typeName)+'</span>'
+      +'<span class="sep">·</span>'+escHtml(c.instName)+'</div>';
+  // 曲目
+  let pieces='';
+  if(c.ac)pieces+='<div><span class="composer">指定曲</span>　'+escHtml(c.ac)+' — '+escHtml(c.at)+'</div>';
+  if(c.fc)pieces+='<div style="margin-top:.8vh"><span class="composer">自選曲</span>　'+escHtml(c.fc)+' — '+escHtml(c.ft)+'</div>';
+  if(pieces)html+='<div class="bs-piece">'+pieces+'</div>';
+  // 狀態 badge（黑籤/缺考/臨時號）優先大字顯示
+  if(data.status==='black'){
+    html+='<div class="bs-badge black">★ 黑　籤 ★</div><div class="bs-scale" style="margin-top:2vh"><div class="lbl">須演奏全曲</div></div>';
+  }else if(data.status==='absent'){
+    html+='<div class="bs-badge absent">缺　考</div>';
+  }else if(data.status==='temp'){
+    html+='<div class="bs-badge temp">臨　時　號</div>';
+  }
+  // 抽到的調性
+  if(data.scaleKey){
+    html+='<div class="bs-scale"><div class="lbl">抽　籤　調　性</div><div class="val">'+escHtml(data.scaleKey)+'</div></div>';
+  }
+  centerEl.innerHTML=html;
+  if(nextEl)nextEl.innerHTML = data.next?('下一位：<b>'+escHtml(data.next.name)+'</b>'):'（最後一位）';
+};
+
+// 大螢幕時鐘
+function _startBigScreenClock(){
+  const tick=()=>{ const el=document.getElementById('bs-clock'); if(el){ const d=new Date(); el.textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0'); } };
+  tick(); setInterval(tick,1000);
+}
+
+// ════════ display 模式啟動（獨立大螢幕視窗）════════
+window._initDisplayMode=function(){
+  const params=new URLSearchParams(location.search);
+  if(params.get('display')!=='1')return false;
+  const roomId=params.get('room')||'';
+  const bs=document.getElementById('bigscreen');
+  if(bs)bs.classList.add('show');
+  _startBigScreenClock();
+  // 接收 BroadcastChannel
+  try{
+    const bc=new BroadcastChannel('exam_live_screen');
+    bc.onmessage=(ev)=>{ if(ev.data && (!roomId || ev.data.roomId===roomId)) window._renderBigScreen(ev.data); };
+  }catch(e){}
+  // 跨裝置 fallback：若啟用，輪詢 Firebase liveScreen/{roomId}
+  let lastTs=0;
+  async function pollScreen(){
+    if(!window._FB || !roomId)return;
+    try{
+      const doc= window._FB._rest ? await window._FB._get('liveScreen/'+roomId).catch(()=>null) : null;
+      if(doc && doc.ts && doc.ts!==lastTs){ lastTs=doc.ts; window._renderBigScreen(doc); }
+    }catch(e){}
+  }
+  // 只有跨裝置模式才輪詢（3 秒），否則完全不碰 Firebase
+  if(DB.config && DB.config.liveScreenCrossDevice){
+    pollScreen(); setInterval(pollScreen,3000);
+  }
+  // 初始畫面
+  window._renderBigScreen(_liveDisplayData(roomId));
+  return true;
+};
+
 
 // ── 離線 Pending 管理 ──
 const PENDING_KEY='jury_pending_queue';
@@ -9945,6 +10383,177 @@ function renderPendingCapSummary(){
 }
 window.renderPendingCapSummary=renderPendingCapSummary;
 
+// ════════════════════════════════════════════════
+// ★ 大螢幕：音階調性規則設定（年級 × 修別）
+// ════════════════════════════════════════════════
+// 編輯期間的暫存（避免每次輸入都動 DB）
+let _sclDraft=null;
+function _sclGetDraft(){
+  if(_sclDraft)return _sclDraft;
+  _sclDraft=JSON.parse(JSON.stringify(DB.config.scaleRules||{}));
+  return _sclDraft;
+}
+function renderScaleRules(preserveDraft){
+  const grid=document.getElementById('scl-rule-grid');
+  if(!grid)return;
+  // 只有在「非保留草稿」時才從 DB 重載（避免內部重繪把編輯中的內容洗掉）
+  if(!preserveDraft||!_sclDraft) _sclDraft=JSON.parse(JSON.stringify(DB.config.scaleRules||{}));
+  const cats=(DB.instruments.categories||[]).slice().sort((a,b)=>(a.order??99)-(b.order??99));
+  const grades=[['1','高一'],['2','高二'],['3','高三']];
+  const types=[['major','主修'],['minor','副修'],['elective','選修']];
+  // 以「樂器大項」分組，每組可摺疊；組內 9 格（年級×修別）
+  let html='';
+  cats.forEach((cat,ci)=>{
+    // 計算此大項已設定幾格
+    let setCount=0;
+    grades.forEach(([g])=>types.forEach(([t])=>{ const k=cat.id+'_'+g+'_'+t; if((_sclDraft[k]||[]).length)setCount++; }));
+    const open = ci===0; // 預設展開第一個
+    html+=`<div class="scl-cat-group" data-cat="${cat.id}">
+      <div class="scl-cat-head ${open?'open':''}" onclick="sclToggleCat('${cat.id}')">
+        <span class="scl-cat-arrow">▸</span>
+        <span class="scl-cat-name">${escHtml(cat.name)}</span>
+        <span class="scl-cat-count">${setCount?('已設 '+setCount+' / 9 格'):'尚未設定'}</span>
+      </div>
+      <div class="scl-cat-body" id="scl-cat-body-${cat.id}" style="${open?'':'display:none'}">
+        <div class="scl-rule-grid-inner">`;
+    grades.forEach(([g,gl])=>{
+      types.forEach(([t,tl])=>{
+        const key=cat.id+'_'+g+'_'+t;
+        const list=_sclDraft[key]||[];
+        const chips=list.map((v,vi)=>`<span class="scl-chip">${escHtml(v)}<button onclick="sclRemove('${key}',${vi})" title="移除">×</button></span>`).join('')
+          ||'<span style="font-size:11px;color:var(--muted)">尚未設定</span>';
+        html+=`<div class="scl-rule-card">
+          <h4>${gl} · ${tl}</h4>
+          <div id="scl-chips-${key}" style="margin-bottom:8px;min-height:24px">${chips}</div>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="scl-inp-${key}" placeholder="輸入調性後按 +" style="flex:1;padding:5px 9px;border:1px solid var(--border);border-radius:var(--r);font-family:Noto Serif TC,serif;font-size:13px;outline:none" onkeydown="if(event.key==='Enter'){event.preventDefault();sclAdd('${key}');}">
+            <button class="btn btn-p btn-sm" onclick="sclAdd('${key}')">＋</button>
+          </div>
+        </div>`;
+      });
+    });
+    html+=`</div>
+        <div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)">
+          <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">快速套用：把某一格的清單複製到此大項全部 9 格</span>
+          <div style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap">
+            <input type="text" id="scl-bulk-${cat.id}" placeholder="多個調性用逗號或頓號分隔，如：C 大調、G 大調、F 大調" style="flex:1;min-width:200px;padding:5px 9px;border:1px solid var(--border);border-radius:var(--r);font-family:Noto Serif TC,serif;font-size:12px;outline:none">
+            <button class="btn btn-b btn-sm" onclick="sclBulkApply('${cat.id}')" title="覆蓋此大項全部9格">套用到此大項全部</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  });
+  grid.innerHTML=html;
+  renderScaleRoomMode();
+  const cd=document.getElementById('scl-cross-device');
+  if(cd)cd.checked=!!DB.config.liveScreenCrossDevice;
+}
+window.renderScaleRules=renderScaleRules;
+
+// 摺疊/展開某樂器大項
+function sclToggleCat(catId){
+  const body=document.getElementById('scl-cat-body-'+catId);
+  const head=document.querySelector(`.scl-cat-group[data-cat="${catId}"] .scl-cat-head`);
+  if(!body)return;
+  const show=body.style.display==='none';
+  body.style.display=show?'':'none';
+  if(head)head.classList.toggle('open',show);
+}
+window.sclToggleCat=sclToggleCat;
+
+// 快速套用：把一串調性覆蓋到此大項的全部 9 格
+function sclBulkApply(catId){
+  const inp=document.getElementById('scl-bulk-'+catId);
+  if(!inp)return;
+  const raw=inp.value.trim();
+  if(!raw){showToast('請先輸入調性','warn');return;}
+  const list=raw.split(/[,，、;；]+/).map(s=>s.trim()).filter(Boolean);
+  if(!list.length)return;
+  const d=_sclGetDraft();
+  const grades=['1','2','3'],types=['major','minor','elective'];
+  grades.forEach(g=>types.forEach(t=>{ d[catId+'_'+g+'_'+t]=list.slice(); }));
+  inp.value='';
+  renderScaleRules(true);
+  // 重新展開此大項
+  const body=document.getElementById('scl-cat-body-'+catId);
+  if(body){body.style.display='';const h=document.querySelector(`.scl-cat-group[data-cat="${catId}"] .scl-cat-head`);if(h)h.classList.add('open');}
+  showToast('已套用到此大項全部 9 格','ok');
+}
+window.sclBulkApply=sclBulkApply;
+
+function renderScaleRoomMode(){
+  const wrap=document.getElementById('scl-room-mode');
+  if(!wrap)return;
+  const cats=(DB.instruments.categories||[]).slice().sort((a,b)=>(a.order??99)-(b.order??99));
+  const grades=[['1','高一'],['2','高二'],['3','高三']];
+  const types=[['major','主修'],['minor','副修'],['elective','選修']];
+  let opts='<option value="auto">依考生樂器×年級×修別自動</option>';
+  cats.forEach(c=>{
+    grades.forEach(([g,gl])=>types.forEach(([t,tl])=>{
+      opts+=`<option value="${c.id}_${g}_${t}">固定用：${escHtml(c.name)}·${gl}·${tl} 清單</option>`;
+    }));
+  });
+  wrap.innerHTML=DB.rooms.map(r=>{
+    return `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="min-width:120px;font-family:'DM Mono',monospace;font-size:11px">${escHtml(r.name)}</span>
+      <select id="scl-mode-${r.id}" style="padding:5px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:Noto Serif TC,serif;font-size:13px;max-width:320px">${opts}</select>
+    </div>`;
+  }).join('');
+  DB.rooms.forEach(r=>{
+    const sel=document.getElementById('scl-mode-'+r.id);
+    if(sel)sel.value=(DB.config.roomScaleMode||{})[r.id]||'auto';
+  });
+}
+
+function sclAdd(key){
+  const inp=document.getElementById('scl-inp-'+key);
+  if(!inp)return;
+  const v=inp.value.trim();
+  if(!v)return;
+  const d=_sclGetDraft();
+  if(!d[key])d[key]=[];
+  if(d[key].includes(v)){showToast('已有此調性','warn');return;}
+  d[key].push(v);
+  inp.value='';
+  _sclRefreshChips(key);
+  inp.focus();
+}
+window.sclAdd=sclAdd;
+
+function sclRemove(key,idx){
+  const d=_sclGetDraft();
+  if(d[key])d[key].splice(idx,1);
+  _sclRefreshChips(key);
+}
+window.sclRemove=sclRemove;
+
+function _sclRefreshChips(key){
+  const el=document.getElementById('scl-chips-'+key);
+  if(!el)return;
+  const d=_sclGetDraft();
+  const list=d[key]||[];
+  el.innerHTML=list.map((v,vi)=>`<span class="scl-chip">${escHtml(v)}<button onclick="sclRemove('${key}',${vi})" title="移除">×</button></span>`).join('')
+    ||'<span style="font-size:11px;color:var(--muted)">尚未設定</span>';
+}
+
+function saveScaleRules(){
+  const d=_sclGetDraft();
+  // 清掉空清單
+  Object.keys(d).forEach(k=>{ if(!d[k]||!d[k].length)delete d[k]; });
+  DB.config.scaleRules=JSON.parse(JSON.stringify(d));
+  // 各考場套用方式
+  const mode={};
+  DB.rooms.forEach(r=>{ const sel=document.getElementById('scl-mode-'+r.id); if(sel&&sel.value!=='auto')mode[r.id]=sel.value; });
+  DB.config.roomScaleMode=mode;
+  // 跨裝置
+  const cd=document.getElementById('scl-cross-device');
+  DB.config.liveScreenCrossDevice=!!(cd&&cd.checked);
+  fbSaveConfig();
+  _sclDraft=null;
+  showToast('音階規則已儲存 ✓','ok');
+}
+window.saveScaleRules=saveScaleRules;
+
 // ★ #5 渲染各考場評分欄位設定
 function renderRoomFields(){
   const el=document.getElementById('room-fields-body');if(!el)return;
@@ -11861,24 +12470,33 @@ function _resolveTeacherForType(studentId, instId, type){
       if(ov.teacherName)return {names:[ov.teacherName], confidence:'override'};
     }
   }
-  if(!instId)return {names:[], confidence:'none'};
   // 哪些老師指導這位學生
   const teacherIds=Object.keys(DB.teacherStudents||{}).filter(tid=>(DB.teacherStudents[tid]||[]).includes(studentId));
-  if(!teacherIds.length)return {names:[], confidence:'none'};
-  // 該修別樂器所屬大項
-  const item=(DB.instruments.items||[]).find(i=>i.id===instId);
-  const catId=item?.cat||'';
-  const matched=[];
-  teacherIds.forEach(tid=>{
-    const t=DB.users.find(u=>u.id===tid&&u.role==='teacher');
-    if(!t)return;
-    const specs=t.specialtyInsts||[];
-    // 命中條件：專長含「該細項樂器 id」或「該樂器所屬大項 id」
-    const hit=specs.some(s=>s===instId||(catId&&s===catId));
-    if(hit)matched.push(t.name);
-  });
-  if(matched.length===1)return {names:matched, confidence:'unique'};
-  if(matched.length>1)return {names:matched, confidence:'multi'};
+  const teacherObjs=teacherIds.map(tid=>DB.users.find(u=>u.id===tid&&u.role==='teacher')).filter(Boolean);
+
+  // ② 專長比對：在「指導這位學生的老師」中，找專長樂器符合該修別樂器（或其大項）的老師
+  if(instId){
+    const item=(DB.instruments.items||[]).find(i=>i.id===instId);
+    const catId=item?.cat||'';
+    const matched=teacherObjs.filter(t=>{
+      const specs=t.specialtyInsts||[];
+      return specs.some(s=>s===instId||(catId&&s===catId));
+    }).map(t=>t.name);
+    if(matched.length===1)return {names:matched, confidence:'unique'};
+    if(matched.length>1)return {names:matched, confidence:'multi'};
+  }
+
+  // ③ 評語作者：若該修別的平時評語有記錄填寫老師，採用之（最貼近實際指導者）
+  if(type){
+    const tc=DB.teacherComments?.[studentId]?.[type];
+    const authorName=tc?.teacherName||(tc?.teacherId?(DB.users.find(u=>u.id===tc.teacherId)?.name||''):'');
+    if(authorName)return {names:[authorName], confidence:'unique'};
+  }
+
+  // ④ fallback：此生只有一位指導老師時，直接採用（即使專長未標記符合）
+  if(teacherObjs.length===1)return {names:[teacherObjs[0].name], confidence:'unique'};
+  if(teacherObjs.length>1)return {names:teacherObjs.map(t=>t.name), confidence:'multi'};
+
   return {names:[], confidence:'none'};
 }
 window._resolveTeacherForType=_resolveTeacherForType;
