@@ -6160,6 +6160,8 @@ function _openSchedulePrintWindow(rooms,opts){
 
   let html='<!DOCTYPE html><html lang="zh-TW"><head><meta charset="UTF-8">'
     +'<title>出場順序名單</title>'
+    +'<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+    +'<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;500;600;700&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">'
     +'<style>'
     +'*{box-sizing:border-box;margin:0;padding:0}'
     +'body{font-family:"Noto Serif TC","Microsoft JhengHei",serif;font-size:12px;color:#1a1a1a;background:#fff}'
@@ -10072,6 +10074,9 @@ function _openReportCardPrintWindow(title, cardsHtml, count){
   const win=window.open('','_rcprint','width=900,height=1000');
   if(!win){showToast('瀏覽器封鎖了彈出視窗，請允許後再試','err');return;}
   const doc=`<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8"><title>${escHtml(title)}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;500;600;700&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
   <style>
     :root{${rootVars}}
     *{box-sizing:border-box}
@@ -10115,7 +10120,14 @@ function _openReportCardPrintWindow(title, cardsHtml, count){
           }
         });
       }
-      window.addEventListener('load', function(){ setTimeout(fitCards, 150); });
+      window.addEventListener('load', function(){
+        // 等字體載入完成再縮放，避免 DM Mono 未載入導致量測錯誤
+        if(document.fonts && document.fonts.ready){
+          document.fonts.ready.then(function(){ setTimeout(fitCards, 100); });
+        } else {
+          setTimeout(fitCards, 400);
+        }
+      });
       window.addEventListener('beforeprint', fitCards);
     <\/script>
   </body></html>`;
@@ -11020,6 +11032,9 @@ function _openResultsPrintWindow(title, bodyHtml){
   if(!win){showToast('瀏覽器封鎖了彈出視窗，請允許後再試','err');return;}
   // 列印用樣式：移除網站的 sticky/捲動限制，讓表格完整展開分頁列印
   const doc=`<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8"><title>${title}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;500;600;700&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
   <style>
     :root{${rootVars}}
     *{box-sizing:border-box}
