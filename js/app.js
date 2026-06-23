@@ -1,4 +1,3 @@
-
 (function(){
 'use strict';
 
@@ -1370,7 +1369,8 @@ function loadAllFromFirebase(done, lightMode){
     }
 
     // — deductions —
-    r.deductions.forEach(d=>{const{id,_updatedAt,...rest}=d;DB.deductions[id]=rest;});
+    (r.deductions||[]).forEach(d=>{const{id,_updatedAt,...rest}=d;DB.deductions[id]=rest;});
+    console.log('[載入] deductions 筆數：',Object.keys(DB.deductions).length,'（角色：'+ST.role+'）');
 
     // — blackSign —
     r.blackSign.forEach(d=>{const{id,_updatedAt,...rest}=d;DB.blackSign[id]=rest;});
@@ -13087,4 +13087,3 @@ if(document.readyState === 'loading'){
 }
 
 })();
-
