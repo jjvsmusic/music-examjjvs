@@ -7825,8 +7825,8 @@ function renderScaleRules(preserveDraft){
           <h4>${gl} · ${tl}</h4>
           <div id="scl-chips-${key}" style="margin-bottom:8px;min-height:24px">${chips}</div>
           <div style="display:flex;gap:6px">
-            <input type="text" id="scl-inp-${key}" placeholder="輸入調性後按 +" style="flex:1;padding:5px 9px;border:1px solid var(--border);border-radius:var(--r);font-family:Noto Serif TC,serif;font-size:13px;outline:none" onkeydown="if(event.key==='Enter'){event.preventDefault();sclAdd('${key}');}">
-            <button class="btn btn-p btn-sm" onclick="sclAdd('${key}')">＋</button>
+            <input type="text" id="scl-inp-${key}" placeholder="輸入調性後按 +" style="flex:1;min-width:0;padding:5px 9px;border:1px solid var(--border);border-radius:var(--r);font-family:Noto Serif TC,serif;font-size:13px;outline:none" onkeydown="if(event.key==='Enter'){event.preventDefault();sclAdd('${key}');}">
+            <button class="btn btn-p btn-sm" style="flex:0 0 auto" onclick="sclAdd('${key}')">＋</button>
           </div>
         </div>`;
       });

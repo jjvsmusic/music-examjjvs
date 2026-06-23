@@ -61,7 +61,7 @@
       <p class="login-sub">Music Examination Platform</p>
 
       <!-- 管理員/教師/學生登入（主要，放上方） -->
-      <div style="font-family:\'DM Mono\',monospace;font-size:8px;letter-spacing:2px;color:var(--muted);margin-bottom:12px;text-transform:uppercase">管理員 / 教師 / 學生登入</div>
+      <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--muted);margin-bottom:12px;text-transform:uppercase">管理員 / 教師 / 學生登入</div>
       <div class="lf"><label>帳號</label><input id="l-user" type="text" placeholder="帳號" autocomplete="username"></div>
       <div class="lf"><label>密碼</label><input id="l-pass" type="password" placeholder="預設：000" autocomplete="current-password"></div>
       <div class="login-err" id="l-err"></div>
@@ -74,18 +74,18 @@
 
       <!-- 評審入口（次要，放下方，縮小） -->
       <div style="background:var(--cream);border:1px solid var(--border);border-radius:var(--r);padding:11px 14px;margin-top:4px">
-        <div style="font-family:\'DM Mono\',monospace;font-size:7.5px;letter-spacing:2px;color:var(--muted);margin-bottom:7px;text-transform:uppercase">◆ 評審入口</div>
+        <div style="font-family:'DM Mono',monospace;font-size:7.5px;letter-spacing:2px;color:var(--muted);margin-bottom:7px;text-transform:uppercase">◆ 評審入口</div>
         <div class="lf" style="margin-bottom:7px"><label>考場代碼</label>
-          <input id="l-jury-code" type="text" placeholder="輸入考場代碼" style="letter-spacing:3px;font-family:\'DM Mono\',monospace;text-transform:uppercase;font-size:13px;padding:7px 12px" autocomplete="off">
+          <input id="l-jury-code" type="text" placeholder="輸入考場代碼" style="letter-spacing:3px;font-family:'DM Mono',monospace;text-transform:uppercase;font-size:13px;padding:7px 12px" autocomplete="off">
         </div>
         <div class="login-err" id="l-jury-err" style="min-height:10px;margin-bottom:6px;font-size:9px"></div>
         <button class="login-btn jury" onclick="doJuryDirectLogin()" style="margin-bottom:0;padding:9px;font-size:9px;letter-spacing:2px">◆ 進入評分介面</button>
       </div>
       <!-- 監考人員入口 -->
       <div style="background:#f0f4f8;border:1px solid #b0bec5;border-radius:var(--r);padding:11px 14px;margin-top:8px">
-        <div style="font-family:\'DM Mono\',monospace;font-size:7.5px;letter-spacing:2px;color:#546e7a;margin-bottom:7px;text-transform:uppercase">◆ 監考人員入口</div>
+        <div style="font-family:'DM Mono',monospace;font-size:7.5px;letter-spacing:2px;color:#546e7a;margin-bottom:7px;text-transform:uppercase">◆ 監考人員入口</div>
         <div class="lf" style="margin-bottom:7px"><label>監考代碼</label>
-          <input id="l-invig-code" type="text" placeholder="輸入監考代碼" style="letter-spacing:3px;font-family:\'DM Mono\',monospace;text-transform:uppercase;font-size:13px;padding:7px 12px" autocomplete="off">
+          <input id="l-invig-code" type="text" placeholder="輸入監考代碼" style="letter-spacing:3px;font-family:'DM Mono',monospace;text-transform:uppercase;font-size:13px;padding:7px 12px" autocomplete="off">
         </div>
         <div class="login-err" id="l-invig-err" style="min-height:10px;margin-bottom:6px;font-size:9px"></div>
         <button class="login-btn" onclick="doInvigLogin()" style="margin-bottom:0;padding:9px;font-size:9px;letter-spacing:2px;background:#37474f;color:#eceff1">◆ 進入監考介面</button>
@@ -99,9 +99,9 @@
   <div class="modal" style="width:380px">
     <h2 class="modal-t">🎼 評審入場確認</h2>
     <div style="background:var(--gold-bg);border:1px solid var(--gold);border-radius:var(--r);padding:12px 14px;margin-bottom:16px">
-      <div style="font-family:\'DM Mono\',monospace;font-size:8px;letter-spacing:2px;color:var(--gold);margin-bottom:4px">已驗證考場代碼</div>
+      <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--gold);margin-bottom:4px">已驗證考場代碼</div>
       <div id="jn-room-name" style="font-family:Cormorant Garamond,serif;font-size:20px;color:var(--ink)"></div>
-      <div id="jn-room-loc" style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-top:2px"></div>
+      <div id="jn-room-loc" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-top:2px"></div>
     </div>
     <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">請填入您的姓名後即可開始評分，全程無需帳號或密碼。</p>
     <div class="fg"><label>評審姓名</label><input id="jn-name" type="text" placeholder="請輸入您的姓名" autofocus></div>
@@ -197,7 +197,7 @@
 <div class="overlay" id="tea-stu-modal">
   <div class="modal" style="width:480px">
     <h2 class="modal-t">指導的學生 — <span id="tsm-teacher-name"></span></h2>
-    <p style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-bottom:12px;letter-spacing:1px">勾選該教師指導的學生</p>
+    <p style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:12px;letter-spacing:1px">勾選該教師指導的學生</p>
     <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap" id="tsm-class-tabs"></div>
     <div id="tsm-stu-list" style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r)"></div>
     <div class="modal-ft">
@@ -212,10 +212,10 @@
   <div class="modal" style="width:420px">
     <h2 class="modal-t">⛔ 設定扣考</h2>
     <p id="disq-modal-name" style="font-size:15px;font-weight:600;margin-bottom:14px;color:var(--ink)"></p>
-    <div class="lf"><label style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">扣考原因（必填）</label>
+    <div class="lf"><label style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">扣考原因（必填）</label>
       <input id="disq-reason" type="text" placeholder="例：曠課超過三分之一、違反考試規定…">
     </div>
-    <div class="lf"><label style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">備註（選填）</label>
+    <div class="lf"><label style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">備註（選填）</label>
       <input id="disq-note" type="text" placeholder="其他說明">
     </div>
     <div class="login-err" id="disq-err" style="min-height:16px;margin-bottom:4px"></div>
@@ -237,11 +237,11 @@
     <div id="adim-results" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px"></div>
     <div id="adim-selected" style="display:none;background:var(--cream);border-radius:var(--r);padding:10px 14px;margin-bottom:12px;font-size:13px"></div>
     <div class="lf" id="adim-reason-area" style="display:none">
-      <label style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">扣考原因（必填）</label>
+      <label style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">扣考原因（必填）</label>
       <input id="adim-reason" type="text" placeholder="例：曠課超過三分之一、違反考試規定…">
     </div>
     <div class="lf" id="adim-note-area" style="display:none">
-      <label style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">備註（選填）</label>
+      <label style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">備註（選填）</label>
       <input id="adim-note" type="text" placeholder="其他說明">
     </div>
     <div class="login-err" id="adim-err" style="min-height:16px;margin-bottom:4px"></div>
@@ -256,9 +256,9 @@
 <div class="overlay" id="first-login-modal">
   <div class="modal" style="width:380px">
     <h2 class="modal-t">🔑 首次登入 — 請設定新密碼</h2>
-    <p style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-bottom:16px;line-height:1.7">為了帳號安全，請在首次登入後設定您的專屬密碼。</p>
-    <div class="lf"><label style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">新密碼</label><input id="fl-new" type="password" placeholder="請輸入新密碼"></div>
-    <div class="lf"><label style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">確認新密碼</label><input id="fl-confirm" type="password" placeholder="再次輸入新密碼"></div>
+    <p style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:16px;line-height:1.7">為了帳號安全，請在首次登入後設定您的專屬密碼。</p>
+    <div class="lf"><label style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">新密碼</label><input id="fl-new" type="password" placeholder="請輸入新密碼"></div>
+    <div class="lf"><label style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">確認新密碼</label><input id="fl-confirm" type="password" placeholder="再次輸入新密碼"></div>
     <div class="login-err" id="fl-err" style="min-height:16px;margin-bottom:4px"></div>
     <div class="modal-ft">
       <button class="btn btn-p" onclick="saveFirstPassword()">設定密碼 →</button>
@@ -270,9 +270,9 @@
 <div class="overlay" id="chpwd-modal">
   <div class="modal" style="width:360px">
     <h2 class="modal-t">&#128273; 修改密碼</h2>
-    <div class="lf"><label style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">舊密碼</label><input id="chpwd-old" type="password" placeholder="輸入目前密碼"></div>
-    <div class="lf"><label style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">新密碼</label><input id="chpwd-new" type="password" placeholder="輸入新密碼（至少1字元）"></div>
-    <div class="lf"><label style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">確認新密碼</label><input id="chpwd-confirm" type="password" placeholder="再次輸入新密碼"></div>
+    <div class="lf"><label style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">舊密碼</label><input id="chpwd-old" type="password" placeholder="輸入目前密碼"></div>
+    <div class="lf"><label style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">新密碼</label><input id="chpwd-new" type="password" placeholder="輸入新密碼（至少1字元）"></div>
+    <div class="lf"><label style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase">確認新密碼</label><input id="chpwd-confirm" type="password" placeholder="再次輸入新密碼"></div>
     <div class="login-err" id="chpwd-err" style="min-height:16px;margin-bottom:4px"></div>
     <div class="modal-ft">
       <button class="btn btn-s" onclick="closeOverlay('chpwd-modal')">取消</button>
@@ -336,10 +336,10 @@
           <span>✓ 已完成填報</span>
           <button class="btn btn-s btn-sm" onclick="editRep()">重新填寫</button>
         </div>
-        <p style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-bottom:16px;letter-spacing:1px">您已完成曲目填報。如需修改請聯絡管理員，或在開放期間點「重新填寫」。</p>
+        <p style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:16px;letter-spacing:1px">您已完成曲目填報。如需修改請聯絡管理員，或在開放期間點「重新填寫」。</p>
         <!-- ★ 管理員設定的確認訊息 -->
         <div id="rep-confirm-msg" style="display:none;margin-bottom:16px;padding:14px 16px;background:#fff8e6;border:1px solid var(--gold);border-radius:var(--r);border-left:4px solid var(--gold)">
-          <div style="font-family:\'DM Mono\',monospace;font-size:8px;letter-spacing:2px;color:var(--gold);margin-bottom:6px">注意事項</div>
+          <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--gold);margin-bottom:6px">注意事項</div>
           <div class="rep-confirm-text" style="font-size:13px;line-height:1.9;color:var(--ink)"></div>
         </div>
         <div id="rep-done-info"></div>
@@ -575,7 +575,7 @@
               <div class="fg" style="max-width:200px">
                 <label>或輸入姓名搜尋</label>
                 <input type="text" id="tea-s1-name-search" placeholder="輸入姓名…" oninput="teaWizS1NameSearch()">
-                <div id="tea-s1-name-hint" style="font-family:\'DM Mono\',monospace;font-size:10px;margin-top:4px;color:var(--muted)"></div>
+                <div id="tea-s1-name-hint" style="font-family:'DM Mono',monospace;font-size:10px;margin-top:4px;color:var(--muted)"></div>
               </div>
             </div>
           </div>
@@ -588,7 +588,7 @@
 
           <!-- Step 3: 選修別 -->
           <div id="tea-s3" style="display:none">
-            <p style="font-family:\'DM Mono\',monospace;font-size:11px;color:var(--muted);margin-bottom:10px">請選擇要填寫的修課類別</p>
+            <p style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:10px">請選擇要填寫的修課類別</p>
             <div id="tea-wiz-type-btns" class="bg"></div>
             <div style="margin-top:12px">
               <div class="fg" style="max-width:220px"><label>或直接選擇修別</label>
@@ -612,7 +612,7 @@
               <div class="fg" style="max-width:130px"><label>平時成績（0–99）</label>
                 <input type="text" inputmode="decimal" id="tea-wiz-score" placeholder="輸入分數"
                   onclick="openNP('tea-wiz-score','平時成績',v=>{document.getElementById('tea-wiz-score').value=v;})" readonly
-                  style="cursor:pointer;font-family:\'DM Mono\',monospace;font-size:22px;font-weight:700;color:var(--ink);text-align:center">
+                  style="cursor:pointer;font-family:'DM Mono',monospace;font-size:22px;font-weight:700;color:var(--ink);text-align:center">
               </div>
               <div class="fg"><label>評語</label>
                 <textarea id="tea-wiz-comment" style="min-height:80px" placeholder="填寫評語..."></textarea>
@@ -652,7 +652,7 @@
               </div>
               <button class="btn btn-b btn-sm" onclick="exportTeaOverviewCSV()">↓ 匯出本班 CSV</button>
               <button class="btn btn-s btn-sm" onclick="exportTeaOverviewCSV(true)">↓ 全班匯出</button>
-              <span style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted)">
+              <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">
                 已完成：<strong style="color:var(--sage)" id="tea-done-n">0</strong>/<span id="tea-total-n">0</span>
               </span>
             </div>
@@ -749,7 +749,7 @@
     <div class="pg" id="pg-tea-schedule">
       <div class="ph"><h1>考試順序查詢</h1><span>Schedule for Teachers</span></div>
       <div id="tea-schedule-access-msg" style="display:none">
-        <div class="card"><div id="tea-schedule-msg-text" style="font-family:\'DM Mono\',monospace;font-size:13px;color:var(--muted);padding:8px 0;line-height:1.9"></div></div>
+        <div class="card"><div id="tea-schedule-msg-text" style="font-family:'DM Mono',monospace;font-size:13px;color:var(--muted);padding:8px 0;line-height:1.9"></div></div>
       </div>
       <div id="tea-schedule-content" style="display:none">
         <div class="card" style="margin-bottom:14px">
@@ -781,12 +781,12 @@
       <div style="background:var(--ink);border-radius:var(--r);padding:18px 24px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
         <div>
           <div id="jury-room-disp" style="font-family:Cormorant Garamond,serif;font-size:32px;font-weight:300;color:var(--gold);line-height:1.2">—</div>
-          <div id="jury-location-disp" style="font-family:\'DM Mono\',monospace;font-size:11px;color:rgba(255,255,255,.5);margin-top:4px;letter-spacing:1.5px"></div>
-        <div id="jury-datetime-disp" style="font-family:\'DM Mono\',monospace;font-size:10px;color:rgba(181,137,42,.7);margin-top:2px;letter-spacing:1px"></div>
+          <div id="jury-location-disp" style="font-family:'DM Mono',monospace;font-size:11px;color:rgba(255,255,255,.5);margin-top:4px;letter-spacing:1.5px"></div>
+        <div id="jury-datetime-disp" style="font-family:'DM Mono',monospace;font-size:10px;color:rgba(181,137,42,.7);margin-top:2px;letter-spacing:1px"></div>
         </div>
         <div style="text-align:right">
-          <div style="font-family:\'DM Mono\',monospace;font-size:9px;color:rgba(255,255,255,.4);letter-spacing:2px;margin-bottom:4px">評審</div>
-          <div id="jury-name-disp" style="font-family:\'DM Mono\',monospace;font-size:14px;color:var(--gold)">—</div>
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:rgba(255,255,255,.4);letter-spacing:2px;margin-bottom:4px">評審</div>
+          <div id="jury-name-disp" style="font-family:'DM Mono',monospace;font-size:14px;color:var(--gold)">—</div>
         </div>
       </div>
       <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:14px;gap:10px;flex-wrap:wrap">
@@ -838,12 +838,12 @@
       <!-- 篩選與排序設定 -->
       <div class="card" style="margin-bottom:14px">
         <div class="card-t">篩選與排序設定</div>
-        <p style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--muted);margin-bottom:12px;letter-spacing:.5px">排序優先順序由上至下：先依①樂器大項，再②樂器別，再③修別，再④班級，最後⑤座號</p>
+        <p style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:12px;letter-spacing:.5px">排序優先順序由上至下：先依①樂器大項，再②樂器別，再③修別，再④班級，最後⑤座號</p>
         <!-- ① 樂器大項 -->
         <div style="border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;overflow:hidden">
           <div style="background:var(--ink);padding:8px 14px;display:flex;align-items:center;gap:8px">
-            <span style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:1.5px;font-weight:600;color:var(--gold)">① 樂器大項</span>
-            <span style="font-family:\'DM Mono\',monospace;font-size:8px;color:rgba(255,255,255,.4)">複選・拖曳調整優先順序</span>
+            <span style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;font-weight:600;color:var(--gold)">① 樂器大項</span>
+            <span style="font-family:'DM Mono',monospace;font-size:8px;color:rgba(255,255,255,.4)">複選・拖曳調整優先順序</span>
           </div>
           <div style="padding:10px 14px;background:var(--white)">
             <div id="sch-cat-order" style="display:flex;flex-wrap:wrap;gap:6px"></div>
@@ -852,19 +852,19 @@
         <!-- ② 樂器別（含大項/細項，可拖曳排序） -->
         <div style="border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;overflow:hidden">
           <div style="background:var(--cream);padding:8px 14px">
-            <span style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:1.5px;font-weight:600">② 樂器別</span>
-            <span style="font-family:\'DM Mono\',monospace;font-size:8px;color:var(--muted);margin-left:8px">複選・拖曳調整優先順序</span>
+            <span style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;font-weight:600">② 樂器別</span>
+            <span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-left:8px">複選・拖曳調整優先順序</span>
           </div>
           <div style="padding:10px 14px;background:var(--white)">
-            <div style="font-family:\'DM Mono\',monospace;font-size:8px;color:var(--muted);margin-bottom:6px;letter-spacing:1px">細項樂器（依上方大項顯示）</div>
+            <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:6px;letter-spacing:1px">細項樂器（依上方大項顯示）</div>
             <div id="sch-inst-order" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
           </div>
         </div>
         <!-- ③ 修別 -->
         <div style="border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;overflow:hidden">
           <div style="background:var(--cream);padding:8px 14px">
-            <span style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:1.5px;font-weight:600">③ 修別</span>
-            <span style="font-family:\'DM Mono\',monospace;font-size:8px;color:var(--muted);margin-left:8px">複選・拖曳調整優先順序</span>
+            <span style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;font-weight:600">③ 修別</span>
+            <span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-left:8px">複選・拖曳調整優先順序</span>
           </div>
           <div style="padding:10px 14px;background:var(--white)">
             <div id="sch-type-order" style="display:flex;flex-wrap:wrap;gap:6px"></div>
@@ -873,19 +873,19 @@
         <!-- ⑥ 排除規則（樂器大項 × 修別 × 班級） -->
         <div style="border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;overflow:hidden">
           <div style="background:var(--rust);padding:8px 14px;display:flex;align-items:center;gap:8px">
-            <span style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:1.5px;font-weight:600;color:#fff">⑥ 排除過濾（樂器大項 × 修別 × 班級）</span>
-            <span style="font-family:\'DM Mono\',monospace;font-size:8px;color:rgba(255,255,255,.6)">三個條件為 AND；多條規則為 OR。比對學生所有修別的樂器大項。</span>
+            <span style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;font-weight:600;color:#fff">⑥ 排除過濾（樂器大項 × 修別 × 班級）</span>
+            <span style="font-family:'DM Mono',monospace;font-size:8px;color:rgba(255,255,255,.6)">三個條件為 AND；多條規則為 OR。比對學生所有修別的樂器大項。</span>
           </div>
           <div style="padding:10px 14px;background:var(--white)">
             <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px">
               <div>
-                <div style="font-family:\'DM Mono\',monospace;font-size:8px;color:var(--muted);margin-bottom:4px">樂器大項</div>
+                <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:4px">樂器大項</div>
                 <select id="sch-excl-cat" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;outline:none;background:var(--paper)">
                   <option value="">全部大項</option>
                 </select>
               </div>
               <div>
-                <div style="font-family:\'DM Mono\',monospace;font-size:8px;color:var(--muted);margin-bottom:4px">修別</div>
+                <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:4px">修別</div>
                 <select id="sch-excl-type" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;outline:none;background:var(--paper)">
                   <option value="">全部修別</option>
                   <option value="major">主修</option>
@@ -894,7 +894,7 @@
                 </select>
               </div>
               <div>
-                <div style="font-family:\'DM Mono\',monospace;font-size:8px;color:var(--muted);margin-bottom:4px">班級</div>
+                <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:4px">班級</div>
                 <select id="sch-excl-cls" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;outline:none;background:var(--paper)">
                   <option value="">全部班級</option>
                 </select>
@@ -907,8 +907,8 @@
         <!-- ④ 班級 -->
         <div style="border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;overflow:hidden">
           <div style="background:var(--cream);padding:8px 14px">
-            <span style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:1.5px;font-weight:600">④ 班級</span>
-            <span style="font-family:\'DM Mono\',monospace;font-size:8px;color:var(--muted);margin-left:8px">複選・拖曳調整優先順序</span>
+            <span style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;font-weight:600">④ 班級</span>
+            <span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-left:8px">複選・拖曳調整優先順序</span>
           </div>
           <div style="padding:10px 14px;background:var(--white)">
             <div id="sch-class-order" style="display:flex;flex-wrap:wrap;gap:6px"></div>
@@ -917,7 +917,7 @@
         <!-- ⑤ 座號 -->
         <div style="border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;overflow:hidden">
           <div style="background:var(--cream);padding:8px 14px">
-            <span style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:1.5px;font-weight:600">⑤ 座號</span>
+            <span style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;font-weight:600">⑤ 座號</span>
           </div>
           <div style="padding:10px 14px;background:var(--white);display:flex;gap:8px">
             <button id="sch-seat-asc" class="btn btn-p btn-sm" onclick="schSeatDir(1)">↑ 正序</button>
@@ -937,7 +937,7 @@
           <button class="btn btn-s btn-sm" onclick="exportSchedulePDF()">🖨 PDF（本考場）</button>
           <button class="btn btn-s btn-sm" onclick="exportAllRoomsPDF()">🖨 PDF（全考場）</button>
           <button class="btn btn-g btn-sm" onclick="publishSchedule()">📢 公告學生</button>
-          <span id="sch-count" style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-left:4px"></span>
+          <span id="sch-count" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-left:4px"></span>
         </div>
       </div>
       <div class="card" style="margin-bottom:14px">
@@ -950,7 +950,7 @@
             <button class="btn btn-b btn-sm" onclick="exportDisqCSV()">↓ 匯出</button>
           </div>
         </div>
-        <p style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.7">
+        <p style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.7">
           CSV 欄位：帳號,扣考原因,備註（備註可空白）。
         </p>
         <div id="disq-list"></div>
@@ -1019,11 +1019,11 @@
             <button class="btn btn-d btn-sm" id="tea-bulk-del-btn" style="display:none" onclick="bulkDeleteUsers('teacher')">🗑 刪除已選（<span id="tea-sel-count">0</span>）</button>
             <button class="btn btn-o btn-sm" onclick="importTeaStudentsCSV()">↑ 更新指導學生</button>
             <a class="btn btn-s btn-sm" href="#" onclick="downloadTeaStudentsSample(event)">↓ 範例檔</a>
-            <span style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--muted);margin-left:4px">排序：</span>
+            <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:4px">排序：</span>
             <button class="btn btn-s btn-sm" id="tea-sort-asc" onclick="sortTeaList(1)">筆畫↑</button>
             <button class="btn btn-s btn-sm" id="tea-sort-desc" onclick="sortTeaList(-1)">筆畫↓</button>
             <button class="btn btn-s btn-sm" id="tea-sort-inst" onclick="sortTeaListByInst()">依樂器別</button>
-            <span style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--muted);margin-left:4px">篩選專長：</span>
+            <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:4px">篩選專長：</span>
             <select id="tea-spec-filter" onchange="teaSpecFilterChanged()" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;outline:none;background:var(--white)"></select>
           </div>
           <div class="tw"><table>
@@ -1112,7 +1112,7 @@
         <div class="g2">
           <div class="card">
             <div class="card-t">預設加權比例（三項合計須 = 100%）</div>
-            <p style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.7">此為全域預設值。若考場有自訂評分欄位，將以考場設定為準。</p>
+            <p style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.7">此為全域預設值。若考場有自訂評分欄位，將以考場設定為準。</p>
             <div class="fr">
               <div class="fg"><label>音階/視奏 %</label><input type="number" id="w-scale" value="20" min="0" max="100"></div>
               <div class="fg"><label>指定曲 %</label><input type="number" id="w-assigned" value="40" min="0" max="100"></div>
@@ -1123,7 +1123,7 @@
 
           <div class="card">
             <div class="card-t">各年級評分上限</div>
-            <p style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.7">評審打分數（音階/指定曲/自選曲等任一單項）超過該生年級上限時，系統會要求評審填寫說明，並暫以該年級上限計分，直到管理員審核通過才採用評審實際輸入的分數。年級由學生班級名稱第一個數字判斷（如「音一莊」→高一）。</p>
+            <p style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.7">評審打分數（音階/指定曲/自選曲等任一單項）超過該生年級上限時，系統會要求評審填寫說明，並暫以該年級上限計分，直到管理員審核通過才採用評審實際輸入的分數。年級由學生班級名稱第一個數字判斷（如「音一莊」→高一）。</p>
             <div class="fr">
               <div class="fg"><label>高一上限</label><input type="number" id="cap-g1" value="85" min="0" max="100"></div>
               <div class="fg"><label>高二上限</label><input type="number" id="cap-g2" value="87" min="0" max="100"></div>
@@ -1133,11 +1133,11 @@
               <div class="fg" style="max-width:220px"><label>全域硬上限（任何分數都不得超過，輸入時直接擋下）</label><input type="number" id="cap-hard" value="95" min="0" max="100"></div>
             </div>
             <button class="btn btn-p" onclick="saveScoreCaps()">儲存評分上限</button>
-            <div id="cap-pending-summary" style="margin-top:12px;font-family:\'DM Mono\',monospace;font-size:11px;color:var(--rust)"></div>
+            <div id="cap-pending-summary" style="margin-top:12px;font-family:'DM Mono',monospace;font-size:11px;color:var(--rust)"></div>
           </div>
           <div class="card">
             <div class="card-t">去頭去尾規則（各項目分別套用）</div>
-            <p style="font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-bottom:10px">音階、指定曲、自選曲三項各自套用此規則</p>
+            <p style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:10px">音階、指定曲、自選曲三項各自套用此規則</p>
             <div id="trim-list"></div>
             <div class="bg" style="margin-top:8px">
               <button class="btn btn-s btn-sm" onclick="addTrim()">＋ 新增規則</button>
@@ -1148,7 +1148,7 @@
         <!-- ★ #5 各考場評分欄位設定 -->
         <div class="card" style="margin-top:14px">
           <div class="card-t">各考場評分欄位設定</div>
-          <p style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-bottom:14px;line-height:1.8">
+          <p style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:14px;line-height:1.8">
             每個考場可分別設定評分欄位與百分比比重。每個欄位可新增多條「排除條件」（大項 × 修別 × 班級，空白=不限，同條件內 AND，多條件 OR），符合條件的考生此欄自動標 <strong style="color:var(--orange)">*</strong> 不計分。<br>
             <strong>分數比例說明：</strong>各欄 % 直接採用您所填的數值計算，<u>不會</u>自動正規化。例如音階 20% / 指定 40% / 自選 40%，若某考生指定欄為 *，則該生以 音階 20% / 自選 40%（合計 60%）計分，管理員可依此彈性設定每欄比重（如音階 20% / 指定 0% / 自選 80%）。評語欄固定存在，無需設定。
           </p>
@@ -1292,7 +1292,7 @@
         <!-- ★ 管理員補填評語 -->
         <div class="card" style="margin-top:14px">
           <div class="card-t">管理員補填評語（文字輸入 / 圖片 OCR 辨識）</div>
-          <p style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-bottom:12px;line-height:1.8">
+          <p style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:12px;line-height:1.8">
             可直接輸入評語文字，或上傳評語圖片自動辨識填入。也可批次匯入不同評審對同一學生的整合評語。
           </p>
           <div class="g2" style="margin-bottom:12px">
@@ -1322,18 +1322,18 @@
             <button class="btn btn-o btn-sm" onclick="adminCommentImportCSV()">↑ 批次匯入 CSV</button>
             <a class="btn btn-s btn-sm" href="#" onclick="adminCommentDownloadSample(event)">↓ 範例 CSV</a>
           </div>
-          <div id="admin-comment-status" style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);min-height:16px"></div>
+          <div id="admin-comment-status" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);min-height:16px"></div>
         </div>
         <!-- ★ 曲目填報限制樂器 / 選定樂器附加訊息 -->
         <div class="card" style="margin-top:14px">
           <div class="card-t">曲目填報 — 各修別特定樂器附加訊息（勾選後設定）</div>
-          <p style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-bottom:14px;line-height:1.8">
+          <p style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:14px;line-height:1.8">
             勾選後，學生填報時選到該樂器，會在填寫區顯示一個額外文字框（可含連結，學生點選會跳出新視窗）。<br>
             <strong style="color:var(--ink)">規則：</strong>全部不勾 = 不顯示任何附加訊息；有勾選 = 僅學生選到勾選的樂器時才顯示。
           </p>
           <div id="inst-restrict-body"></div>
           <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--cream)">
-            <div style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:1.5px;color:var(--muted);margin-bottom:10px">各修別附加訊息文字（支援超連結 URL，格式：[連結文字](URL)）</div>
+            <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;color:var(--muted);margin-bottom:10px">各修別附加訊息文字（支援超連結 URL，格式：[連結文字](URL)）</div>
             <div id="inst-restrict-msg-body"></div>
           </div>
           <button class="btn btn-p" style="margin-top:12px" onclick="saveInstRestrict()">儲存設定</button>
@@ -1341,7 +1341,7 @@
         <!-- ★ 填報完成確認訊息 -->
         <div class="card" style="margin-top:14px">
           <div class="card-t">學生填報完成後顯示的訊息</div>
-          <p style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.7">學生送出曲目填報後，於「已完成填報」頁顯示此訊息框。留空則不顯示。</p>
+          <p style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.7">學生送出曲目填報後，於「已完成填報」頁顯示此訊息框。留空則不顯示。</p>
           <div class="fg"><label>訊息內容（可多行）</label><textarea id="rep-confirm-msg-inp" style="min-height:100px" placeholder="例：請記得在考試前三天到行政室確認場次..."></textarea></div>
           <button class="btn btn-p" style="margin-top:8px" onclick="saveRepConfirmMsg()">儲存訊息</button>
         </div>
@@ -1437,7 +1437,7 @@
       <!-- 考場切換按鈕 -->
       <div id="invig-room-tabs" class="invig-room-tabs"></div>
       <!-- 說明 -->
-      <div style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--muted);margin-bottom:12px;padding:8px 12px;background:var(--cream);border-radius:var(--r);border-left:3px solid var(--steel)">
+      <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:12px;padding:8px 12px;background:var(--cream);border-radius:var(--r);border-left:3px solid var(--steel)">
         📋 流程：①先按上方「開啟大螢幕」拖到電視全螢幕。②下一位考生在預備席時，走到監考電腦按自己那列的「🎲 抽籤」抽音階調性（先暫存、不會立刻顯示於大螢幕）。③輪到他上台，監考按該列「▶ 上場」，大螢幕才顯示他的資訊與預抽的調性。④監考可隨時「↺ 重置」讓考生重抽，或直接修改調性。狀態標記（黑籤須演奏全曲／缺考／臨時號）會在上台時醒目顯示於大螢幕。
       </div>
       <div style="overflow:auto;max-height:calc(100vh - 240px);border:1px solid var(--border);border-radius:var(--r)">
@@ -1465,7 +1465,7 @@
       <button class="btn btn-s btn-sm" id="toggle-real-names-btn" onclick="toggleJurorNames()">
         👁 顯示評審真實姓名
       </button>
-      <span style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--muted);margin-left:8px">
+      <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:8px">
         目前：<span id="jury-name-mode-label">僅顯示代號</span>
       </span>
     </div>
