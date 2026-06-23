@@ -10595,6 +10595,11 @@ function renderTeaJuryComments(){
   // 從快照找每位學生的 entry（可能有 major/minor/elective 多筆）
   const snap=DB.savedScheduleSnapshot||{};
   let html='';
+  // ★ 全部展開／收合工具列
+  html+=`<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <button class="btn btn-s btn-sm" onclick="document.querySelectorAll('[id^=tjc_]:not([id$=_arr])').forEach(function(c){c.style.display='block';});document.querySelectorAll('[id$=_arr]').forEach(function(a){a.textContent='▾';})">全部展開</button>
+    <button class="btn btn-s btn-sm" onclick="document.querySelectorAll('[id^=tjc_]:not([id$=_arr])').forEach(function(c){c.style.display='none';});document.querySelectorAll('[id$=_arr]').forEach(function(a){a.textContent='▸';})">全部收合</button>
+  </div>`;
 
   myStus.sort((a,b)=>{
     const cc=a.class.localeCompare(b.class);
@@ -10646,13 +10651,30 @@ function renderTeaJuryComments(){
 
     if(!entryCards.trim())return;
 
-    html+=`<div class="card" style="margin-bottom:12px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+    // ★ 可收合：點標題列展開/收合該生評語（預設收合，因教師學生多）
+    const _tjcId='tjc_'+stu.id;
+    // 計算該生總評語數，顯示在收合狀態下供教師快速判斷
+    let _totalComments=0;
+    stuEntries.forEach(e=>{
+      const ek=stu.id+'_'+e.type;
+      const jd=DB.juryScores[e.roomId]?.[ek]||{};
+      _getRoomJurorIds(e.roomId).forEach(jid=>{
+        const s=jd[jid];
+        if(s&&!s.absent&&s.comment)_totalComments++;
+      });
+    });
+    html+=`<div class="card" style="margin-bottom:10px;padding:0;overflow:hidden">
+      <div onclick="(function(b){var c=document.getElementById('${_tjcId}');var a=document.getElementById('${_tjcId}_arr');if(!c)return;var open=c.style.display!=='none';c.style.display=open?'none':'block';if(a)a.textContent=open?'▸':'▾';})(this)"
+           style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 16px;cursor:pointer;user-select:none">
+        <span id="${_tjcId}_arr" style="font-size:12px;color:var(--gold);width:14px">▸</span>
         <strong style="font-size:15px">${escHtml(stu.name)}</strong>
         <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">${escHtml(stu.class||'')}·座${escHtml(stu.seat||'')}</span>
         <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">${escHtml(iname(stu.major)||'')}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:auto">${_totalComments} 則評語</span>
       </div>
-      ${entryCards}
+      <div id="${_tjcId}" style="display:none;padding:0 16px 14px">
+        ${entryCards}
+      </div>
     </div>`;
   });
 
