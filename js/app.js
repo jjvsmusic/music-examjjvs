@@ -1,3 +1,4 @@
+
 (function(){
 'use strict';
 
@@ -10026,7 +10027,7 @@ function _reportCardHtml(stu, resultsPublished){
     <div class="rc-inner" style="transform-origin:top center">
       <div style="text-align:center;border-bottom:2px solid var(--gold);padding-bottom:7px;margin-bottom:9px">
         <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;letter-spacing:2px">音樂科術科成績單</div>
-        <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px;margin-top:1px">Music Practical Exam Report</div>
+        <div class="rc-en-sub" style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px;margin-top:1px">Music Practical Exam Report</div>
       </div>
       <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:10px;padding:7px 12px;background:var(--cream);border-radius:4px">
         <div><span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px">班級</span><div style="font-size:14px;font-weight:600">${escHtml(stu.class||'—')}</div></div>
@@ -10092,6 +10093,10 @@ function _openReportCardPrintWindow(title, cardsHtml, count){
       .report-card{margin:0;box-shadow:none}
       *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
     }
+    /* ★ 列印穩定性修正：報表卡片內凡用 DM Mono 顯示中文的小標籤，
+       改用中文字體 Noto Serif TC。DM Mono 無中文字符，列印時 Chrome
+       會丟字導致「指導老師/主修/評審N」等標籤消失。純英文標題不受影響。 */
+    .report-card [style*="DM Mono"]:not(.rc-en-sub){font-family:'Noto Serif TC',serif !important}
   </style></head>
   <body>
     <div class="print-toolbar no-print">
@@ -13076,3 +13081,4 @@ if(document.readyState === 'loading'){
 }
 
 })();
+
