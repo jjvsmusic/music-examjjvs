@@ -1009,10 +1009,11 @@ function loadAllFromFirebase(done, lightMode){
         }
         // 快取未命中或無內容：往下走 fresh load + 寫入快取
       }catch(e){console.warn('[student] 快取檢查失敗，改走 fresh load',e);}
-    } else if(lightMode){
+    } else if(lightMode && (ST.role==='jury' || ST.role==='invigilator')){
       // 評審/監考：不需要 juryScores
       return;
     }
+    // ★ 教師(lightMode)：需要 juryScores 看成績總表，不 return，往下走 fresh load
 
     try{
       if(window._FB._rest){
@@ -1267,8 +1268,8 @@ function loadAllFromFirebase(done, lightMode){
     repInstChanges: lightMode ? Promise.resolve([]) : load('repInstChanges'),
     // lightMode 跳過的慢速集合（但學生需要 teacherComments 看自己評語）
     teacherComments: (lightMode && ST.role!=='student') ? Promise.resolve([]) : load('teacherComments'),
-    deductions: lightMode ? Promise.resolve([]) : load('deductions'),
-    blackSign: lightMode ? Promise.resolve([]) : load('blackSign'),
+    deductions: (lightMode && ST.role!=='student' && ST.role!=='teacher') ? Promise.resolve([]) : load('deductions'),
+    blackSign: (lightMode && ST.role!=='jury' && ST.role!=='invigilator') ? Promise.resolve([]) : load('blackSign'),
     pendingApprovals: load('pendingApprovals'), // ★ 90分以上審核資料，所有角色都需載入
     users: load('users'),
     // juryScores 在 allSettled.then 後才讀（確保 DB.rooms 已載入）
@@ -2659,7 +2660,11 @@ function renderScoresPage(){
     // ★ 修正：傳入 entry 資訊，讓 calcFinal 能正確處理 * 不計分欄位的權重重分配
     const _entryForCalc={studentId:u.id,type:t.type,catId:tCatId,instId:t.inst,class:u.class};
     const result=scoreArr.length?calcFinal(scoreArr,roomId,_entryForCalc):{finalScore:null,fS:null,fA:null,fF:null,fieldAvgs:{}};
-    const fs=result.finalScore;
+    // ★ 修正：套用違規扣分（與後台/成績單一致）。學生頁先前漏算，導致該扣分的沒扣、原因也沒顯示。
+    const ded=DB.deductions[entryKey]||{amount:0,reason:''};
+    const fsRaw=result.finalScore;
+    const fs=fsRaw!==null?Math.max(0,fsRaw-(ded.amount||0)):null;
+    const hasDed=(ded.amount||0)>0;
     // ★ 動態欄位：只顯示「該生實際有考」的評分項目（過濾掉管理員設定不計分、或全體評審打 * 的欄）
     const _allFields=getRoomFields(roomId);
     const _shownFields=_allFields.filter(f=>{
@@ -2700,6 +2705,7 @@ function renderScoresPage(){
           : `<div style="font-family:'DM Mono',monospace;font-size:9px;color:rgba(181,137,42,.6);letter-spacing:1px">成績待發佈</div>`}
       </div>
       <div class="isb-b">
+        ${resultsPublished&&hasDed?`<div style="color:var(--rust);font-size:13px;margin-bottom:12px;font-weight:500">⚠ 違規扣分 -${ded.amount}${ded.reason?`　原因：${escHtml(ded.reason)}`:''}</div>`:''}
         ${resultsPublished?`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:14px">
           ${_shownFields.map(f=>{
             const avg=result.fieldAvgs?.[f.id]??null;
