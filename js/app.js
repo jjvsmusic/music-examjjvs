@@ -1,4 +1,3 @@
-
 (function(){
 'use strict';
 
@@ -10096,7 +10095,7 @@ function _openReportCardPrintWindow(title, cardsHtml, count){
   </style></head>
   <body>
     <div class="print-toolbar no-print">
-      <button onclick="window.print()">🖨 列印／存成 PDF（共 ${count} 張）</button>
+      <button id="rc-print-btn" onclick="doRcPrint()" disabled>⏳ 字體載入中…</button>
       <button class="sec" onclick="window.close()">關閉</button>
     </div>
     <div class="rc-hint no-print">共 ${count} 位學生，每位一張 A4（內容多時會自動縮放塞進一頁）。請按上方按鈕列印或「另存為 PDF」。列印時請選 A4、邊界設為「無」、並勾選「背景圖形」。</div>
@@ -10123,12 +10122,33 @@ function _openReportCardPrintWindow(title, cardsHtml, count){
       window.addEventListener('load', function(){
         // 等字體載入完成再縮放，避免 DM Mono 未載入導致量測錯誤
         if(document.fonts && document.fonts.ready){
-          document.fonts.ready.then(function(){ setTimeout(fitCards, 100); });
+          document.fonts.ready.then(function(){ setTimeout(fitCards, 100); _enablePrintBtn(); });
         } else {
-          setTimeout(fitCards, 400);
+          setTimeout(function(){ fitCards(); _enablePrintBtn(); }, 800);
         }
       });
       window.addEventListener('beforeprint', fitCards);
+      function _enablePrintBtn(){
+        var b=document.getElementById('rc-print-btn');
+        if(b){ b.disabled=false; b.textContent='🖨 列印／存成 PDF（共 ${count} 張）'; }
+      }
+      // 主動強制載入 DM Mono（Chrome 不會等被動字體，需明確觸發）
+      if(document.fonts && document.fonts.load){
+        try{
+          Promise.all([
+            document.fonts.load("400 12px 'DM Mono'"),
+            document.fonts.load("500 12px 'DM Mono'"),
+            document.fonts.load("400 12px 'Noto Serif TC'"),
+            document.fonts.load("700 12px 'Noto Serif TC'")
+          ]).then(function(){ _enablePrintBtn(); fitCards(); });
+        }catch(e){}
+      }
+      function doRcPrint(){
+        // 列印前再次確保字體已就緒（Chrome 保險）
+        function go(){ fitCards(); setTimeout(function(){ window.print(); }, 60); }
+        if(document.fonts && document.fonts.ready){ document.fonts.ready.then(go); }
+        else { go(); }
+      }
     <\/script>
   </body></html>`;
   win.document.open();
@@ -13056,4 +13076,3 @@ if(document.readyState === 'loading'){
 }
 
 })();
-
