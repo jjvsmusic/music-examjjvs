@@ -1332,6 +1332,16 @@ function loadAllFromFirebase(done, lightMode){
       if(rest.roomScaleMode)DB.config.roomScaleMode=rest.roomScaleMode;            // ★ 修正
       if(rest.liveScreenCrossDevice!==undefined)DB.config.liveScreenCrossDevice=rest.liveScreenCrossDevice; // ★ 修正
     }
+    // ★ 音階規則獨立文件（優先於 main 內的舊資料）
+    const sclDoc=r.config.find(d=>d.id==='scaleRules');
+    if(sclDoc){
+      if(sclDoc.rules)DB.config.scaleRules=sclDoc.rules;
+      if(sclDoc.roomScaleMode)DB.config.roomScaleMode=sclDoc.roomScaleMode;
+      if(sclDoc.liveScreenCrossDevice!==undefined)DB.config.liveScreenCrossDevice=sclDoc.liveScreenCrossDevice;
+      console.log('[音階規則] 已從 config/scaleRules 載入，規則數：',Object.keys(DB.config.scaleRules||{}).length);
+      // ★ 若設定頁已先渲染（草稿卡住空資料），載入後強制以新資料重繪
+      try{_sclDraft=null;if(typeof renderScaleRules==='function')renderScaleRules(false);}catch(e){}
+    }
 
     // — rooms —
     if(r.rooms.length){
@@ -7966,7 +7976,7 @@ function _sclRefreshChips(key){
     ||'<span style="font-size:11px;color:var(--muted)">尚未設定</span>';
 }
 
-function saveScaleRules(){
+async function saveScaleRules(){
   const d=_sclGetDraft();
   // 清掉空清單
   Object.keys(d).forEach(k=>{ if(!d[k]||!d[k].length)delete d[k]; });
@@ -7978,9 +7988,29 @@ function saveScaleRules(){
   // 跨裝置
   const cd=document.getElementById('scl-cross-device');
   DB.config.liveScreenCrossDevice=!!(cd&&cd.checked);
-  fbSaveConfig();
-  _sclDraft=null;
-  showToast('音階規則已儲存 ✓','ok');
+  // ★ 修正：音階規則改存獨立文件 config/scaleRules（不跟肥大的 config/main 擠，避免文件過大寫入失敗）
+  //   並且「真的等待」寫入結果——先前 fbSet 非同步發射就顯示成功，實際失敗也看不到。
+  showToast('儲存中...','sync');
+  try{
+    let ok=false;
+    const payload={rules:DB.config.scaleRules,roomScaleMode:mode,liveScreenCrossDevice:DB.config.liveScreenCrossDevice,_updatedAt:new Date().toISOString()};
+    if(window._FB?._rest){
+      ok=await window._FB._set('config/scaleRules',payload);
+    } else if(window._FB?.db){
+      await window._FB.db.collection('config').doc('scaleRules').set(payload);
+      ok=true;
+    }
+    if(ok){
+      _sclDraft=null;
+      showToast('音階規則已儲存 ✓','ok');
+      console.log('[音階規則] 已寫入 config/scaleRules，規則數：',Object.keys(DB.config.scaleRules).length);
+    } else {
+      showToast('⚠ 儲存失敗！請檢查網路後重試（設定僅暫存於此頁面）','err');
+    }
+  }catch(e){
+    console.error('[音階規則儲存失敗]',e);
+    showToast('⚠ 儲存失敗：'+(e.message||'未知錯誤'),'err');
+  }
 }
 window.saveScaleRules=saveScaleRules;
 
@@ -8708,15 +8738,28 @@ async function clearData(type){
     }
     if(type==='schedule'||type==='all'){
       // ★ 新學期：清空所有考場排程安排（快照 + 排程狀態）
-      Object.keys(DB.savedScheduleSnapshot||{}).forEach(roomId=>{
+      // ★ 修正：以「全部考場」為準刪除（不只記憶體有的），避免 Firebase 殘留
+      const _allSnapRooms=new Set([...Object.keys(DB.savedScheduleSnapshot||{}),...(DB.rooms||[]).map(r=>r.id).filter(Boolean)]);
+      _allSnapRooms.forEach(roomId=>{
         fbDelete('scheduleSnapshots',roomId);
       });
       DB.savedScheduleSnapshot={};
       fbDelete('scheduleState','main');
       fbDelete('scheduleState','snapshot');
-      try{localStorage.removeItem('SCH_STATE');}catch(e){}
+      // ★ 修正：清掉正確的 localStorage keys（先前刪錯 key 導致重新整理後舊排程還原）
+      try{
+        localStorage.removeItem('scheduleState');
+        localStorage.removeItem('scheduleSnapshot');
+        localStorage.removeItem('SCH_STATE');
+      }catch(e){}
+      // ★ 修正：重置記憶體中的排程狀態（含各考場的加入/移除名單）
+      try{Object.keys(_SCH_ROOM_STATES).forEach(k=>delete _SCH_ROOM_STATES[k]);}catch(e){}
+      // ★ 修正：發佈新排程版本號，打破學生/教師端的排程快取（否則他們仍看到舊排程）
+      try{if(typeof publishSnapshot==='function')publishSnapshot('schedule');}catch(e){}
       if(typeof renderSchedule==='function')renderSchedule();
       if(typeof renderStuSchedule==='function')renderStuSchedule();
+      // ★ 修正：學生名單的「分配考場」欄是從排程快照即時算的，清除後要重繪
+      if(typeof renderAdminStudents==='function')renderAdminStudents();
     }
     renderAll();
     showToast(`已清除「${labels[type]}」✓`,'ok');
