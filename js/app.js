@@ -7449,7 +7449,23 @@ function renderClassList(){
   });
 }
 function addClass(){const n=prompt('新班級名稱：');if(!n)return;DB.classes.push(n);fbSet('classes','main',{list:[...DB.classes]});renderClassList();initDropdowns();showToast('已新增 '+n,'ok');}
-function renameClass(i){const n=prompt('新名稱：',DB.classes[i]);if(n){DB.classes[i]=n;fbSet('classes','main',{list:[...DB.classes]});renderClassList();initDropdowns();showToast('已更新','ok');}}
+function renameClass(i){
+  const old=DB.classes[i];
+  const n=prompt('新名稱：',old);
+  if(!n||n===old)return;
+  // ★ 修正：改名時同步搬移學生（原本只改清單字串，學生身上的班名沒跟著改，導致學生「消失」）
+  const affected=DB.users.filter(u=>u.role==='student'&&u.class===old);
+  if(affected.length){
+    const ok=confirm(`「${old}」改名為「${n}」\n\n有 ${affected.length} 位學生屬於此班，將一併移至新班名。\n確定執行？`);
+    if(!ok)return;
+  }
+  DB.classes[i]=n;
+  fbSet('classes','main',{list:[...DB.classes]});
+  // 批次更新學生班名並寫回 Firebase
+  affected.forEach(u=>{u.class=n;fbSet('users',u.id,u);});
+  renderClassList();initDropdowns();
+  showToast(affected.length?`已更名並移動 ${affected.length} 位學生`:'已更新','ok');
+}
 function delClass(i){DB.classes.splice(i,1);fbSet('classes','main',{list:[...DB.classes]});renderClassList();initDropdowns();showToast('已刪除','err');}
 
 // ════════════════════════════════════════════════
