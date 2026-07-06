@@ -1,3 +1,4 @@
+
 (function(){
 'use strict';
 
@@ -1327,6 +1328,9 @@ function loadAllFromFirebase(done, lightMode){
       if(rest.assignedPiecesRules!==undefined)DB.config.assignedPiecesRules=rest.assignedPiecesRules||[];
       if(rest.resultsPublished!==undefined)DB.config.resultsPublished=rest.resultsPublished; // ★ 需求4
       if(rest.resultsPublishedAt!==undefined)DB.config.resultsPublishedAt=rest.resultsPublishedAt; // ★ 需求4
+      if(rest.scaleRules)DB.config.scaleRules=rest.scaleRules;                     // ★ 修正：音階調性規則先前漏載
+      if(rest.roomScaleMode)DB.config.roomScaleMode=rest.roomScaleMode;            // ★ 修正
+      if(rest.liveScreenCrossDevice!==undefined)DB.config.liveScreenCrossDevice=rest.liveScreenCrossDevice; // ★ 修正
     }
 
     // — rooms —
@@ -7512,6 +7516,9 @@ function fbSaveConfig(){
     assignedPiecesRules:DB.config.assignedPiecesRules||[],
     resultsPublished:DB.config.resultsPublished||false,           // ★ 需求4
     resultsPublishedAt:DB.config.resultsPublishedAt||null,        // ★ 需求4
+    scaleRules:DB.config.scaleRules||{},                          // ★ 修正：音階調性規則先前漏存，重新整理就消失
+    roomScaleMode:DB.config.roomScaleMode||{},                    // ★ 修正：各考場音階套用方式
+    liveScreenCrossDevice:!!DB.config.liveScreenCrossDevice,      // ★ 修正：跨裝置大螢幕開關
   });
 }
 function saveTiming(){fbSaveConfig();showToast('時間設定已儲存 ✓','ok');}
@@ -8536,7 +8543,7 @@ window.saveRepConfirmMsg=saveRepConfirmMsg;
 // ════════════════════════════════════════════════
 async function clearData(type){
   if(!requireRole('admin'))return;
-  const labels={rep:'學生曲目填報',teacher:'教師平時成績',jury:'考試成績與評語',jurySignup:'教師期末考評分報名',all:'全部考試資料'};
+  const labels={rep:'學生曲目填報',teacher:'教師平時成績',jury:'考試成績與評語',jurySignup:'教師期末考評分報名',schedule:'考場排程安排',all:'全部考試資料'};
   if(!confirm(`確定要清除「${labels[type]}」？此操作不可復原。`))return;
   let estimateOps=0;
   if(type==='rep'||type==='all')estimateOps+=students().length;
@@ -8544,6 +8551,7 @@ async function clearData(type){
   if(type==='jury'||type==='all'){
     Object.values(DB.juryScores||{}).forEach(r=>estimateOps+=Object.keys(r||{}).length);
   }
+  if(type==='schedule'||type==='all')estimateOps+=Object.keys(DB.savedScheduleSnapshot||{}).length+2;
   if(type==='jurySignup')estimateOps+=Object.keys(DB.jurySignup||{}).length;
   if(estimateOps>50&&!confirm(`此操作將觸發約 ${estimateOps} 次 Firebase 寫入/刪除操作。\n\n再次確認要繼續？`))return;
   if(window._clearingData){showToast('清除中，請稍候...','warn');return;}
@@ -8697,6 +8705,18 @@ async function clearData(type){
       DB.jurySignup={};
       if(typeof renderJsupAdminTable==='function')renderJsupAdminTable();
       if(typeof renderJurySignupPage==='function')renderJurySignupPage();
+    }
+    if(type==='schedule'||type==='all'){
+      // ★ 新學期：清空所有考場排程安排（快照 + 排程狀態）
+      Object.keys(DB.savedScheduleSnapshot||{}).forEach(roomId=>{
+        fbDelete('scheduleSnapshots',roomId);
+      });
+      DB.savedScheduleSnapshot={};
+      fbDelete('scheduleState','main');
+      fbDelete('scheduleState','snapshot');
+      try{localStorage.removeItem('SCH_STATE');}catch(e){}
+      if(typeof renderSchedule==='function')renderSchedule();
+      if(typeof renderStuSchedule==='function')renderStuSchedule();
     }
     renderAll();
     showToast(`已清除「${labels[type]}」✓`,'ok');
@@ -13125,3 +13145,4 @@ if(document.readyState === 'loading'){
 }
 
 })();
+

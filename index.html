@@ -1422,8 +1422,12 @@
               <div><div style="font-size:14px;font-weight:600;margin-bottom:3px">清除教師期末考評分報名</div><div style="font-size:12px;color:var(--muted)">清除所有教師的期末考場評分報名資料（不影響成績）</div></div>
               <button class="btn btn-d btn-sm" onclick="clearData('jurySignup')">清除</button>
             </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border:1px solid var(--border);border-radius:var(--r)">
+              <div><div style="font-size:14px;font-weight:600;margin-bottom:3px">清除考場排程安排</div><div style="font-size:12px;color:var(--muted)">清空所有考場的學生出場安排（新學期重新排程用）</div></div>
+              <button class="btn btn-d btn-sm" onclick="clearData('schedule')">清除</button>
+            </div>
             <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border:2px solid var(--rust);border-radius:var(--r);background:#fff5f5">
-              <div><div style="font-size:14px;font-weight:600;color:var(--rust);margin-bottom:3px">清除全部考試資料</div><div style="font-size:12px;color:var(--muted)">包含以上三項，一次全部清除</div></div>
+              <div><div style="font-size:14px;font-weight:600;color:var(--rust);margin-bottom:3px">清除全部考試資料</div><div style="font-size:12px;color:var(--muted)">包含以上各項，一次全部清除</div></div>
               <button class="btn btn-d btn-sm" onclick="clearData('all')">全部清除</button>
             </div>
           </div>
