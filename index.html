@@ -498,10 +498,16 @@
       <!-- 三個項目按鈕 -->
       <div style="display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap" id="exam-rules-tabs">
         <button class="btn btn-p" id="ertab-classical" onclick="switchExamRulesTab('classical',this)" style="font-size:14px;padding:11px 26px;display:flex;align-items:center;gap:7px">
-          🎼 古典音樂考試規則
+          🎼 期末古典範圍
         </button>
         <button class="btn btn-s" id="ertab-pop" onclick="switchExamRulesTab('pop',this)" style="font-size:14px;padding:11px 26px;display:flex;align-items:center;gap:7px">
-          🎵 流行音樂考試規則
+          🎵 期末流行範圍
+        </button>
+        <button class="btn btn-s" id="ertab-semClassical" onclick="switchExamRulesTab('semClassical',this)" style="font-size:14px;padding:11px 26px;display:flex;align-items:center;gap:7px">
+          📖 整學期古典範圍
+        </button>
+        <button class="btn btn-s" id="ertab-semPop" onclick="switchExamRulesTab('semPop',this)" style="font-size:14px;padding:11px 26px;display:flex;align-items:center;gap:7px">
+          🎤 整學期流行範圍
         </button>
         <button class="btn btn-s" id="ertab-assigned" onclick="switchExamRulesTab('assigned',this)" style="font-size:14px;padding:11px 26px;display:flex;align-items:center;gap:7px">
           📋 部分項目指定曲
@@ -510,14 +516,26 @@
       <!-- 內容展示區 -->
       <div id="er-panel-classical" class="er-panel" style="display:none">
         <div class="card">
-          <div class="card-t" style="display:flex;align-items:center;gap:8px"><span>🎼</span><span>古典音樂考試規則</span></div>
+          <div class="card-t" style="display:flex;align-items:center;gap:8px"><span>🎼</span><span>期末古典範圍</span></div>
           <div id="er-content-classical" class="er-content" style="line-height:1.9;font-size:13px;color:var(--ink)"></div>
         </div>
       </div>
       <div id="er-panel-pop" class="er-panel" style="display:none">
         <div class="card">
-          <div class="card-t" style="display:flex;align-items:center;gap:8px"><span>🎵</span><span>流行音樂考試規則</span></div>
+          <div class="card-t" style="display:flex;align-items:center;gap:8px"><span>🎵</span><span>期末流行範圍</span></div>
           <div id="er-content-pop" class="er-content" style="line-height:1.9;font-size:13px;color:var(--ink)"></div>
+        </div>
+      </div>
+      <div id="er-panel-semClassical" class="er-panel" style="display:none">
+        <div class="card">
+          <div class="card-t" style="display:flex;align-items:center;gap:8px"><span>📖</span><span>整學期古典範圍</span></div>
+          <div id="er-content-semClassical" class="er-content" style="line-height:1.9;font-size:13px;color:var(--ink)"></div>
+        </div>
+      </div>
+      <div id="er-panel-semPop" class="er-panel" style="display:none">
+        <div class="card">
+          <div class="card-t" style="display:flex;align-items:center;gap:8px"><span>🎤</span><span>整學期流行範圍</span></div>
+          <div id="er-content-semPop" class="er-content" style="line-height:1.9;font-size:13px;color:var(--ink)"></div>
         </div>
       </div>
       <div id="er-panel-assigned" class="er-panel" style="display:none">
@@ -1210,8 +1228,10 @@
           </p>
           <!-- 三個分頁 tabs -->
           <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
-            <button id="er-admin-tab-classical" class="btn btn-p btn-sm" onclick="switchErAdminTab('classical')">🎼 古典音樂規則</button>
-            <button id="er-admin-tab-pop" class="btn btn-s btn-sm" onclick="switchErAdminTab('pop')">🎵 流行音樂規則</button>
+            <button id="er-admin-tab-classical" class="btn btn-p btn-sm" onclick="switchErAdminTab('classical')">🎼 期末古典範圍</button>
+            <button id="er-admin-tab-pop" class="btn btn-s btn-sm" onclick="switchErAdminTab('pop')">🎵 期末流行範圍</button>
+            <button id="er-admin-tab-semClassical" class="btn btn-s btn-sm" onclick="switchErAdminTab('semClassical')">📖 整學期古典範圍</button>
+            <button id="er-admin-tab-semPop" class="btn btn-s btn-sm" onclick="switchErAdminTab('semPop')">🎤 整學期流行範圍</button>
             <button id="er-admin-tab-assigned" class="btn btn-s btn-sm" onclick="switchErAdminTab('assigned')">📋 部分項目指定曲</button>
           </div>
           <!-- 工具列 -->
