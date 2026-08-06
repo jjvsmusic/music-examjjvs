@@ -1,4 +1,3 @@
-
 (function(){
 'use strict';
 
@@ -248,7 +247,7 @@ const DB = {
     pendingMsg:{},
     jurySignupNote:'有兩位（含）以上學生的老師需參與期末考現場評分。若考試當天有事無法出席，請務必自行安排代評老師，並填寫代評資訊。',
     bulletin:{student:'',teacher:''},  // 公布欄
-    examRules:{classical:'',pop:'',assigned:''},  // ★ 考試規則 & 指定曲 HTML 內容
+    examRules:{classical:'',pop:'',semClassical:'',semPop:'',assigned:''},  // ★ 考試規則 & 指定曲 HTML 內容
     assignedPieces:'',                              // 指定曲頁富文本（管理員自由說明）
     assignedPiecesRules:[],                         // ★ 指定曲自動帶入規則 [{id,catIds,instIds,types,classes,pieces:[{composer,title}]}]
     jurySignupOptions:[
@@ -7609,7 +7608,7 @@ window.switchExamRulesTab=switchExamRulesTab;
 function switchErAdminTab(tab){
   if(_erDirty&&!confirm('目前有未儲存的變更，切換分頁將會遺失。確定要切換嗎？'))return;
   _erCurrentTab=tab;_erDirty=false;
-  ['classical','pop','assigned'].forEach(t=>{
+  ['classical','pop','semClassical','semPop','assigned'].forEach(t=>{
     const b=document.getElementById(`er-admin-tab-${t}`);
     if(b)b.className=t===tab?'btn btn-p btn-sm':'btn btn-s btn-sm';
   });
@@ -7687,7 +7686,7 @@ async function saveExamRules(){
   if(!requireRole('admin'))return;
   const editor=document.getElementById('er-editor');if(!editor)return;
   const html=editor.innerHTML;
-  if(!DB.config.examRules)DB.config.examRules={classical:'',pop:''};
+  if(!DB.config.examRules)DB.config.examRules={classical:'',pop:'',semClassical:'',semPop:''};
   if(_erCurrentTab==='assigned'){DB.config.assignedPieces=html;}
   else{DB.config.examRules[_erCurrentTab]=html;}
   fbSet('config','main',{examRules:DB.config.examRules,assignedPieces:DB.config.assignedPieces||''});
@@ -7697,7 +7696,7 @@ async function saveExamRules(){
   const d=document.getElementById('er-dirty-indicator'),s=document.getElementById('er-saved-indicator');
   if(d)d.style.display='none';
   if(s){s.style.display='block';setTimeout(()=>{s.style.display='none';},3000);}
-  const label=_erCurrentTab==='classical'?'古典音樂規則':_erCurrentTab==='pop'?'流行音樂規則':'部分項目指定曲';
+  const label=_erCurrentTab==='classical'?'期末古典範圍':_erCurrentTab==='pop'?'期末流行範圍':_erCurrentTab==='semClassical'?'整學期古典範圍':_erCurrentTab==='semPop'?'整學期流行範圍':'部分項目指定曲';
   showToast(`「${label}」已儲存並推送 ✓`,'ok');
   renderExamRulesPage();
 }
@@ -7718,15 +7717,15 @@ function renderExamRulesPage(){
       try{setCachedDataset('examRules',{examRules:rules,assignedPieces:assigned});}catch(e){}
     }
   }
-  ['classical','pop'].forEach(t=>{
+  ['classical','pop','semClassical','semPop'].forEach(t=>{
     const el=document.getElementById(`er-content-${t}`);
     if(el)el.innerHTML=rules[t]||'';
   });
   const ap=document.getElementById('er-content-assigned');
   if(ap)ap.innerHTML=assigned;
   // 預設顯示第一個有內容的 tab
-  const hasClassical=!!(rules.classical||'').replace(/<[^>]+>/g,'').trim();
-  if(hasClassical)switchExamRulesTab('classical');
+  const _firstTab=['classical','pop','semClassical','semPop'].find(t=>!!(rules[t]||'').replace(/<[^>]+>/g,'').trim());
+  if(_firstTab)switchExamRulesTab(_firstTab);
   else{document.querySelectorAll('.er-panel').forEach(p=>p.style.display='none');const e=document.getElementById('er-empty');if(e)e.style.display='block';}
 }
 window.renderExamRulesPage=renderExamRulesPage;
@@ -13188,4 +13187,3 @@ if(document.readyState === 'loading'){
 }
 
 })();
-
