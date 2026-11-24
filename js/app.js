@@ -3024,6 +3024,17 @@ function clearLookup(){const n=document.getElementById('lookup-name');if(n)n.val
 // ════════════════════════════════════════════════
 // ── 取得「該教師負責的學生」 ──
 // ST._teaViewAll=true 時，admin 顯示全部學生；false 時依 teacherStudents 篩選
+// ★ 目前登入教師是否「負責」某學生的某修別（交叉比對 + 人工指定）
+function _teaOwnsType(s,k){
+  if(ST.role==='admin'&&(ST._teaViewAll||!(DB.teacherStudents[ST.user?.id]||[]).length))return true;
+  if(!s[k])return false;
+  const info=_resolveTeacherForType(s.id,s[k],k);
+  if(info.confidence==='override-none')return false;
+  return info.names.includes(ST.user?.name);
+}
+function _teaVisibleTypes(s){
+  return ['major','minor','elective'].filter(k=>s[k]&&_teaOwnsType(s,k));
+}
 function getMyStudents(){
   const tid=ST.user?.id;
   if(ST.role==='admin'){
@@ -3057,6 +3068,7 @@ function renderTeaTable(){
   // 教師模式：直接顯示全部學生，班級 select 只做快速篩選
   let stus=getMyStudents()
     .filter(s=>!cf||s.class===cf)
+    .filter(s=>_teaVisibleTypes(s).length>0)
     .sort((a,b)=>DB.classes.indexOf(a.class)-DB.classes.indexOf(b.class)||a.seat-b.seat);
   const done=stus.filter(s=>s.teaDone).length;
   const el1=document.getElementById('tea-done-n'),el2=document.getElementById('tea-total-n'),el3=document.getElementById('tea-prog');
@@ -3076,7 +3088,7 @@ function renderTeaTable(){
   }
   ob.innerHTML=stus.map(s=>{
     const tc=DB.teacherComments[s.id]||{};
-    const types=['major','minor','elective'].filter(k=>s[k]);
+    const types=_teaVisibleTypes(s);
     // ★ 任一修別有填即為完成（綠點）
     const allDone=types.some(k=>tc[k]?.score!==undefined);
     // 每個修別：inline 勾選框 + 展開填寫
@@ -5283,16 +5295,7 @@ function renderSchedule(){
 
   // ★ 統一資料源：直接呼叫 _buildFilteredEntries 並做跨考場去重
   //    這樣排程頁、snapshot、評審頁三者順序完全一致
-  const _origRoomId=SCH_STATE.roomId;
-  _saveRoomState(_origRoomId);
-  const allCandidates={};
-  DB.rooms.forEach(room=>{
-    SCH_STATE.roomId=room.id;
-    _loadRoomState(room.id);
-    allCandidates[room.id]=_buildFilteredEntries(room.id);
-  });
-  SCH_STATE.roomId=_origRoomId;
-  _loadRoomState(_origRoomId);
+  const allCandidates=_collectAllRoomCandidates();
 
   // 跨考場去重：每個 (studentId, type) 只保留一個考場
   const assignment={}; // 'studentId_type' -> roomId
@@ -5315,7 +5318,7 @@ function renderSchedule(){
   // 取出當前考場的 entries（依該考場 _buildFilteredEntries 已算好的順序）
   const entries=(allCandidates[roomId]||[]).filter(e=>{
     const key=e.studentId+'_'+e.type;
-    return assignment[key]===roomId;
+    return _keepInRoom(e,roomId,assignment,allCandidates);
   });
 
   // ★ entries 已由 _buildFilteredEntries 處理完所有篩選/排序/合併邏輯，直接使用
@@ -5410,17 +5413,8 @@ function schSaveSchedule(){
       };
     }
     const snapshot={};
-    const _origRoomId=SCH_STATE.roomId;
-    _saveRoomState(_origRoomId);
     // ★ 收集每個考場的 candidate entries（已含 manualOrder 排序）
-    const allCandidates={}; // {roomId: entries[]}
-    DB.rooms.forEach(room=>{
-      SCH_STATE.roomId=room.id;
-      _loadRoomState(room.id);
-      allCandidates[room.id]=_buildFilteredEntries(room.id);
-    });
-    SCH_STATE.roomId=_origRoomId;
-    _loadRoomState(_origRoomId);
+    const allCandidates=_collectAllRoomCandidates(); // {roomId: entries[]}
 
     // ★ 修正：去重邏輯——「同一學生同修別跨多考場」只保留一個
     //   優先順序：(1) 該考場有 _forceInclude 標記的優先（手動指派）
@@ -5451,7 +5445,7 @@ function schSaveSchedule(){
       // 在該考場的原順序中，過濾出「分配給這個考場」的學生
       const filtered=candidates.filter(e=>{
         const key=e.studentId+'_'+e.type;
-        return assignment[key]===room.id;
+        return _keepInRoom(e,room.id,assignment,allCandidates);
       });
       if(filtered.length){
         snapshot[room.id]=filtered;
@@ -5526,6 +5520,64 @@ function schSaveSchedule(){
 }
 
 // ★ 依目前 SCH_STATE 篩選/排序，回傳此考場的 entry 陣列（不修改 DOM）
+// ★ 修正：計算「所有考場」的候選名單。
+//   舊版問題：沒存過篩選狀態的考場會沿用上一個考場殘留的篩選（甚至完全不篩），
+//   又因為去重時「排在前面的考場先搶」，導致你設定好的考場名單被前面未設定的考場搶光 → 名單空白。
+//   新版：沒存過狀態的考場，改用該考場的 allowedCats 當預設；若連 allowedCats 都沒設定，視為「未設定」→ 不參與搶名單。
+function _roomDefaultState(room){
+  const allowed=room.allowedCats||room.cats||[];
+  const cats=(DB.instruments.categories||[]).slice().sort((a,b)=>(a.order??99)-(b.order??99));
+  const allCatIds=cats.map(c=>c.id);
+  const insts=(DB.instruments.items||[]).slice().sort((a,b)=>{
+    const ci=allCatIds.indexOf(a.cat)-allCatIds.indexOf(b.cat);
+    return ci!==0?ci:((a.order??0)-(b.order??0));
+  });
+  return {
+    catOrder:cats.map(c=>({id:c.id,name:c.name,active:allowed.includes(c.id)})),
+    instOrder:insts.map(i=>({id:i.id,name:i.name,active:allowed.includes(i.cat)})),
+    typeOrder:[{key:'major',label:'主修',active:true},{key:'minor',label:'副修',active:true},{key:'elective',label:'選修',active:true}],
+    classOrder:(DB.classes||[]).map(c=>({cls:c,active:true})),
+    seatDir:1,extraEntries:[],removedEntries:new Set(),excludeRules:[],manualOrder:[],
+  };
+}
+function _collectAllRoomCandidates(){
+  const origRoomId=SCH_STATE.roomId;
+  _saveRoomState(origRoomId);
+  const out={};
+  DB.rooms.forEach(room=>{
+    const hadSaved=!!_SCH_ROOM_STATES[room.id];
+    if(!hadSaved){
+      const allowed=room.allowedCats||room.cats||[];
+      if(!allowed.length){out[room.id]=[];return;} // 完全未設定的考場：不參與
+      _SCH_ROOM_STATES[room.id]=_roomDefaultState(room); // 暫時使用，不寫入永久狀態
+    }
+    SCH_STATE.roomId=room.id;
+    _loadRoomState(room.id);
+    out[room.id]=_buildFilteredEntries(room.id);
+    if(!hadSaved)delete _SCH_ROOM_STATES[room.id];
+  });
+  SCH_STATE.roomId=origRoomId;
+  _loadRoomState(origRoomId);
+  return out;
+}
+
+// ★ 預設：同一學生同修別只出現在一個考場（自動比對取考場順序第一個）。
+//   例外：手動指派（強制加入）的考場一律保留，可同時出現在多個考場；
+//   有手動指派的修別，不再被自動比對放進其他考場（維持「手動指派優先」）。
+const _forcedKeyCache=new WeakMap();
+function _keepInRoom(e,roomId,assignment,allCandidates){
+  if(e._forceInclude)return true;
+  let forced=_forcedKeyCache.get(allCandidates);
+  if(!forced){
+    forced=new Set();
+    Object.values(allCandidates).forEach(arr=>(arr||[]).forEach(x=>{if(x._forceInclude)forced.add(x.studentId+'_'+x.type);}));
+    _forcedKeyCache.set(allCandidates,forced);
+  }
+  const key=e.studentId+'_'+e.type;
+  if(forced.has(key))return false;
+  return assignment[key]===roomId;
+}
+
 function _buildFilteredEntries(roomId){
   let entries=getScheduleEntries();
   // ★ 修正：依 roomId 取對應考場的 state（不再只看當前 SCH_STATE）
@@ -5688,7 +5740,7 @@ function _applyScheduleState(data){
 function schRemoveEntry(entryKey){
   SCH_STATE.removedEntries.add(entryKey);
   // 同時從 extraEntries 移除，避免 extra 把人加回來
-  const [sid,type]=entryKey.split('_');
+  const _ix=entryKey.lastIndexOf('_');const sid=entryKey.slice(0,_ix),type=entryKey.slice(_ix+1);
   SCH_STATE.extraEntries=SCH_STATE.extraEntries.filter(e=>!(e.studentId===sid&&e.type===type));
   renderSchedule();
   showToast('已從排程移除','warn');
@@ -5830,7 +5882,7 @@ window.schAddEntry=schAddEntry;
 
 function schRestoreEntry(entryKey){
   SCH_STATE.removedEntries.delete(entryKey);
-  const [sid,type]=entryKey.split('_');
+  const _ix=entryKey.lastIndexOf('_');const sid=entryKey.slice(0,_ix),type=entryKey.slice(_ix+1);
   schAddSearch();renderSchedule();
   showToast('已恢復 ✓','ok');
 }
@@ -6022,16 +6074,7 @@ function _getScheduleByRoom(){
     });
     return byRoom;
   }
-  const _origRoomId=SCH_STATE.roomId;
-  _saveRoomState(_origRoomId);
-  const allCandidates={};
-  DB.rooms.forEach(room=>{
-    SCH_STATE.roomId=room.id;
-    _loadRoomState(room.id);
-    allCandidates[room.id]=_buildFilteredEntries(room.id);
-  });
-  SCH_STATE.roomId=_origRoomId;
-  _loadRoomState(_origRoomId);
+  const allCandidates=_collectAllRoomCandidates();
   const assignment={};
   DB.rooms.forEach(room=>{
     (allCandidates[room.id]||[]).forEach(e=>{
@@ -6048,7 +6091,7 @@ function _getScheduleByRoom(){
   });
   const byRoom={};
   DB.rooms.forEach(room=>{
-    const entries=(allCandidates[room.id]||[]).filter(e=>assignment[e.studentId+'_'+e.type]===room.id);
+    const entries=(allCandidates[room.id]||[]).filter(e=>_keepInRoom(e,room.id,assignment,allCandidates));
     entries.forEach((e,i)=>e.order=i+1);
     byRoom[room.id]={name:room.name||room.id,location:room.location||'',entries};
   });
@@ -12480,6 +12523,24 @@ function _jsupReopenForm(){
 }
 window._jsupReopenForm=_jsupReopenForm;
 
+// ★ 取得教師「專長」對應的考場；沒設定專長或比對不到時回傳全部（避免空白）
+function _jsupRoomsForTeacher(){
+  const all=DB.rooms.slice();
+  if(ST.role!=='teacher')return {rooms:all,filtered:false};
+  const me=DB.users.find(u=>u.id===ST.user?.id)||ST.user||{};
+  const specs=me.specialtyInsts||[];
+  if(!specs.length)return {rooms:all,filtered:false};
+  const specCats=new Set(specs.map(id=>_specInfo(id).catId).filter(Boolean));
+  const specItems=new Set(specs);
+  const snap=DB.savedScheduleSnapshot||{};
+  const hit=all.filter(r=>{
+    const rc=r.allowedCats||r.cats||[];
+    if(rc.some(c=>specCats.has(c)||specItems.has(c)))return true;
+    if((r.allowedItems||[]).some(i=>specItems.has(i)))return true;
+    return (snap[r.id]||[]).some(e=>specCats.has(e.catId)||specItems.has(e.instId));
+  });
+  return hit.length?{rooms:hit,filtered:true}:{rooms:all,filtered:false};
+}
 function renderJurySignupPage(){
   // 說明文字
   const noteEl=document.getElementById('jsup-note-text');
@@ -12509,7 +12570,7 @@ function renderJurySignupPage(){
   // ── ① 考場資訊卡片 ──
   const infoGrid=document.getElementById('jsup-info-grid');
   if(infoGrid){
-    infoGrid.innerHTML=DB.rooms.map(r=>{
+    infoGrid.innerHTML=_jsupRoomsForTeacher().rooms.map(r=>{
       const fmtDtStart=dt=>{if(!dt)return '';const d=new Date(dt);return isNaN(d)?dt:d.toLocaleString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit',weekday:'short'});};
       const fmtTime=dt=>{if(!dt)return '';const d=new Date(dt);return isNaN(d)?dt:d.toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});};
       const dateStr=r.dateStart?fmtDtStart(r.dateStart):'日期待定';
@@ -12532,7 +12593,7 @@ function renderJurySignupPage(){
   const rowsBody=document.getElementById('jsup-rows-body');
   if(!rowsBody)return;
 
-  rowsBody.innerHTML=DB.rooms.map(r=>{
+  rowsBody.innerHTML=_jsupRoomsForTeacher().rooms.map(r=>{
     const rd=existing[r.id]||{};
     const chosenOpt=rd.optId||'';
 
