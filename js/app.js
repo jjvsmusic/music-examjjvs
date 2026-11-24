@@ -12523,12 +12523,10 @@ function _jsupReopenForm(){
 }
 window._jsupReopenForm=_jsupReopenForm;
 
-// ★ 取得教師「專長」對應的考場；沒設定專長或比對不到時回傳全部（避免空白）
-function _jsupRoomsForTeacher(){
+// ★ 取得某位教師「專長」對應的考場；沒設定專長或比對不到時回傳全部（避免空白）
+function _jsupRoomsForTeacherObj(t){
   const all=DB.rooms.slice();
-  if(ST.role!=='teacher')return {rooms:all,filtered:false};
-  const me=DB.users.find(u=>u.id===ST.user?.id)||ST.user||{};
-  const specs=me.specialtyInsts||[];
+  const specs=(t&&t.specialtyInsts)||[];
   if(!specs.length)return {rooms:all,filtered:false};
   const specCats=new Set(specs.map(id=>_specInfo(id).catId).filter(Boolean));
   const specItems=new Set(specs);
@@ -12540,6 +12538,17 @@ function _jsupRoomsForTeacher(){
     return (snap[r.id]||[]).some(e=>specCats.has(e.catId)||specItems.has(e.instId));
   });
   return hit.length?{rooms:hit,filtered:true}:{rooms:all,filtered:false};
+}
+// ★ 這位教師是否「該填」此考場（專長對應，或已經填過就保留紀錄）
+function _jsupShouldFill(t,roomId){
+  const su=DB.jurySignup[t.id]||{};
+  if(su[roomId]?.optId)return true;
+  return _jsupRoomsForTeacherObj(t).rooms.some(r=>r.id===roomId);
+}
+function _jsupRoomsForTeacher(){
+  if(ST.role!=='teacher')return {rooms:DB.rooms.slice(),filtered:false};
+  const me=DB.users.find(u=>u.id===ST.user?.id)||ST.user||{};
+  return _jsupRoomsForTeacherObj(me);
 }
 function renderJurySignupPage(){
   // 說明文字
@@ -12957,6 +12966,7 @@ function renderJsupAdminTable(){
     teaList.forEach(t=>{
       const su=DB.jurySignup[t.id]||{};
       DB.rooms.forEach(r=>{
+        if(!_jsupShouldFill(t,r.id))return; // ★ 不是該考場該填的教師，不列入
         const rd=su[r.id]||{};
         if(!rd.optId){roomStats[r.id].none.push(t.name);return;}
         const opt=opts.find(o=>o.id===rd.optId);
@@ -13021,11 +13031,14 @@ function renderJsupAdminTable(){
     const su=DB.jurySignup[t.id]||{};
     const stuCount=(DB.teacherStudents[t.id]||[]).length;
     const submitted=su._submitted;
+    // ★ 篩選到某考場時，只列出該填此考場的教師
+    if(!shownRooms.some(r=>_jsupShouldFill(t,r.id)))return;
 
     // ─ 計算「整體參與狀態」摘要 ─
     let attendCount=0,subCount=0,otherCount=0,noneCount=0;
     shownRooms.forEach(r=>{
       const rd=su[r.id]||{};
+      if(!_jsupShouldFill(t,r.id))return;
       if(!rd.optId){noneCount++;return;}
       const opt=opts.find(o=>o.id===rd.optId);
       if(opt?.isAttend)attendCount++;
@@ -13041,6 +13054,9 @@ function renderJsupAdminTable(){
     // ─ 渲染各考場欄位 ─
     const roomCells=shownRooms.map(r=>{
       const rd=su[r.id]||{};
+      if(!_jsupShouldFill(t,r.id)){
+        return `<td style="font-size:10px;color:var(--border);text-align:center;background:var(--cream)">不需填報</td>`;
+      }
       if(!rd.optId){
         return `<td style="font-size:11px;color:var(--muted);text-align:center">—</td>`;
       }
@@ -13095,6 +13111,7 @@ function exportJsupCSV(){
     const su=DB.jurySignup[t.id]||{};
     const stuCount=(DB.teacherStudents[t.id]||[]).length;
     DB.rooms.forEach(r=>{
+      if(!_jsupShouldFill(t,r.id))return; // ★ 只匯出該填的考場
       const rd=su[r.id]||{};
       const opt=opts.find(o=>o.id===rd.optId);
       rows.push({
@@ -13132,7 +13149,9 @@ function exportJsupCSVWide(){
       const rd=su[r.id]||{};
       const opt=opts.find(o=>o.id===rd.optId);
       let cell='—';
-      if(rd.optId){
+      if(!_jsupShouldFill(t,r.id)){
+        cell='不需填報';
+      } else if(rd.optId){
         if(opt?.isAttend){
           const phone=rd.phone||t.phone||'';
           cell=`本人出席${phone?` (${phone})`:''}`;
