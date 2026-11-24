@@ -1036,6 +1036,7 @@
             <a class="btn btn-s btn-sm" href="#" onclick="downloadSample(event,'teacher')">↓ 範例檔</a>
             <button class="btn btn-d btn-sm" id="tea-bulk-del-btn" style="display:none" onclick="bulkDeleteUsers('teacher')">🗑 刪除已選（<span id="tea-sel-count">0</span>）</button>
             <button class="btn btn-o btn-sm" onclick="importTeaStudentsCSV()">↑ 更新指導學生</button>
+            <button class="btn btn-o btn-sm" onclick="openTeacherMatchModal()" title="只列出系統無法自動判定指導老師的修別，逐筆指定">🔎 師生對照確認</button>
             <a class="btn btn-s btn-sm" href="#" onclick="downloadTeaStudentsSample(event)">↓ 範例檔</a>
             <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:4px">排序：</span>
             <button class="btn btn-s btn-sm" id="tea-sort-asc" onclick="sortTeaList(1)">筆畫↑</button>
@@ -1045,7 +1046,7 @@
             <select id="tea-spec-filter" onchange="teaSpecFilterChanged()" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;outline:none;background:var(--white)"></select>
           </div>
           <div class="tw"><table>
-            <thead><tr><th style="width:32px;text-align:center"><input type="checkbox" id="tea-chk-all" onclick="toggleAllCheck('teacher',this)" title="全選／取消全選" style="cursor:pointer;width:14px;height:14px"></th><th>姓名</th><th>帳號</th><th>專長樂器</th><th>指導的學生</th><th>操作</th></tr></thead>
+            <thead><tr><th style="width:32px;text-align:center"><input type="checkbox" id="tea-chk-all" onclick="toggleAllCheck('teacher',this)" title="全選／取消全選" style="cursor:pointer;width:14px;height:14px"></th><th>姓名</th><th>帳號</th><th>專長樂器</th><th>指導的學生</th><th>可勾選考場</th><th>操作</th></tr></thead>
             <tbody id="admin-tea-tbody"></tbody>
           </table></div>
         </div>
