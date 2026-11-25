@@ -5079,7 +5079,10 @@ function schInitSortUI(){
   // allowedCats 作為「依考場重設」時的預設，不自動套用
   const _spec=curRoom?_roomExamSpec(curRoom):null; // ★ 以考場「考試樂器」為預設（沒有考場＝全部）
 
-  const allCatIds=DB.instruments.categories.sort((a,b)=>a.order-b.order).map(c=>c.id);
+  const _defaultCatIds=DB.instruments.categories.slice().sort((a,b)=>a.order-b.order).map(c=>c.id);
+  // ★ 保留使用者拖曳後的大項順序；新增的大項補在後面
+  const _prevCatIds=SCH_STATE.catOrder.map(c=>c.id).filter(id=>_defaultCatIds.includes(id));
+  const allCatIds=[..._prevCatIds,..._defaultCatIds.filter(id=>!_prevCatIds.includes(id))];
   const prevCatMap=Object.fromEntries(SCH_STATE.catOrder.map(c=>[c.id,c]));
   SCH_STATE.catOrder=allCatIds.map(cid=>{
     const cat=DB.instruments.categories.find(c=>c.id===cid);
@@ -5091,10 +5094,14 @@ function schInitSortUI(){
   });
 
   // instOrder — 全部樂器，依大項順序排列
-  const allInsts=DB.instruments.items.slice().sort((a,b)=>{
+  const _defaultInsts=DB.instruments.items.slice().sort((a,b)=>{
     const ci=allCatIds.indexOf(a.cat)-allCatIds.indexOf(b.cat);
     return ci!==0?ci:(a.order-b.order);
   });
+  // ★ 保留使用者拖曳後的細項順序；新增的樂器補在後面
+  const _prevInstIds=SCH_STATE.instOrder.map(i=>i.id).filter(id=>_defaultInsts.some(x=>x.id===id));
+  const _instById=Object.fromEntries(_defaultInsts.map(i=>[i.id,i]));
+  const allInsts=[..._prevInstIds.map(id=>_instById[id]),..._defaultInsts.filter(i=>!_prevInstIds.includes(i.id))];
   const prevInstMap=Object.fromEntries(SCH_STATE.instOrder.map(i=>[i.id,i]));
   SCH_STATE.instOrder=allInsts.map(i=>{
     const prev=prevInstMap[i.id];
@@ -5105,8 +5112,12 @@ function schInitSortUI(){
   });
 
   // 班級
-  if(!SCH_STATE.classOrder.length||SCH_STATE.classOrder.map(c=>c.cls).join()!==DB.classes.join()){
-    SCH_STATE.classOrder=DB.classes.map(c=>({cls:c,active:true}));
+  { // ★ 修正：原本只要順序和系統預設不同就整個重設，所以調整過的班級順序換考場/重新整理就消失。
+    //   現在保留已設定的順序與勾選；只移除已刪除的班級、把新班級補在最後。
+    const kept=(SCH_STATE.classOrder||[]).filter(c=>DB.classes.includes(c.cls));
+    const have=new Set(kept.map(c=>c.cls));
+    DB.classes.forEach(c=>{if(!have.has(c))kept.push({cls:c,active:true});});
+    SCH_STATE.classOrder=kept;
   }
   renderSchCatUI();
   renderSchInstUI();
@@ -5182,6 +5193,30 @@ window.schRemoveExcludeRule=schRemoveExcludeRule;
 // ★ 勾選/取消/拖曳任何條件後，名單立即更新（不必再按「套用」；套用鈕仍可用來存檔提示）
 function _schLive(){
   try{renderSchedule();}catch(e){console.warn('[schedule] 即時更新失敗',e);}
+  _schAutoPersist();
+}
+// ★ 排程的「篩選／排序設定」變更後自動存到資料庫（只寫 scheduleState/main）。
+//   不會更動學生、老師看到的已發布名單；那仍要按「儲存排程」。這樣調好的班級順序等設定，重新整理後才不會消失。
+let _schPersistTimer=null;
+function _schAutoPersist(){
+  if(ST.role!=='admin')return;
+  clearTimeout(_schPersistTimer);
+  _schPersistTimer=setTimeout(()=>{
+    try{
+      _saveRoomState(SCH_STATE.roomId);
+      const data={};
+      Object.entries(_SCH_ROOM_STATES).forEach(([rid,st])=>{
+        data[rid]={
+          catOrder:st.catOrder||[],instOrder:st.instOrder||[],typeOrder:st.typeOrder||[],classOrder:st.classOrder||[],
+          seatDir:st.seatDir||1,extraEntries:st.extraEntries||[],removedEntries:[...(st.removedEntries||[])],
+          excludeRules:st.excludeRules||[],manualOrder:st.manualOrder||[],
+        };
+      });
+      fbSet('scheduleState','main',{data:JSON.stringify(data)});
+      try{localStorage.setItem('scheduleState',JSON.stringify(data));}catch(e){}
+      showToast('排程設定已自動儲存 ✓（要讓學生/老師看到名單，請按「儲存排程」）','ok');
+    }catch(e){console.warn('[schedule] 自動儲存失敗',e);}
+  },1500);
 }
 
 function renderSchCatUI(){
@@ -5320,6 +5355,7 @@ window.schSeatDir=schSeatDir;
 function schApplySort(){
   _saveRoomState(SCH_STATE.roomId); // ★ 套用時儲存此考場狀態
   renderSchedule();showToast('排序已套用 ✓','ok');
+  _schAutoPersist();
 }
 window.schApplySort=schApplySort;
 
@@ -5883,6 +5919,7 @@ function schRemoveEntry(entryKey){
   const _ix=entryKey.lastIndexOf('_');const sid=entryKey.slice(0,_ix),type=entryKey.slice(_ix+1);
   SCH_STATE.extraEntries=SCH_STATE.extraEntries.filter(e=>!(e.studentId===sid&&e.type===type));
   renderSchedule();
+  _schAutoPersist();
   showToast('已從排程移除','warn');
 }
 window.schRemoveEntry=schRemoveEntry;
@@ -12090,6 +12127,7 @@ function _saveManualOrder(container){
   if(_SCH_ROOM_STATES[SCH_STATE.roomId]){
     _SCH_ROOM_STATES[SCH_STATE.roomId].manualOrder=order;
   }
+  _schAutoPersist(); // ★ 手動排序也自動存設定
   console.log('[schedule] 已記錄手動排序',order.length,'筆，記得按「儲存排程」才會生效');
 }
 function getDragAfter(container,y){
