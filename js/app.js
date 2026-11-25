@@ -4942,6 +4942,23 @@ function generateSchedule(){schApplySort();showToast('已自動生成出場順�
 // ★ 每個考場有獨立狀態，用 _roomStates map 儲存
 const _SCH_ROOM_STATES = {}; // {roomId: SCH_STATE_snapshot}
 
+// ★ 考場的「考試樂器」規格：考場管理裡複選的樂器（room.allowedItems）。
+//   - 有勾選樂器 → 以樂器為準（排程預設篩選、教師可報名考場都由它決定）
+//   - 沒勾選但有舊的大項設定（allowedCats/cats）→ 沿用大項（相容舊資料）
+//   - 兩者都沒有 → 視為「未設定」
+function _roomExamSpec(room){
+  const items=DB.instruments.items||[];
+  const picked=((room&&room.allowedItems)||[]).filter(id=>items.some(i=>i.id===id));
+  if(picked.length){
+    return {cats:new Set(picked.map(id=>items.find(i=>i.id===id).cat)),insts:new Set(picked),byItem:true,empty:false};
+  }
+  const lc=room?(room.allowedCats||room.cats||[]):[];
+  if(lc.length){
+    return {cats:new Set(lc),insts:new Set(items.filter(i=>lc.includes(i.cat)).map(i=>i.id)),byItem:false,empty:false};
+  }
+  return {cats:new Set(),insts:new Set(),byItem:false,empty:true};
+}
+
 function _makeDefaultSchState(){
   return {
     roomId:'',
@@ -5060,7 +5077,7 @@ function schInitSortUI(){
   const roomId=SCH_STATE.roomId;
   const curRoom=roomId?DB.rooms.find(r=>r.id===roomId):null;
   // allowedCats 作為「依考場重設」時的預設，不自動套用
-  const roomAllowedCats=curRoom?(curRoom.allowedCats||curRoom.cats||[]):null;
+  const _spec=curRoom?_roomExamSpec(curRoom):null; // ★ 以考場「考試樂器」為預設（沒有考場＝全部）
 
   const allCatIds=DB.instruments.categories.sort((a,b)=>a.order-b.order).map(c=>c.id);
   const prevCatMap=Object.fromEntries(SCH_STATE.catOrder.map(c=>[c.id,c]));
@@ -5069,7 +5086,7 @@ function schInitSortUI(){
     const prev=prevCatMap[cid];
     if(prev)return {id:cid,name:cat?.name||cid,active:prev.active};
     // 新考場：若有 allowedCats 就按它預設，無考場（全部）則全 active
-    const defaultActive=roomAllowedCats?roomAllowedCats.includes(cid):true;
+    const defaultActive=_spec?_spec.cats.has(cid):true;
     return {id:cid,name:cat?.name||cid,active:defaultActive};
   });
 
@@ -5083,8 +5100,8 @@ function schInitSortUI(){
     const prev=prevInstMap[i.id];
     if(prev)return {id:i.id,name:i.name,active:prev.active};
     const ownCat=SCH_STATE.catOrder.find(c=>c.id===i.cat);
-    const catActive=ownCat?ownCat.active:(roomAllowedCats?roomAllowedCats.includes(i.cat):true);
-    return {id:i.id,name:i.name,active:catActive};
+    const catActive=ownCat?ownCat.active:true;
+    return {id:i.id,name:i.name,active:_spec?_spec.insts.has(i.id):catActive};
   });
 
   // 班級
@@ -5162,6 +5179,11 @@ function schRemoveExcludeRule(idx){
 }
 window.schRemoveExcludeRule=schRemoveExcludeRule;
 
+// ★ 勾選/取消/拖曳任何條件後，名單立即更新（不必再按「套用」；套用鈕仍可用來存檔提示）
+function _schLive(){
+  try{renderSchedule();}catch(e){console.warn('[schedule] 即時更新失敗',e);}
+}
+
 function renderSchCatUI(){
   const el=document.getElementById('sch-cat-order');if(!el)return;
   el.innerHTML='';
@@ -5180,6 +5202,7 @@ function renderSchCatUI(){
       }
       tag.style.background=c.active?'var(--gold)':'var(--white)';tag.style.color=c.active?'var(--ink)':'';
       renderSchInstUI();
+      _schLive();
     });
     tag.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain','cat:'+idx);tag.style.opacity='.4';});
     tag.addEventListener('dragend',()=>{tag.style.opacity='1';});
@@ -5190,7 +5213,7 @@ function renderSchCatUI(){
       const fromIdx=+data.split(':')[1];const toIdx=idx;
       if(fromIdx===toIdx)return;
       const moved=SCH_STATE.catOrder.splice(fromIdx,1)[0];
-      SCH_STATE.catOrder.splice(toIdx,0,moved);renderSchCatUI();
+      SCH_STATE.catOrder.splice(toIdx,0,moved);renderSchCatUI();renderSchInstUI();_schLive();
     });
     el.appendChild(tag);
   });
@@ -5221,6 +5244,7 @@ function renderSchInstUI(){
         inst.active=!inst.active;
         tag.style.background=inst.active?'var(--ink)':'var(--white)';
         tag.style.color=inst.active?'var(--gold)':'';
+        _schLive();
       });
       tag.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain','inst:'+idx);tag.style.opacity='.4';});
       tag.addEventListener('dragend',()=>{tag.style.opacity='1';});
@@ -5231,7 +5255,7 @@ function renderSchInstUI(){
         const fromIdx=+data.split(':')[1];const toIdx=idx;
         if(fromIdx===toIdx)return;
         const moved=SCH_STATE.instOrder.splice(fromIdx,1)[0];
-        SCH_STATE.instOrder.splice(toIdx,0,moved);renderSchInstUI();
+        SCH_STATE.instOrder.splice(toIdx,0,moved);renderSchInstUI();_schLive();
       });
       el.appendChild(tag);
     });
@@ -5245,7 +5269,7 @@ function renderSchTypeUI(){
     tag.style.cssText=`display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid var(--border);border-radius:20px;cursor:grab;font-family:DM Mono,monospace;font-size:9px;transition:all .15s;background:${t.active?'var(--steel);color:#fff':'var(--white)'}`;
     tag.draggable=true;tag.dataset.idx=idx;
     tag.innerHTML=t.label;
-    tag.addEventListener('click',()=>{t.active=!t.active;tag.style.background=t.active?'var(--steel)':'var(--white)';tag.style.color=t.active?'#fff':'';});
+    tag.addEventListener('click',()=>{t.active=!t.active;tag.style.background=t.active?'var(--steel)':'var(--white)';tag.style.color=t.active?'#fff':'';_schLive();});
     tag.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain','type:'+idx);tag.style.opacity='.4';});
     tag.addEventListener('dragend',()=>{tag.style.opacity='1';});
     tag.addEventListener('dragover',e=>{e.preventDefault();});
@@ -5255,7 +5279,7 @@ function renderSchTypeUI(){
       const fromIdx=+data.split(':')[1];const toIdx=idx;
       if(fromIdx===toIdx)return;
       const moved=SCH_STATE.typeOrder.splice(fromIdx,1)[0];
-      SCH_STATE.typeOrder.splice(toIdx,0,moved);renderSchTypeUI();
+      SCH_STATE.typeOrder.splice(toIdx,0,moved);renderSchTypeUI();_schLive();
     });
     el.appendChild(tag);
   });
@@ -5269,7 +5293,7 @@ function renderSchClassUI(){
     tag.style.cssText=`display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid var(--border);border-radius:20px;cursor:grab;font-family:DM Mono,monospace;font-size:9px;transition:all .15s;background:${c.active?'var(--sage);color:#fff':'var(--white)'}`;
     tag.draggable=true;tag.dataset.idx=idx;
     tag.innerHTML=c.cls;
-    tag.addEventListener('click',()=>{c.active=!c.active;tag.style.background=c.active?'var(--sage)':'var(--white)';tag.style.color=c.active?'#fff':'';});
+    tag.addEventListener('click',()=>{c.active=!c.active;tag.style.background=c.active?'var(--sage)':'var(--white)';tag.style.color=c.active?'#fff':'';_schLive();});
     tag.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain','cls:'+idx);tag.style.opacity='.4';});
     tag.addEventListener('dragend',()=>{tag.style.opacity='1';});
     tag.addEventListener('dragover',e=>{e.preventDefault();});
@@ -5279,7 +5303,7 @@ function renderSchClassUI(){
       const fromIdx=+data.split(':')[1];const toIdx=idx;
       if(fromIdx===toIdx)return;
       const moved=SCH_STATE.classOrder.splice(fromIdx,1)[0];
-      SCH_STATE.classOrder.splice(toIdx,0,moved);renderSchClassUI();
+      SCH_STATE.classOrder.splice(toIdx,0,moved);renderSchClassUI();_schLive();
     });
     el.appendChild(tag);
   });
@@ -5290,7 +5314,7 @@ function schRenderSeatBtns(){
   if(a){a.className='btn btn-sm '+(SCH_STATE.seatDir===1?'btn-p':'btn-s');}
   if(d){d.className='btn btn-sm '+(SCH_STATE.seatDir===-1?'btn-p':'btn-s');}
 }
-function schSeatDir(dir){SCH_STATE.seatDir=dir;schRenderSeatBtns();}
+function schSeatDir(dir){SCH_STATE.seatDir=dir;schRenderSeatBtns();_schLive();}
 window.schSeatDir=schSeatDir;
 
 function schApplySort(){
@@ -5607,8 +5631,21 @@ function schSaveSchedule(){
 //   舊版問題：沒存過篩選狀態的考場會沿用上一個考場殘留的篩選（甚至完全不篩），
 //   又因為去重時「排在前面的考場先搶」，導致你設定好的考場名單被前面未設定的考場搶光 → 名單空白。
 //   新版：沒存過狀態的考場，改用該考場的 allowedCats 當預設；若連 allowedCats 都沒設定，視為「未設定」→ 不參與搶名單。
+// ★ 考場的考試樂器改了：同步該考場排程的大項／細項勾選（其餘條件如修別、班級、手動名單不動）
+function _syncRoomStateToExam(room){
+  const spec=_roomExamSpec(room);
+  const apply=st=>{
+    (st.catOrder||[]).forEach(c=>{c.active=spec.cats.has(c.id);});
+    (st.instOrder||[]).forEach(i=>{i.active=spec.insts.has(i.id);});
+  };
+  if(_SCH_ROOM_STATES[room.id])apply(_SCH_ROOM_STATES[room.id]);
+  if(SCH_STATE.roomId===room.id){
+    apply(SCH_STATE);
+    try{renderSchCatUI();renderSchInstUI();renderSchedule();}catch(e){}
+  }
+}
 function _roomDefaultState(room){
-  const allowed=room.allowedCats||room.cats||[];
+  const spec=_roomExamSpec(room);
   const cats=(DB.instruments.categories||[]).slice().sort((a,b)=>(a.order??99)-(b.order??99));
   const allCatIds=cats.map(c=>c.id);
   const insts=(DB.instruments.items||[]).slice().sort((a,b)=>{
@@ -5616,8 +5653,8 @@ function _roomDefaultState(room){
     return ci!==0?ci:((a.order??0)-(b.order??0));
   });
   return {
-    catOrder:cats.map(c=>({id:c.id,name:c.name,active:allowed.includes(c.id)})),
-    instOrder:insts.map(i=>({id:i.id,name:i.name,active:allowed.includes(i.cat)})),
+    catOrder:cats.map(c=>({id:c.id,name:c.name,active:spec.cats.has(c.id)})),
+    instOrder:insts.map(i=>({id:i.id,name:i.name,active:spec.insts.has(i.id)})),
     typeOrder:[{key:'major',label:'主修',active:true},{key:'minor',label:'副修',active:true},{key:'elective',label:'選修',active:true}],
     classOrder:(DB.classes||[]).map(c=>({cls:c,active:true})),
     seatDir:1,extraEntries:[],removedEntries:new Set(),excludeRules:[],manualOrder:[],
@@ -5645,8 +5682,7 @@ function _collectAllRoomCandidates(){
       }
       const hadSaved=!!_SCH_ROOM_STATES[room.id];
       if(!hadSaved){
-        const allowed=room.allowedCats||room.cats||[];
-        if(!allowed.length){out[room.id]=[];return;} // 完全未設定的考場：不參與
+        if(_roomExamSpec(room).empty){out[room.id]=[];return;} // 完全未設定的考場：不參與
         _SCH_ROOM_STATES[room.id]=_roomDefaultState(room); // 暫時使用，不寫入永久狀態
       }
       SCH_STATE.roomId=room.id;
@@ -6153,6 +6189,30 @@ function exportScheduleCSV(){
 // ════════════════════════════════════════════════
 
 // ── 核心：取得各考場已去重的出場名單 ──
+// ★ 不看已儲存的快照，直接依「考試排程」目前的設定即時算出每個考場名單（含手動加入/移除）
+function _computeLiveScheduleByRoom(){
+  const allCandidates=_collectAllRoomCandidates();
+  const assignment=_computeAssignment(allCandidates);
+  const byRoom={};
+  DB.rooms.forEach(room=>{
+    const entries=(allCandidates[room.id]||[]).filter(e=>_keepInRoom(e,room.id,assignment,allCandidates));
+    entries.forEach((e,i)=>e.order=i+1);
+    byRoom[room.id]={name:room.name||room.id,location:room.location||'',entries};
+  });
+  return byRoom;
+}
+// 學生 → 各修別所在考場（id 陣列）
+function _liveStudentRoomIds(){
+  const map={};
+  let by=null;try{by=_computeLiveScheduleByRoom();}catch(e){console.warn('[liveSchedule]',e);}
+  if(!by)return null;
+  Object.entries(by).forEach(([rid,v])=>(v.entries||[]).forEach(e=>{
+    const m=map[e.studentId]=map[e.studentId]||{major:[],minor:[],elective:[]};
+    if(m[e.type]&&!m[e.type].includes(rid))m[e.type].push(rid);
+  }));
+  return map;
+}
+
 function _getScheduleByRoom(){
   const snap=DB.savedScheduleSnapshot||{};
   const hasSnap=Object.values(snap).some(a=>Array.isArray(a)&&a.length>0);
@@ -6455,32 +6515,17 @@ function openStuRoomModal(stuId){
   // 找該生目前在各考場的狀態
   const inRooms={major:new Set(),minor:new Set(),elective:new Set()};
 
-  // ── 來源 1（最權威）：savedScheduleSnapshot ──
-  // 已按下「儲存排程」後產生的實際分配，每個 type 只在一個考場出現
-  const snap=DB.savedScheduleSnapshot||{};
-  const hasSnap=Object.values(snap).some(arr=>arr&&arr.length>0);
-  if(hasSnap){
+  // ── 來源 1：「考試排程」目前的排程結果（與學生名單顯示一致）──
+  const _liveMap=_liveStudentRoomIds();
+  if(_liveMap){
+    const m=_liveMap[stuId];
+    if(m)['major','minor','elective'].forEach(t=>m[t].forEach(rid=>inRooms[t].add(rid)));
+  } else {
+    // 極端情況（即時排程計算失敗）才退回已儲存的快照
+    const snap=DB.savedScheduleSnapshot||{};
     Object.entries(snap).forEach(([roomId,entries])=>{
       (entries||[]).forEach(e=>{if(e.studentId===stuId)inRooms[e.type]?.add(roomId);});
     });
-  } else {
-    // ── Fallback：未存檔時用即時預測，每個 type 取第一個匹配的考場（避免重複勾選）──
-    if(typeof _buildFilteredEntries==='function'){
-      const foundTypes=new Set();
-      DB.rooms.forEach(room=>{
-        try{
-          const entries=_buildFilteredEntries(room.id);
-          entries.forEach(e=>{
-            // 同一 type 已找到匹配考場就跳過（避免一個修別勾多個考場）
-            const key=e.studentId+'_'+e.type;
-            if(e.studentId===stuId&&!foundTypes.has(key)&&inRooms[e.type]){
-              inRooms[e.type].add(room.id);
-              foundTypes.add(key);
-            }
-          });
-        }catch(err){}
-      });
-    }
   }
 
   // ── 來源 2：手動加入（extraEntries）— 永遠加入，覆蓋自動分配 ──
@@ -6744,7 +6789,15 @@ function renderAdminStudents(){
   // 同時支援 snap.roomId 欄位和外層 key 兩種來源，確保對得上
   const stuRoomMap={};
   const snapData=DB.savedScheduleSnapshot||{};
-  Object.entries(snapData).forEach(([outerRoomId,snaps])=>{
+  // ★ 以「考試排程」目前的結果為準（先排程，學生名單再看到考場；有誤再用「調整考場」手動改）
+  const _live=_liveStudentRoomIds();
+  if(_live){
+    Object.entries(_live).forEach(([sid,m])=>{
+      stuRoomMap[sid]={};
+      ['major','minor','elective'].forEach(t=>{stuRoomMap[sid][t]=m[t].map(rid=>DB.rooms.find(r=>r.id===rid)?.name||rid);});
+    });
+  }
+  (_live?[]:Object.entries(snapData)).forEach(([outerRoomId,snaps])=>{
     if(!snaps||!snaps.length)return;
     (snaps).forEach(snap=>{
       // roomId 優先用 snap.roomId，fallback 外層 key
@@ -6759,6 +6812,22 @@ function renderAdminStudents(){
       }
     });
   });
+  { // ★ 提示：顯示的是排程即時結果；與已儲存名單不同時提醒要儲存
+    const tbl=tbody.closest('table');let note=document.getElementById('stu-room-note');
+    if(tbl&&!note){note=document.createElement('div');note.id='stu-room-note';note.style.cssText='margin:0 0 8px;padding:8px 12px;background:var(--cream);border-left:3px solid var(--gold);font-size:12px;line-height:1.8';tbl.parentNode.insertBefore(note,tbl);}
+    if(note){
+      let diff=0;
+      if(_live){
+        const savedMap={};
+        Object.entries(snapData).forEach(([rid,arr])=>(arr||[]).forEach(e=>{savedMap[e.studentId+'_'+e.type+'_'+rid]=1;}));
+        const liveKeys={};
+        Object.entries(_live).forEach(([sid,m])=>['major','minor','elective'].forEach(t=>m[t].forEach(rid=>{liveKeys[sid+'_'+t+'_'+rid]=1;})));
+        Object.keys(liveKeys).forEach(k=>{if(!savedMap[k])diff++;});
+        Object.keys(savedMap).forEach(k=>{if(!liveKeys[k])diff++;});
+      }
+      note.innerHTML='ℹ 「考場」欄顯示的是<strong>「考試排程」目前的排程結果</strong>；若有誤，請到考試排程修正，或在該生按「✎ 調整考場」手動指定。'+(diff?`<br><span style="color:var(--rust)">⚠ 與已儲存／已發布的名單有 ${diff} 處不同，請到「考試排程」按「儲存排程」後，學生與老師才會看到新的結果。</span>`:'');
+    }
+  }
   tbody.innerHTML=stus.map(s=>{
     const rm=stuRoomMap[s.id]||{major:[],minor:[],elective:[]};
     const roomLines=[
@@ -6970,7 +7039,8 @@ function _teaRoomsCellHtml(t){
     if(!r.rooms.length)return '<span class="badge" style="font-size:9px;background:rgba(122,39,24,.12);color:var(--rust)">手動：不需報名</span>';
     return '<span class="badge b-minor" style="font-size:9px" title="管理員手動指定">手動</span> '+r.rooms.map(x=>escHtml(x.name||x.id)).join('、');
   }
-  if(!r.filtered)return '<span style="color:var(--muted)" title="尚未設定專長或比對不到考場，預設全部考場">全部考場（未比對）</span>';
+  if(r.none)return '<span style="color:var(--rust)" title="各考場的考試樂器都不含此教師的專長">無對應考場（請檢查考場的考試樂器）</span>';
+  if(!r.filtered)return '<span style="color:var(--muted)" title="尚未設定專長，或考場尚未設定考試樂器，預設全部考場">全部考場（未比對）</span>';
   return '<span class="badge b-major" style="font-size:9px" title="依專長／考場大項自動比對">自動</span> '+r.rooms.map(x=>escHtml(x.name||x.id)).join('、');
 }
 function _teaTypeRows(t){
@@ -7617,7 +7687,7 @@ function renderRooms(){
     tr.draggable=true;tr.dataset.idx=idx;
     tr.innerHTML=`
     <td style="cursor:grab;color:var(--border);font-size:15px;text-align:center;padding:4px 8px" class="dh">⠿</td>
-    <td><strong>${r.name}</strong></td>
+    <td><strong>${r.name}</strong><div style="font-size:10px;color:var(--muted);line-height:1.6;margin-top:2px;max-width:280px">考試樂器：${_roomExamLabel(r)}</div></td>
     <td style="font-family:DM Mono,monospace;font-size:11px;color:var(--muted)">${r.location||'—'}</td>
     <td style="font-family:DM Mono,monospace;font-size:10px;color:var(--ink)">${dtStr}</td>
     <td><span style="font-family:DM Mono,monospace;background:var(--ink);color:var(--paper);padding:2px 7px;border-radius:var(--r);letter-spacing:2px">••••••</span>
@@ -7640,6 +7710,68 @@ function renderRooms(){
     tbody.appendChild(tr);
   });
 }
+
+// ════ 考場管理：考試樂器複選 ════
+function _roomInstPickerHtml(selected){
+  const cats=(DB.instruments.categories||[]).slice().sort((a,b)=>(a.order??99)-(b.order??99));
+  const items=DB.instruments.items||[];
+  const groups=cats.map(c=>{
+    const its=items.filter(i=>i.cat===c.id).sort((a,b)=>(a.order??0)-(b.order??0));
+    if(!its.length)return '';
+    const all=its.every(i=>selected.has(i.id));
+    return `<div style="margin-bottom:8px;border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+      <label style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--cream);cursor:pointer;font-weight:700;font-size:12px">
+        <input type="checkbox" class="rm-cat" data-cat="${escHtml(c.id)}" ${all?'checked':''} onchange="rmToggleCat('${escHtml(c.id)}',this.checked)" style="width:15px;height:15px">${escHtml(c.name)}
+        <span style="font-weight:400;font-size:10px;color:var(--muted)">（整組全選／取消）</span></label>
+      <div style="display:flex;flex-wrap:wrap;gap:4px 14px;padding:8px 10px">
+        ${its.map(i=>`<label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:12px"><input type="checkbox" class="rm-inst" value="${escHtml(i.id)}" data-cat="${escHtml(c.id)}" ${selected.has(i.id)?'checked':''} onchange="rmPickerChanged()" style="width:14px;height:14px">${escHtml(i.name)}</label>`).join('')}
+      </div></div>`;
+  }).join('');
+  return `<div class="fg" style="margin-top:4px"><label>考試樂器（可複選）</label>
+    <div style="font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:6px">此考場要考的樂器。會<strong>直接帶入「考試排程」的大項／細項篩選</strong>，也會和教師專長交叉比對，決定老師報名評分時看得到哪些考場。</div>
+    <div id="rm-inst-picker" style="max-height:260px;overflow:auto">${groups||'<span style="color:var(--muted)">尚未建立樂器</span>'}</div>
+    <div id="rm-inst-preview" style="margin-top:8px;padding:8px 10px;background:var(--cream);border-radius:var(--r);font-size:11px;line-height:1.8"></div></div>`;
+}
+function _readRoomInstPicker(){
+  return [...document.querySelectorAll('#rm-inst-picker .rm-inst:checked')].map(x=>x.value);
+}
+function _teachersMatchingInsts(instIds){
+  const set=new Set(instIds);
+  const catSet=new Set(instIds.map(id=>(DB.instruments.items.find(i=>i.id===id)||{}).cat).filter(Boolean));
+  return DB.users.filter(u=>u.role==='teacher').filter(t=>(t.specialtyInsts||[]).some(id=>{
+    const isCat=(DB.instruments.categories||[]).some(c=>c.id===id)&&!(DB.instruments.items||[]).some(i=>i.id===id);
+    return isCat?catSet.has(id):set.has(id);
+  }));
+}
+function rmPickerChanged(){
+  // 同步各大項的「整組」勾選狀態
+  document.querySelectorAll('#rm-inst-picker .rm-cat').forEach(cb=>{
+    const kids=[...document.querySelectorAll('#rm-inst-picker .rm-inst')].filter(x=>x.dataset.cat===cb.dataset.cat);
+    cb.checked=kids.length>0&&kids.every(x=>x.checked);
+    cb.indeterminate=!cb.checked&&kids.some(x=>x.checked);
+  });
+  const pv=document.getElementById('rm-inst-preview');if(!pv)return;
+  const ids=_readRoomInstPicker();
+  if(!ids.length){pv.innerHTML='<span style="color:var(--muted)">尚未勾選考試樂器</span>';return;}
+  const ts=_teachersMatchingInsts(ids);
+  pv.innerHTML=`<strong>可報名評分的教師（依專長比對）：</strong>${ts.length?ts.map(t=>escHtml(t.name)).join('、'):'<span style="color:var(--rust)">目前沒有專長相符的教師</span>'}`;
+}
+function rmToggleCat(catId,on){
+  document.querySelectorAll('#rm-inst-picker .rm-inst').forEach(x=>{if(x.dataset.cat===catId)x.checked=on;});
+  rmPickerChanged();
+}
+window.rmPickerChanged=rmPickerChanged;window.rmToggleCat=rmToggleCat;
+function _applyRoomExamInsts(room,ids){
+  const cats=[...new Set(ids.map(id=>(DB.instruments.items.find(i=>i.id===id)||{}).cat).filter(Boolean))];
+  room.allowedItems=ids.slice();room.allowedCats=cats;room.cats=cats;
+}
+function _roomExamLabel(r){
+  const sp=_roomExamSpec(r);
+  if(sp.empty)return '<span style="color:var(--rust)">尚未設定考試樂器</span>';
+  const items=DB.instruments.items||[];
+  if(!sp.byItem)return (DB.instruments.categories||[]).filter(c=>sp.cats.has(c.id)).map(c=>escHtml(c.name)).join('、')+'（大項）';
+  return [...sp.insts].map(id=>escHtml((items.find(i=>i.id===id)||{}).name||id)).join('、');
+}
 function revealCode(id,btn){const r=DB.rooms.find(x=>x.id===id);if(!r)return;btn.parentNode.innerHTML=`<code style="font-family:DM Mono,monospace;background:var(--cream);padding:3px 8px;border-radius:var(--r);letter-spacing:3px">${r.code}</code>`;}
 function addRoom(){
   document.getElementById('edit-modal-title').textContent='新增考場';
@@ -7659,9 +7791,8 @@ function addRoom(){
       <div class="fg"><label>考試日期時間（開始）</label><input type="datetime-local" id="rm-date-start"></div>
       <div class="fg"><label>考試日期時間（結束）</label><input type="datetime-local" id="rm-date-end"></div>
     </div>
-    <div style="padding:8px 10px;background:var(--cream);border-radius:var(--r);font-family:DM Mono,monospace;font-size:9px;color:var(--muted);line-height:1.7">
-      💡 樂器篩選請至「考試排程」頁面設定，無需在此勾選。
-    </div>`;
+    ${_roomInstPickerHtml(new Set())}`;
+  rmPickerChanged();
   document.getElementById('edit-modal-save').onclick=()=>{
     const name=document.getElementById('rm-name').value.trim();
     const code=document.getElementById('rm-code').value.trim();
@@ -7671,6 +7802,7 @@ function addRoom(){
     if(!name||!code){showToast('請填寫名稱及代碼','err');return;}
     const invigCode=document.getElementById('rm-invig-code').value.trim()||('I-'+code);
     const nr={id:'r'+Date.now(),name,code,invigCode,location,dateStart,dateEnd,allowedCats:[],cats:[],allowedItems:[]};
+    _applyRoomExamInsts(nr,_readRoomInstPicker());
     DB.rooms.push(nr);fbSet('rooms',nr.id,{...nr,_order:DB.rooms.length-1});
     closeOverlay('edit-modal');showToast('已新增 '+name,'ok');renderRooms();initDropdowns();
   };
@@ -7695,9 +7827,8 @@ function editRoom(id){
       <div class="fg"><label>考試日期時間（開始）</label><input type="datetime-local" id="rm-date-start" value="${r.dateStart||''}" ></div>
       <div class="fg"><label>考試日期時間（結束）</label><input type="datetime-local" id="rm-date-end" value="${r.dateEnd||''}" ></div>
     </div>
-    <div style="padding:8px 10px;background:var(--cream);border-radius:var(--r);font-family:DM Mono,monospace;font-size:9px;color:var(--muted);line-height:1.7">
-      💡 樂器篩選請至「考試排程」頁面設定，無需在此勾選。
-    </div>`;
+    ${_roomInstPickerHtml(_roomExamSpec(r).insts)}`;
+  rmPickerChanged();
   document.getElementById('edit-modal-save').onclick=()=>{
     r.name=document.getElementById('rm-name').value.trim()||r.name;
     r.code=document.getElementById('rm-code').value.trim()||r.code;
@@ -7705,8 +7836,10 @@ function editRoom(id){
     r.location=document.getElementById('rm-location').value.trim();
     r.dateStart=document.getElementById('rm-date-start').value||'';
     r.dateEnd=document.getElementById('rm-date-end').value||'';
+    _applyRoomExamInsts(r,_readRoomInstPicker());
+    _syncRoomStateToExam(r);
     fbSet('rooms',r.id,{...r,_order:DB.rooms.indexOf(r)});
-    closeOverlay('edit-modal');showToast('已更新','ok');renderRooms();initDropdowns();
+    closeOverlay('edit-modal');showToast('已更新；考試排程的大項／細項已同步，請到「考試排程」按「儲存排程」','ok');renderRooms();initDropdowns();try{renderAdminTeachers();}catch(e){}
   };
   openOverlay('edit-modal');
 }
@@ -12791,16 +12924,21 @@ function _jsupAutoRoomsForTeacher(t){
   const all=DB.rooms.slice();
   const specs=(t&&t.specialtyInsts)||[];
   if(!specs.length)return {rooms:all,filtered:false};
-  const specCats=new Set(specs.map(id=>_specInfo(id).catId).filter(Boolean));
-  const specItems=new Set(specs);
+  const cats=DB.instruments.categories||[],items=DB.instruments.items||[];
+  const isCatId=id=>cats.some(c=>c.id===id)&&!items.some(i=>i.id===id);
+  const anyConfigured=all.some(r=>!_roomExamSpec(r).empty);
   const snap=DB.savedScheduleSnapshot||{};
   const hit=all.filter(r=>{
-    const rc=r.allowedCats||r.cats||[];
-    if(rc.some(c=>specCats.has(c)||specItems.has(c)))return true;
-    if((r.allowedItems||[]).some(i=>specItems.has(i)))return true;
-    return (snap[r.id]||[]).some(e=>specCats.has(e.catId)||specItems.has(e.instId));
+    const sp=_roomExamSpec(r);
+    if(!sp.empty){ // 考場有設定考試樂器（或舊大項）：專長是細項→看樂器；專長是大項→看大項
+      return specs.some(id=>isCatId(id)?sp.cats.has(id):sp.insts.has(id));
+    }
+    // 完全未設定的考場：才參考已儲存排程名單
+    return (snap[r.id]||[]).some(e=>specs.some(id=>isCatId(id)?e.catId===id:e.instId===id));
   });
-  return hit.length?{rooms:hit,filtered:true}:{rooms:all,filtered:false};
+  if(hit.length)return {rooms:hit,filtered:true};
+  // 比不到：若全站都還沒設定任何考場的考試樂器，暫時顯示全部；否則明確告知「沒有對應考場」
+  return anyConfigured?{rooms:[],filtered:true,none:true}:{rooms:all,filtered:false};
 }
 // ★ 這位教師是否「該填」此考場（專長對應，或已經填過就保留紀錄）
 function _jsupShouldFill(t,roomId){
@@ -12839,6 +12977,16 @@ function renderJurySignupPage(){
     }
   }
 
+  // ★ 沒有任何對應專長的考場：明確說明，不要顯示不相干的考場
+  {
+    const _m=_jsupRoomsForTeacher();
+    if(!_m.rooms.length){
+      const ig=document.getElementById('jsup-info-grid');if(ig)ig.innerHTML='';
+      const rb=document.getElementById('jsup-rows-body');
+      if(rb)rb.innerHTML='<div style="padding:16px;background:var(--cream);border-left:3px solid var(--gold);font-size:13px;line-height:1.9">目前沒有與您專長對應的考場可報名。<br>若您應參與評分，請洽管理員：到「考場管理」確認各考場的考試樂器，或在「教師名單 → 修別／考場」手動指定您可報名的考場。</div>';
+      return;
+    }
+  }
   // ── ① 考場資訊卡片 ──
   const infoGrid=document.getElementById('jsup-info-grid');
   if(infoGrid){
@@ -13533,6 +13681,17 @@ Object.keys(_fnMap).forEach(function(name){ window[name] = _fnMap[name]; });
   }
 });
 
+// ★ 版本標記：畫面右下角顯示小字，方便確認瀏覽器載入的是不是最新的 app.js（若還是舊版會顯示不同或沒有）
+(function(){
+  const V='2026-11-25-c';window.APP_VERSION=V;
+  try{
+    const el=document.createElement('div');
+    el.id='app-version-tag';el.textContent='程式版本 '+V;
+    el.style.cssText='position:fixed;right:8px;bottom:4px;font:9px DM Mono,monospace;color:#9a8f7a;opacity:.7;z-index:5;pointer-events:none';
+    document.body.appendChild(el);
+  }catch(e){}
+  console.log('[music-exam] app.js 版本',V);
+})();
 } // end __init__
 
 if(document.readyState === 'loading'){
