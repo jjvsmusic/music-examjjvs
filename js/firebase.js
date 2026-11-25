@@ -1,4 +1,3 @@
-
 // ══════════════════════════════════════════════
 // Firebase 設定（REST API 模式，不載入任何外部 script）
 // ══════════════════════════════════════════════
@@ -100,13 +99,6 @@
   }
 
   // ── REST helpers ──
-  async function _fsGet(path){
-    const token = await _getToken();
-    const headers = token ? {Authorization:'Bearer '+token} : {};
-    const r = await fetch(`${FS_BASE}/${path}`, {headers});
-    if(!r.ok) return null;
-    return r.json();
-  }
 
   async function _fsList(col){
     const token = await _getToken();
@@ -205,14 +197,14 @@
       doc: function(docId){ return {
         id: docId,
         set: function(data, opts){ return _fsSet(col+'/'+docId, data); },
-        get: function(){ return _fsGet(col+'/'+docId).then(d => d ? {exists:true, data:()=>_docToObj(d), id:docId} : {exists:false, data:()=>({}), id:docId}); },
+        get: function(){ return _fsGet(col+'/'+docId).then(d => d ? {exists:true, data:()=>({id:docId,...d}), id:docId} : {exists:false, data:()=>({}), id:docId}); },
         update: function(data){ return _fsSet(col+'/'+docId, data); },
         delete: function(){ return _fsDelete(col+'/'+docId); },
         collection: function(subCol){ return {
           doc: function(subId){ return {
             id: subId,
             set: function(data, opts){ return _fsSet(col+'/'+docId+'/'+subCol+'/'+subId, data); },
-            get: function(){ return _fsGet(col+'/'+docId+'/'+subCol+'/'+subId).then(d => d ? {exists:true, data:()=>_docToObj(d)} : {exists:false, data:()=>({})}); },
+            get: function(){ return _fsGet(col+'/'+docId+'/'+subCol+'/'+subId).then(d => d ? {exists:true, data:()=>({id:subId,...d})} : {exists:false, data:()=>({})}); },
             delete: function(){ return _fsDelete(col+'/'+docId+'/'+subCol+'/'+subId); },
           };},
           get: function(){ return _fsList(col+'/'+docId+'/'+subCol).then(docs=>({
@@ -364,4 +356,3 @@
 
   console.log('[FB-REST] Firebase REST 模式已啟動 ✓');
 })();
-
