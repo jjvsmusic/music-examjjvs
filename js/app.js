@@ -2256,6 +2256,60 @@ function renderAll(){
 // ════════════════════════════════════════════════
 function renderRepHint(){const e=document.getElementById('rep-hint');if(e)e.textContent=DB.config.repHint;}
 
+// ════════════════════════════════════════════════
+// ★ 學生填報：新增額外曲目（自己打標題、作曲家、曲目）
+// ════════════════════════════════════════════════
+const _REP_PREFIX={major:'major',minor:'minor',elective:'elec'};
+function _repExtrasState(force){
+  const uid=ST.user?.id||'';
+  if(force||!ST._repExtras||ST._repExtrasUid!==uid){
+    const u=ST.user||{};
+    ST._repExtras={major:_normExtras(u.major_extra),minor:_normExtras(u.minor_extra),elective:_normExtras(u.elec_extra)};
+    ST._repExtrasUid=uid;
+  }
+  return ST._repExtras;
+}
+function _renderRepExtras(k){
+  const p=_REP_PREFIX[k];const box=document.getElementById('r-'+p+'-extra');if(!box)return;
+  const list=_repExtrasState()[k];
+  const inp=(i,f,ph,val,flex,ml)=>`<div class="fg" style="flex:${flex}"><label>${ph[0]}</label><input type="text" ${ml?`maxlength="${ml}"`:''} value="${escHtml(val)}" placeholder="${escHtml(ph[1])}" oninput="repExtraSet('${k}',${i},'${f}',this.value)"></div>`;
+  box.innerHTML=list.map((x,i)=>`
+    <div style="border:1px dashed var(--border);border-radius:var(--r);padding:8px 10px;margin:8px 0;background:var(--cream)">
+      <div class="fr" style="align-items:flex-end">
+        ${inp(i,'label',['曲目標題（自己命名）','例如：第二首自選曲'],x.label,1,20)}
+        ${inp(i,'composer',['作曲家','Composer name'],x.composer,1,0)}
+        ${inp(i,'title',['曲目名稱','Piece title, opus, movement...'],x.title,2,0)}
+        <button type="button" class="btn btn-o btn-xs" style="margin-bottom:8px" onclick="repExtraDel('${k}',${i})">✕ 刪除</button>
+      </div>
+    </div>`).join('')+
+    (list.length<_REP_EXTRA_MAX
+      ?`<button type="button" class="btn btn-o btn-sm" style="margin:4px 0 10px" onclick="repExtraAdd('${k}')">＋ 新增曲目（指定曲、自選曲之外還要考的曲目）</button>`
+      :`<div style="font-size:11px;color:var(--muted);margin:4px 0 10px">最多可新增 ${_REP_EXTRA_MAX} 首</div>`);
+}
+function _repExtraEnsureUI(){
+  ['major','minor','elective'].forEach(k=>{
+    const p=_REP_PREFIX[k];
+    let box=document.getElementById('r-'+p+'-extra');
+    if(!box){
+      const ft=document.getElementById('r-'+p+'-ft');if(!ft)return;
+      const row=ft.closest('.fr');if(!row)return;
+      box=document.createElement('div');box.id='r-'+p+'-extra';
+      row.insertAdjacentElement('afterend',box);
+    }
+    // 已經畫好且筆數相同就不重畫（避免學生輸入到一半時被重繪而失去游標）
+    if(box.dataset.ready==='1'&&box.querySelectorAll('input').length===_repExtrasState()[k].length*3)return;
+    _renderRepExtras(k);box.dataset.ready='1';
+  });
+}
+function repExtraAdd(k){
+  const list=_repExtrasState()[k];if(list.length>=_REP_EXTRA_MAX)return;
+  list.push({label:'',composer:'',title:''});_renderRepExtras(k);
+}
+function repExtraDel(k,i){_repExtrasState()[k].splice(i,1);_renderRepExtras(k);}
+function repExtraSet(k,i,f,v){const x=_repExtrasState()[k][i];if(x)x[f]=v;}
+window.repExtraAdd=repExtraAdd;window.repExtraDel=repExtraDel;window.repExtraSet=repExtraSet;
+window._repExtraEnsureUI=_repExtraEnsureUI;
+
 function previewRep(){
   const majorInst=document.getElementById('r-major-inst').value;
   if(!majorInst){showToast('請選擇主修樂器','err');return;}
@@ -2278,6 +2332,13 @@ function previewRep(){
     {lbl:'指定曲',val:(document.getElementById('r-elec-ac').value||'—')+' — '+(document.getElementById('r-elec-at').value||'—')},
     {lbl:'自選曲',val:(document.getElementById('r-elec-fc').value||'—')+' — '+(document.getElementById('r-elec-ft').value||'—')},
   ]});
+  { // ★ 額外曲目也列入核對
+    const _exs=_repExtrasState();
+    sections.forEach(sec=>{
+      const k=sec.header.startsWith('主修')?'major':sec.header.startsWith('副修')?'minor':'elective';
+      _normExtras(_exs[k]).forEach(x=>sec.rows.push({lbl:escHtml(x.label||'加選曲'),val:escHtml(x.composer||'—')+' — '+escHtml(x.title||'—')}));
+    });
+  }
   document.getElementById('rep-preview-body').innerHTML=sections.map(s=>`
     <div style="margin-bottom:14px">
       <div style="background:var(--ink);color:var(--gold);padding:7px 13px;font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:2px;border-radius:var(--r) var(--r) 0 0">${s.header}</div>
@@ -2335,6 +2396,10 @@ function renderRepDoneInfo(){
       ]
     });
   }
+  sections.forEach(sec=>{ // ★ 額外曲目
+    const key={'主修':'major_extra','副修':'minor_extra','選修加考':'elec_extra'}[sec.label];
+    _normExtras(u[key]).forEach(x=>sec.rows.push({lbl:x.label||'加選曲',composer:x.composer,title:x.title}));
+  });
   const sectHtml=sections.map(s=>`
     <div style="border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:12px">
       <div style="background:var(--ink);color:var(--gold);padding:9px 16px;display:flex;align-items:center;gap:10px">
@@ -2344,12 +2409,12 @@ function renderRepDoneInfo(){
       </div>
       <div style="background:var(--white)">
         ${s.rows.map(r=>`
-          <div style="display:grid;grid-template-columns:72px 1fr;border-bottom:1px solid var(--cream)">
+          <div style="display:grid;grid-template-columns:96px 1fr;border-bottom:1px solid var(--cream)">
             <div style="padding:10px 14px;font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:1.5px;color:var(--muted);display:flex;align-items:center;background:var(--cream);text-transform:uppercase">${r.lbl}</div>
             <div style="padding:10px 14px">
               ${r.composer||r.title
-                ? `<div style="font-size:12px;color:var(--muted);margin-bottom:2px">${r.composer||'—'}</div>
-                   <div style="font-size:14px;color:var(--ink);font-style:italic">${r.title||'—'}</div>`
+                ? `<div style="font-size:12px;color:var(--muted);margin-bottom:2px">${escHtml(r.composer||'—')}</div>
+                   <div style="font-size:14px;color:var(--ink);font-style:italic">${escHtml(r.title||'—')}</div>`
                 : `<span style="font-family:DM Mono,monospace;font-size:11px;color:var(--border)">未填寫</span>`}
             </div>
           </div>`).join('')}
@@ -2361,6 +2426,9 @@ window.renderRepDoneInfo=renderRepDoneInfo;
 
 function backToRepForm(){document.getElementById('rep-form-area').style.display='block';document.getElementById('rep-preview').style.display='none';}
 function editRep(){
+  _repExtrasState(true);
+  ['major','minor','elective'].forEach(k=>{const b=document.getElementById('r-'+_REP_PREFIX[k]+'-extra');if(b)b.dataset.ready='';});
+  _repExtraEnsureUI();
   document.getElementById('rep-done-card').style.display='none';
   document.getElementById('rep-form-area').style.display='block';
   // 預填回原本資料
@@ -2436,6 +2504,16 @@ function submitRep(){
       window._submittingRep=false;return;
     }
   }
+  { // ★ 額外曲目：長度檢查
+    const _exs0=_repExtrasState();
+    for(const k of ['major','minor','elective']){
+      for(const x of _normExtras(_exs0[k])){
+        if(x.label.length>20||x.composer.length>500||x.title.length>500){
+          showToast('額外曲目的某欄位文字過長（標題 20 字、其餘 500 字以內）','err');window._submittingRep=false;return;
+        }
+      }
+    }
+  }
   // Save ALL rep fields in one atomic write
   u.major=majorInst;
   u.major_ac=document.getElementById('r-major-ac').value;
@@ -2486,6 +2564,13 @@ function submitRep(){
     DB.repInstChanges[u.id]=notice;
     console.log('[需求1] 學生樂器與管理員設定不符，已通知：',diffs);
   })();
+  { // ★ 額外曲目一併存入（副修／選修沒選樂器時一併清空）
+    const _exs=_repExtrasState();
+    const _clean=k=>_normExtras(_exs[k]).slice(0,_REP_EXTRA_MAX);
+    u.major_extra=_clean('major');
+    u.minor_extra=minorInst?_clean('minor'):[];
+    u.elec_extra=elecInst?_clean('elective'):[];
+  }
   u.repDone=true;
   // ★ Write the COMPLETE user object to avoid partial-write data loss
   fbSet('users',u.id,u);
@@ -2498,7 +2583,7 @@ function submitRep(){
       entries.forEach(e=>{
         if(e.studentId!==uid)return;
         const p=pieces[e.type];if(!p)return;
-        e.ac=p.ac||'';e.at=p.at||'';e.fc=p.fc||'';e.ft=p.ft||'';
+        e.ac=p.ac||'';e.at=p.at||'';e.fc=p.fc||'';e.ft=p.ft||'';e.extra=p.extra||[];
         dirtyRooms.add(roomId);
       });
     });
@@ -2507,9 +2592,9 @@ function submitRep(){
     });
     if(dirtyRooms.size>0)console.log('[Bug1] 已同步曲目至快照考場：',Array.from(dirtyRooms).join(','));
   })(u.id,{
-    major:   {ac:u.major_ac, at:u.major_at, fc:u.major_fc, ft:u.major_ft},
-    minor:   {ac:u.minor_ac, at:u.minor_at, fc:u.minor_fc, ft:u.minor_ft},
-    elective:{ac:u.elec_ac,  at:u.elec_at,  fc:u.elec_fc,  ft:u.elec_ft},
+    major:   {ac:u.major_ac, at:u.major_at, fc:u.major_fc, ft:u.major_ft, extra:u.major_extra||[]},
+    minor:   {ac:u.minor_ac, at:u.minor_at, fc:u.minor_fc, ft:u.minor_ft, extra:u.minor_extra||[]},
+    elective:{ac:u.elec_ac,  at:u.elec_at,  fc:u.elec_fc,  ft:u.elec_ft, extra:u.elec_extra||[]},
   });
   document.getElementById('rep-form-area').style.display='none';
   document.getElementById('rep-preview').style.display='none';
@@ -2531,6 +2616,7 @@ function renderRepPage(){
   if(!ST.user||ST.user.role!=='student')return;
   // ★ 確保 ST.user 是最新的 DB.users 物件（防止背景更新後引用失效）
   const _fresh=DB.users.find(u=>u.id===ST.user.id);if(_fresh)ST.user=_fresh;
+  _repExtraEnsureUI(); // ★ 「新增曲目」按鈕與已填的額外曲目
   if(ST.user.repDone){
     document.getElementById('rep-done-card').style.display='block';
     document.getElementById('rep-form-area').style.display='none';
@@ -2810,15 +2896,90 @@ function _findScoredRoomForEntry(studentId, type, catId){
   return _findRoomForCat(catId)?.id||'';
 }
 window._findScoredRoomForEntry=_findScoredRoomForEntry;
+// ★ 某考場的排程名單（評審現場評分、監考、學生查詢、批次編輯共用）
+//   1) 已「儲存排程」→ 用快照（順序與內容 = 存檔當下的考試排程）
+//   2) 該考場沒有快照 → 依「考試排程」目前設定即時計算（原本會變成空白或錯誤的名單）
+let _liveRoomCache=null,_liveRoomCacheAt=0;
+function _liveScheduleCached(){
+  const now=Date.now();
+  if(_liveRoomCache&&now-_liveRoomCacheAt<800)return _liveRoomCache;
+  try{_liveRoomCache=_computeLiveScheduleByRoom();}catch(e){console.warn('[liveSchedule]',e);_liveRoomCache={};}
+  _liveRoomCacheAt=now;return _liveRoomCache;
+}
+function _liveRoomEntries(roomId){
+  const v=_liveScheduleCached()[roomId];
+  return v?v.entries.map(e=>({...e,roomId})):[];
+}
+function _roomHasSnapshot(roomId){
+  const sn=(DB.savedScheduleSnapshot||{})[roomId];return Array.isArray(sn)&&sn.length>0;
+}
+function _publishedRoomEntries(roomId){
+  if(_roomHasSnapshot(roomId))return DB.savedScheduleSnapshot[roomId].map(e=>({...e,roomId}));
+  return _liveRoomEntries(roomId);
+}
+// ════════════════════════════════════════════════
+// ★ 額外曲目（學生除了指定曲、自選曲之外，自己新增的曲目）
+//   資料：users.major_extra / minor_extra / elec_extra = [{label,composer,title}]
+//   label 是學生自訂的標題（例如「第二首自選曲」）
+// ════════════════════════════════════════════════
+const _EXTRA_KEY={major:'major_extra',minor:'minor_extra',elective:'elec_extra'};
+const _REP_EXTRA_MAX=8;
+function _normExtras(list){
+  return (Array.isArray(list)?list:[]).map(x=>({
+    label:String((x&&x.label)||'').trim(),composer:String((x&&x.composer)||'').trim(),title:String((x&&x.title)||'').trim()
+  })).filter(x=>x.composer||x.title);
+}
+// 取得某筆名單（entry）的額外曲目：優先讀學生最新填報，沒有才用快照內的值
+function _entryExtras(e){
+  if(!e)return [];
+  const stu=e.studentId?DB.users.find(u=>u.id===e.studentId):null;
+  const key=_EXTRA_KEY[e.type];
+  if(stu&&key&&(Array.isArray(stu[key])||stu.repDone))return _normExtras(stu[key]);
+  return _normExtras(e.extra);
+}
+function _extraLabel(x){return x.label||'加選曲';}
+// 一般文字（匯出用）：「第二首自選曲：作曲家 — 曲目」，多首用換行分隔
+function _extrasText(list){
+  return (list||[]).map(x=>_extraLabel(x)+'：'+(x.composer||'')+(x.title?' — '+x.title:'')).join('\n');
+}
+function _pieceCellHtml(a,b){
+  if(!a&&!b)return '';
+  return escHtml(a||'—')+(b?' — <em>'+escHtml(b)+'</em>':'');
+}
+// 表格中「自選曲」欄：自選曲 + 額外曲目
+function _freeCellHtml(e,fc,ft){
+  const ex=_entryExtras(e);
+  const main=_pieceCellHtml(fc,ft);
+  const exHtml=ex.map(x=>`<div style="margin-top:3px"><span style="font-size:10px;color:var(--muted)">${escHtml(_extraLabel(x))}</span> ${_pieceCellHtml(x.composer,x.title)}</div>`).join('');
+  return (main||exHtml)?(main+exHtml):'—';
+}
+
+// ★ 全部考場的排程名單（已存檔的用快照；沒存檔的考場依考試排程即時算）
+function _allPublishedSched(){
+  const out=[];const snap=DB.savedScheduleSnapshot||{};
+  DB.rooms.forEach(room=>{
+    _publishedRoomEntries(room.id).forEach(e=>out.push({
+      ...e,roomId:room.id,roomName:e.roomName||room.name||room.id,roomLocation:e.roomLocation||room.location||'',
+      ac:e.ac||'',at:e.at||'',fc:e.fc||'',ft:e.ft||'',catId:e.catId||''}));
+  });
+  Object.keys(snap).filter(rid=>Array.isArray(snap[rid])&&snap[rid].length&&!DB.rooms.some(r=>r.id===rid)).forEach(rid=>{
+    snap[rid].forEach(e=>out.push({...e,roomId:rid,roomName:e.roomName||rid}));
+  });
+  out.sort((a,b)=>{
+    const ri=DB.rooms.findIndex(r=>r.id===a.roomId)-DB.rooms.findIndex(r=>r.id===b.roomId);
+    return ri!==0?ri:(a.order||0)-(b.order||0);
+  });
+  return out;
+}
 function getScheduleEntries(){
   // ★ 每個學生每個修別都放入「全部考場清單」，roomId 固定為當前排程選擇的考場。
   // 考場歸屬完全由排程篩選決定，不依賴 allowedCats。
   const entries=[];
   students().forEach(s=>{
     const types=[];
-    if(s.major)types.push({type:'major',instId:s.major,ac:s.major_ac,at:s.major_at,fc:s.major_fc,ft:s.major_ft});
-    if(s.minor)types.push({type:'minor',instId:s.minor,ac:s.minor_ac,at:s.minor_at,fc:s.minor_fc,ft:s.minor_ft});
-    if(s.elective)types.push({type:'elective',instId:s.elective,ac:s.elec_ac,at:s.elec_at,fc:s.elec_fc,ft:s.elec_ft});
+    if(s.major)types.push({type:'major',instId:s.major,ac:s.major_ac,at:s.major_at,fc:s.major_fc,ft:s.major_ft,ex:_normExtras(s.major_extra)});
+    if(s.minor)types.push({type:'minor',instId:s.minor,ac:s.minor_ac,at:s.minor_at,fc:s.minor_fc,ft:s.minor_ft,ex:_normExtras(s.minor_extra)});
+    if(s.elective)types.push({type:'elective',instId:s.elective,ac:s.elec_ac,at:s.elec_at,fc:s.elec_fc,ft:s.elec_ft,ex:_normExtras(s.elec_extra)});
     types.forEach(t=>{
       const inst=DB.instruments.items.find(i=>i.id===t.instId)||DB.instruments.items.find(i=>i.name===t.instId);
       const cat=inst?DB.instruments.categories.find(c=>c.id===inst.cat):null;
@@ -2828,7 +2989,7 @@ function getScheduleEntries(){
         studentId:s.id,name:s.name,class:s.class,seat:s.seat,
         instId:inst?inst.id:t.instId,instName:inst?inst.name:(t.instId+'（未對應樂器）'),catId:inst?.cat,catOrder:cat?.order??99,
         type:t.type,typeOrder:{major:0,minor:1,elective:2}[t.type],
-        ac:t.ac||'',at:t.at||'',fc:t.fc||'',ft:t.ft||'',
+        ac:t.ac||'',at:t.at||'',fc:t.fc||'',ft:t.ft||'',extra:t.ex||[],
         roomId:SCH_STATE?.roomId||'',
         roomName:SCH_STATE?.roomId?(DB.rooms.find(r=>r.id===SCH_STATE.roomId)?.name||'—'):'全部考場',
         roomLocation:SCH_STATE?.roomId?(DB.rooms.find(r=>r.id===SCH_STATE.roomId)?.location||''):'',
@@ -2847,11 +3008,7 @@ function renderStuSchedule(){
   // 建立考場按鈕（與教師介面相同）
   const btnContainer=document.getElementById('stu-schedule-room-btns');
   if(btnContainer){
-    const snap=DB.savedScheduleSnapshot||{};
-    const hasSnap=Object.values(snap).some(arr=>arr&&arr.length>0);
-    const activeRooms=hasSnap
-      ? DB.rooms.filter(r=>(snap[r.id]||[]).length>0)
-      : DB.rooms;
+    const activeRooms=DB.rooms.filter(r=>_publishedRoomEntries(r.id).length>0);
     btnContainer.innerHTML=
       '<button class="btn btn-p btn-sm" onclick="stuSchSelectRoom(\'\',this)">全部考場</button>'+
       activeRooms.map(r=>`<button class="btn btn-s btn-sm" onclick="stuSchSelectRoom('${r.id}',this)">${r.name}</button>`).join('');
@@ -2883,9 +3040,7 @@ function stuSchSelectRoom(roomId,btn){
       } else {infoDiv.style.display='none';}
     } else {
       // 全部考場：列出所有有時間的考場
-      const snap=DB.savedScheduleSnapshot||{};
-      const hasSnap=Object.values(snap).some(arr=>arr&&arr.length>0);
-      const activeRooms=hasSnap?DB.rooms.filter(r=>(snap[r.id]||[]).length>0):DB.rooms;
+      const activeRooms=DB.rooms.filter(r=>_publishedRoomEntries(r.id).length>0);
       const lines=activeRooms.map(r=>{
         const dt=_fmtRoomDatetime(r);
         return dt?('<strong>'+escHtml(r.name)+'</strong>　'+escHtml(dt)+(r.location?'　📍 '+escHtml(r.location):'')):'';
@@ -2910,10 +3065,10 @@ function stuSchSelectRoom(roomId,btn){
     return raw instanceof Set?raw:new Set(Array.isArray(raw)?raw:[]);
   };
 
-  if(hasSnap){
+  if(true){ // ★ 每個考場：有快照用快照，沒有就用即時排程
     if(roomId){
       const removed=_getRemovedForRoom(roomId);
-      entries=(snap[roomId]||[])
+      entries=_publishedRoomEntries(roomId)
         .filter(e=>!removed.has(e.studentId+'_'+e.type))
         .slice().sort((a,b)=>(a.order||0)-(b.order||0));
       const room=DB.rooms.find(r=>r.id===roomId);
@@ -2921,15 +3076,11 @@ function stuSchSelectRoom(roomId,btn){
     } else {
       DB.rooms.forEach(r=>{
         const removed=_getRemovedForRoom(r.id);
-        (snap[r.id]||[]).filter(e=>!removed.has(e.studentId+'_'+e.type))
+        _publishedRoomEntries(r.id).filter(e=>!removed.has(e.studentId+'_'+e.type))
           .slice().sort((a,b)=>(a.order||0)-(b.order||0))
           .forEach(e=>{entries.push({...e,_roomName:e.roomName||r.name,_roomLoc:e.roomLocation||r.location||'',_displayOrder:e.order||0});});
       });
     }
-  } else {
-    entries=getScheduleEntries();
-    if(roomId)entries=entries.filter(e=>e.roomId===roomId);
-    entries.forEach(e=>{e._roomName=e.roomName;e._roomLoc=e.roomLocation||'';e._displayOrder=e.order||0;});
   }
 
   const shown=entries.filter(e=>(!nameQ||e.name.toLowerCase().includes(nameQ))&&(!instQ||e.instId===instQ));
@@ -2943,8 +3094,8 @@ function stuSchSelectRoom(roomId,btn){
     <td style="color:var(--ink);font-weight:600">${escHtml(e.name)}${_dqBadgeHtml(e.studentId,e.type)}</td>
     <td style="color:var(--ink)">${escHtml(e.instName)}</td>
     <td>${typeBadge(e.type)}</td>
-    <td style="font-size:12px;color:var(--ink)">${ac?escHtml(ac)+' — <em>'+escHtml(at)+'</em>':'—'}</td>
-    <td style="font-size:12px;color:var(--ink)">${fc?escHtml(fc)+' — <em>'+escHtml(ft)+'</em>':'—'}</td>
+    <td style="font-size:12px;color:var(--ink)">${_pieceCellHtml(ac,at)||'—'}</td>
+    <td style="font-size:12px;color:var(--ink)">${_freeCellHtml(e,fc,ft)}</td>
   </tr>`;}).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;font-family:\'DM Mono\',monospace;font-size:12px">查無資料（請確認管理員已存檔排程）</td></tr>';
 }
 window.stuSchSelectRoom=stuSchSelectRoom;
@@ -2968,16 +3119,12 @@ function onStuNameInput(){
     let allEntries=[];
     const _getRemovedForRoom=(rid)=>{const st=(_SCH_ROOM_STATES&&_SCH_ROOM_STATES[rid])||{};const raw=st.removedEntries;return raw instanceof Set?raw:new Set(Array.isArray(raw)?raw:[]);};
 
-    if(hasSnap){
-      DB.rooms.forEach(r=>{
-        const removed=_getRemovedForRoom(r.id);
-        (snap[r.id]||[]).filter(e=>!removed.has(e.studentId+'_'+e.type))
-          .slice().sort((a,b)=>(a.order||0)-(b.order||0))
-          .forEach(e=>allEntries.push({...e,_roomName:e.roomName||r.name,_roomLoc:e.roomLocation||r.location||'',_displayOrder:e.order||0}));
-      });
-    } else {
-      allEntries=getScheduleEntries().map(e=>({...e,_roomName:e.roomName,_roomLoc:e.roomLocation||'',_displayOrder:e.order||0}));
-    }
+    DB.rooms.forEach(r=>{
+      const removed=_getRemovedForRoom(r.id);
+      _publishedRoomEntries(r.id).filter(e=>!removed.has(e.studentId+'_'+e.type))
+        .slice().sort((a,b)=>(a.order||0)-(b.order||0))
+        .forEach(e=>allEntries.push({...e,_roomName:e.roomName||r.name,_roomLoc:e.roomLocation||r.location||'',_displayOrder:e.order||0}));
+    });
 
     // 模糊比對姓名
     const q=nameQ.toLowerCase();
@@ -3008,8 +3155,8 @@ function onStuNameInput(){
       <td style="color:var(--ink);font-weight:600">${escHtml(e.name)}</td>
       <td style="color:var(--ink)">${escHtml(e.instName)}</td>
       <td>${typeBadge(e.type)}</td>
-      <td style="font-size:12px;color:var(--ink)">${ac?escHtml(ac)+' — <em>'+escHtml(at)+'</em>':'—'}</td>
-      <td style="font-size:12px;color:var(--ink)">${fc?escHtml(fc)+' — <em>'+escHtml(ft)+'</em>':'—'}</td>
+      <td style="font-size:12px;color:var(--ink)">${_pieceCellHtml(ac,at)||'—'}</td>
+      <td style="font-size:12px;color:var(--ink)">${_freeCellHtml(e,fc,ft)}</td>
     </tr>`;}).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;font-family:\'DM Mono\',monospace;font-size:12px">查無資料</td></tr>';
   } else {
     // 清空搜尋：恢復考場按鈕區，顯示目前選定考場
@@ -3711,10 +3858,9 @@ function getJuryEntries(){
       };
     });
   }
-  // fallback：快照不存在時動態計算（兼容舊資料）
-  const all=getScheduleEntries();
-  if(!roomId)return all;
-  return all.filter(e=>e.roomId===roomId).map((e,idx)=>({...e,order:idx+1}));
+  // ★ fallback：該考場沒有快照時，依「考試排程」即時計算該考場名單（順序與內容同排程）
+  if(!roomId)return getScheduleEntries();
+  return _liveRoomEntries(roomId).map((e,idx)=>({...e,order:idx+1}));
 }
 
 function renderJuryTable(){
@@ -3893,23 +4039,30 @@ function renderJuryTable(){
     const composerStyle=`font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap`;
     const titleStyle=`font-size:11px;font-style:italic;color:var(--steel)`;
     const labelStyle=`font-family:DM Mono,monospace;font-size:9px;color:var(--muted);letter-spacing:.5px;white-space:nowrap;flex-shrink:0`;
+    // ★ 學生自行新增的額外曲目（標題由學生自訂）也要出現在評分表
+    const _extrasLines=_entryExtras(e).map(x=>`<div style="${pieceLineStyle};margin-top:4px;padding-top:4px;border-top:1px dashed var(--border)">
+              <span style="${labelStyle}">${escHtml(_extraLabel(x))}</span>
+              <span style="${composerStyle}">${x.composer?escHtml(x.composer):'<span style="color:var(--border)">—</span>'}</span>
+              ${x.title?`<span style="font-size:10px;color:var(--border)">/</span><span style="${titleStyle}">${escHtml(x.title)}</span>`:''}
+            </div>`).join('');
     const pieceCellContent=
       `<div style="padding:5px 0 4px 0">`+
         (_showAssigned
           ?`<div style="${pieceLineStyle}">
               <span style="${labelStyle}">指定</span>
-              <span style="${composerStyle}">${_ac||'<span style="color:var(--border)">—</span>'}</span>
-              ${_at?`<span style="font-size:10px;color:var(--border)">/</span><span style="${titleStyle}">${_at}</span>`:''}
+              <span style="${composerStyle}">${_ac?escHtml(_ac):'<span style="color:var(--border)">—</span>'}</span>
+              ${_at?`<span style="font-size:10px;color:var(--border)">/</span><span style="${titleStyle}">${escHtml(_at)}</span>`:''}
             </div>`
           :'')+
         (_showFree
           ?`<div style="${pieceLineStyle}${_showAssigned?';margin-top:4px;padding-top:4px;border-top:1px dashed var(--border)':''}">
               <span style="${labelStyle}">自選</span>
-              <span style="${composerStyle}">${_fc||'<span style="color:var(--border)">—</span>'}</span>
-              ${_ft?`<span style="font-size:10px;color:var(--border)">/</span><span style="${titleStyle}">${_ft}</span>`:''}
+              <span style="${composerStyle}">${_fc?escHtml(_fc):'<span style="color:var(--border)">—</span>'}</span>
+              ${_ft?`<span style="font-size:10px;color:var(--border)">/</span><span style="${titleStyle}">${escHtml(_ft)}</span>`:''}
             </div>`
           :'')+
-        ((!_showAssigned&&!_showFree)
+        _extrasLines+
+        ((!_showAssigned&&!_showFree&&!_extrasLines)
           ?`<div style="font-size:11px;color:var(--border)">—</div>`
           :'')+
       `</div>`;
@@ -4084,7 +4237,7 @@ function _invigEntries(roomId){
       return {...snap,ac:stu[acKey]??'',at:stu[atKey]??'',fc:stu[fcKey]??'',ft:stu[ftKey]??''};
     });
   } else {
-    entries=getScheduleEntries().filter(e=>e.roomId===roomId);
+    entries=_liveRoomEntries(roomId); // ★ 沒有快照時依考試排程即時計算
   }
   return entries;
 }
@@ -4116,7 +4269,7 @@ function renderInvigTable(){
   _renderInvigBigScreenBar(roomId);
   if(!roomId){tbody.innerHTML='<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">請先選擇考場</td></tr>';return;}
   const entries=_invigEntries(roomId);
-  if(!entries.length){tbody.innerHTML='<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">此考場尚無排程資料（請先在後台「存檔排程」）</td></tr>';return;}
+  if(!entries.length){tbody.innerHTML='<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">此考場目前沒有排程名單（請確認後台「考試排程」已為此考場設定樂器／條件）</td></tr>';return;}
   if(!DB.blackSign[roomId])DB.blackSign[roomId]={};
   if(!DB.drawnScales[roomId])DB.drawnScales[roomId]={};
   const liveState=DB.liveExam[roomId]||{};
@@ -4164,8 +4317,9 @@ function renderInvigTable(){
         <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">${escHtml(e.class)}·座${e.seat} · ${escHtml(e.instName)}·${typeName(e.type)}</div>
       </td>
       <td style="font-size:11px;color:var(--muted)">
-        ${e.ac?`<div><span style="color:var(--ink)">${escHtml(e.ac)}</span> — ${escHtml(e.at)}</div>`:'—'}
-        ${e.fc?`<div style="margin-top:2px;opacity:.7"><span style="color:var(--ink)">${escHtml(e.fc)}</span> — ${escHtml(e.ft)}</div>`:''}
+        ${(e.ac||e.at)?`<div><span style="color:var(--ink)">${escHtml(e.ac||'—')}</span>${e.at?' — '+escHtml(e.at):''}</div>`:'—'}
+        ${(e.fc||e.ft)?`<div style="margin-top:2px;opacity:.7"><span style="color:var(--ink)">${escHtml(e.fc||'—')}</span>${e.ft?' — '+escHtml(e.ft):''}</div>`:''}
+        ${_entryExtras(e).map(x=>`<div style="margin-top:2px;opacity:.7"><span style="font-size:9px">${escHtml(_extraLabel(x))}</span> <span style="color:var(--ink)">${escHtml(x.composer||'—')}</span>${x.title?' — '+escHtml(x.title):''}</div>`).join('')}
       </td>
       <td style="text-align:center">
         <div class="iv-status-grp">
@@ -4339,7 +4493,8 @@ function _liveDisplayData(roomId){
     current: cur?{
       order:cur.order, name:cur.name, class:cur.class, seat:cur.seat,
       instName:cur.instName, type:cur.type, typeName:typeName(cur.type),
-      ac:cur.ac||'', at:cur.at||'', fc:cur.fc||'', ft:cur.ft||''
+      ac:cur.ac||'', at:cur.at||'', fc:cur.fc||'', ft:cur.ft||'',
+      extra:_entryExtras(cur)
     }:null,
     next: nextEntry?{order:nextEntry.order,name:nextEntry.name}:null,
     ts: Date.now()
@@ -4430,8 +4585,9 @@ window._renderBigScreen=function(data){
       +'<span class="sep">·</span>'+escHtml(c.instName)+'</div>';
   // 曲目
   let pieces='';
-  if(c.ac)pieces+='<div><span class="composer">指定曲</span>　'+escHtml(c.ac)+' — '+escHtml(c.at)+'</div>';
-  if(c.fc)pieces+='<div style="margin-top:.8vh"><span class="composer">自選曲</span>　'+escHtml(c.fc)+' — '+escHtml(c.ft)+'</div>';
+  if(c.ac||c.at)pieces+='<div><span class="composer">指定曲</span>　'+escHtml(c.ac||'')+(c.at?' — '+escHtml(c.at):'')+'</div>';
+  if(c.fc||c.ft)pieces+='<div style="margin-top:.8vh"><span class="composer">自選曲</span>　'+escHtml(c.fc||'')+(c.ft?' — '+escHtml(c.ft):'')+'</div>';
+  (Array.isArray(c.extra)?c.extra:[]).forEach(function(x){pieces+='<div style="margin-top:.8vh"><span class="composer">'+escHtml(x.label||'加選曲')+'</span>　'+escHtml(x.composer||'')+(x.title?' — '+escHtml(x.title):'')+'</div>';});
   if(pieces)html+='<div class="bs-piece">'+pieces+'</div>';
   // 狀態 badge（黑籤/缺考/臨時號）優先大字顯示
   if(data.status==='black'){
@@ -5439,7 +5595,7 @@ function renderSchedule(){
         <div class="ei-name">${e.name} <span style="font-size:12px;font-weight:400;color:var(--muted)">${e.class}·座${e.seat}</span>${dq?`<span class="badge b-absent" style="margin-left:6px">⛔ 扣考</span>`:''} ${isExtra?'<span style="font-family:\'DM Mono\',monospace;font-size:8px;color:var(--steel);margin-left:4px">手動加入</span>':''}</div>
         <div class="ei-detail">${e.instName}·${typeName(e.type)}·${e.roomName}${e.roomLocation?' 📍'+e.roomLocation:''}</div>
         ${dq?`<div style="font-family:DM Mono,monospace;font-size:9px;color:var(--red);margin-top:2px">原因：${dq.reason}${dq.note?' ／ '+dq.note:''}</div>`:''}
-        <div class="ei-rep">${e.ac?'指定：'+e.ac+' — '+e.at:''}${e.fc?'\n自選：'+e.fc+' — '+e.ft:''}</div>
+        <div class="ei-rep">${escHtml([(e.ac||e.at)?'指定：'+(e.ac||'')+(e.at?' — '+e.at:''):'',(e.fc||e.ft)?'自選：'+(e.fc||'')+(e.ft?' — '+e.ft:''):'',..._entryExtras(e).map(x=>_extraLabel(x)+'：'+(x.composer||'')+(x.title?' — '+x.title:''))].filter(Boolean).join('\n'))}</div>
       </div>
       ${typeBadge(e.type)}
       <div class="bg" style="margin-left:8px;flex-shrink:0">
@@ -5605,7 +5761,7 @@ function schSaveSchedule(){
         studentId:e.studentId,name:e.name,class:e.class,seat:e.seat,
         instId:e.instId,instName:e.instName,catId:e.catId,
         type:e.type,order:idx+1,
-        ac:e.ac,at:e.at,fc:e.fc,ft:e.ft,
+        ac:e.ac,at:e.at,fc:e.fc,ft:e.ft,extra:e.extra||[],
         roomId:roomId,
         roomName:DB.rooms.find(r=>r.id===roomId)?.name||'—',
         roomLocation:DB.rooms.find(r=>r.id===roomId)?.location||'',
@@ -6218,7 +6374,7 @@ window.downloadDisqSample=downloadDisqSample;
 function exportScheduleCSV(){
   const roomId=document.getElementById('sch-room')?.value||'';
   const entries=getScheduleEntries().filter(e=>!roomId||e.roomId===roomId);
-  exportCSV(entries.map(e=>({'序':e.order,'考場':e.roomName,'班級':e.class,'座號':e.seat,'姓名':e.name,'樂器':e.instName,'類別':typeName(e.type),'指定曲作曲家':e.ac||'','指定曲曲目':e.at||'','自選曲作曲家':e.fc||'','自選曲曲目':e.ft||''})),'考試排程');
+  exportCSV(entries.map(e=>({'序':e.order,'考場':e.roomName,'班級':e.class,'座號':e.seat,'姓名':e.name,'樂器':e.instName,'類別':typeName(e.type),'指定曲作曲家':e.ac||'','指定曲曲目':e.at||'','自選曲作曲家':e.fc||'','自選曲曲目':e.ft||'','加選曲目':_extrasText(_entryExtras(e)).replace(/\n/g,'；')})),'考試排程');
 }
 
 // ════════════════════════════════════════════════
@@ -6316,7 +6472,7 @@ function _getEntryRep(e){
       if(sf||sft){fc=sf;ft=sft;}
     }
   }
-  return {ac,at,fc,ft};
+  return {ac,at,fc,ft,ex:_entryExtras(e)};
 }
 
 // ── 共用：worksheet 欄寬 ──
@@ -6341,8 +6497,8 @@ function exportScheduleXLSX(){
   const wsData=[['出場順序名單 — '+roomData.name+(roomData.location?' ('+roomData.location+')':'')]];
   wsData.push(['序號','班級','座號','姓名','樂器','修別','指定曲','自選曲']);
   roomData.entries.forEach(e=>{
-    const {ac,at,fc,ft}=_getEntryRep(e);
-    wsData.push([String(e.order).padStart(2,'0'),e.class||'',String(e.seat||''),e.name||'',e.instName||'',typeName(e.type),(ac||at)?(ac||'')+(at?' — '+at:''):'',(fc||ft)?(fc||'')+(ft?' — '+ft:''):'']);
+    const {ac,at,fc,ft,ex}=_getEntryRep(e);
+    wsData.push([String(e.order).padStart(2,'0'),e.class||'',String(e.seat||''),e.name||'',e.instName||'',typeName(e.type),(ac||at)?(ac||'')+(at?' — '+at:''):'',[(fc||ft)?(fc||'')+(ft?' — '+ft:''):'',_extrasText(ex)].filter(Boolean).join('\n')]);
   });
   const ws=XLSX.utils.aoa_to_sheet(wsData);
   ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:7}}];
@@ -6364,8 +6520,8 @@ function exportAllRoomsXLSX(){
     const wsData=[['出場順序名單 — '+roomData.name+(roomData.location?' ('+roomData.location+')':'')]];
     wsData.push(['序號','班級','座號','姓名','樂器','修別','指定曲','自選曲']);
     roomData.entries.forEach(e=>{
-      const {ac,at,fc,ft}=_getEntryRep(e);
-      wsData.push([String(e.order).padStart(2,'0'),e.class||'',String(e.seat||''),e.name||'',e.instName||'',typeName(e.type),(ac||at)?(ac||'')+(at?' — '+at:''):'',(fc||ft)?(fc||'')+(ft?' — '+ft:''):'']);
+      const {ac,at,fc,ft,ex}=_getEntryRep(e);
+      wsData.push([String(e.order).padStart(2,'0'),e.class||'',String(e.seat||''),e.name||'',e.instName||'',typeName(e.type),(ac||at)?(ac||'')+(at?' — '+at:''):'',[(fc||ft)?(fc||'')+(ft?' — '+ft:''):'',_extrasText(ex)].filter(Boolean).join('\n')]);
     });
     const ws=XLSX.utils.aoa_to_sheet(wsData);
     ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:7}}];
@@ -6494,7 +6650,8 @@ function _openSchedulePrintWindow(rooms,opts){
       var rep=_getEntryRep(e);
       var ac=rep.ac,at=rep.at,fc=rep.fc,ft=rep.ft;
       var assignedHtml=(ac||at)?('<span class="rep-lbl"></span>'+(ac||'')+(at?' \u2014 '+at:'')):'<span class="no-rep">（未填）</span>';
-      var freeHtml=(fc||ft)?('<span class="rep-lbl"></span>'+(fc||'')+(ft?' \u2014 '+ft:'')):'<span class="no-rep">（未填）</span>';
+      var exHtml=(rep.ex||[]).map(function(x){return '<br><span class="rep-lbl"></span>'+escHtml((x.label||'加選曲')+'：')+escHtml(x.composer||'')+(x.title?' \u2014 '+escHtml(x.title):'');}).join('');
+      var freeHtml=((fc||ft)?('<span class="rep-lbl"></span>'+escHtml(fc||'')+(ft?' \u2014 '+escHtml(ft):'')):((rep.ex&&rep.ex.length)?'':'<span class="no-rep">（未填）</span>'))+exHtml;
       var typeCls={major:'major',minor:'minor',elective:'elective'}[e.type]||'major';
       // ★ 修正：讀取扣考狀態並標注
       var entryKey=e.studentId+'_'+e.type;
@@ -9097,11 +9254,13 @@ async function clearData(type){
         s.major_ac=s.major_at=s.major_fc=s.major_ft='';
         s.minor_ac=s.minor_at=s.minor_fc=s.minor_ft='';
         s.elec_ac=s.elec_at=s.elec_fc=s.elec_ft='';
+        s.major_extra=[];s.minor_extra=[];s.elec_extra=[];
         s.repDone=false;
         const fullUser={...s,
           major_ac:'',major_at:'',major_fc:'',major_ft:'',
           minor_ac:'',minor_at:'',minor_fc:'',minor_ft:'',
           elec_ac:'',elec_at:'',elec_fc:'',elec_ft:'',
+          major_extra:[],minor_extra:[],elec_extra:[],
           repDone:false,
         };
         if(window._FB?._rest){
@@ -9539,7 +9698,7 @@ function _getRoomEntries(roomId){
   if(snap[roomId]&&snap[roomId].length){
     return snap[roomId].map(e=>({...e,roomId})).sort((a,b)=>(a.order||0)-(b.order||0));
   }
-  return getScheduleEntries().filter(e=>e.roomId===roomId);
+  return _liveRoomEntries(roomId);
 }
 window._getRoomEntries=_getRoomEntries;
 
@@ -9815,42 +9974,7 @@ function renderResults(){
   // ★ 修正：改從 savedScheduleSnapshot 取得 entries（含正確 roomId/order），
   //    fallback 到 getScheduleEntries（未存檔時）
   // ★ 進一步修正：若選定的考場沒有快照但有評分資料，用即時排程補上
-  const snap=DB.savedScheduleSnapshot||{};
-  const hasSnap=Object.values(snap).some(arr=>arr&&arr.length>0);
-  let allSched=[];
-  if(hasSnap){
-    Object.entries(snap).forEach(([snapRoomId,snaps])=>{
-      const room=DB.rooms.find(r=>r.id===snapRoomId);
-      (snaps||[]).forEach(e=>{
-        allSched.push({
-          order:e.order,roomId:snapRoomId,
-          roomName:e.roomName||(room?.name||snapRoomId),
-          roomLocation:e.roomLocation||(room?.location||''),
-          class:e.class,name:e.name,seat:e.seat,studentId:e.studentId,
-          instId:e.instId,instName:e.instName,type:e.type,
-          ac:e.ac||'',at:e.at||'',fc:e.fc||'',ft:e.ft||'',
-          catId:e.catId||'',
-        });
-      });
-    });
-    // ★ 補上「沒存快照但有評分資料」的考場（避免成績卻看不到資料的窘境）
-    const snapRoomIds=new Set(Object.keys(snap).filter(k=>snap[k]&&snap[k].length));
-    const scoredRoomIds=Object.keys(DB.juryScores||{}).filter(rid=>{
-      const entries=DB.juryScores[rid]||{};
-      return Object.keys(entries).length>0;
-    });
-    const missingRoomIds=scoredRoomIds.filter(rid=>!snapRoomIds.has(rid));
-    if(missingRoomIds.length){
-      const liveAll=getScheduleEntries();
-      missingRoomIds.forEach(rid=>{
-        const liveEntries=liveAll.filter(e=>e.roomId===rid);
-        liveEntries.forEach(e=>allSched.push(e));
-      });
-      console.warn('[renderResults] 偵測到無快照但有評分資料的考場：',missingRoomIds,'（已用即時排程補上）');
-    }
-  } else {
-    allSched=getScheduleEntries();
-  }
+  let allSched=_allPublishedSched(); // ★ 每個考場：有快照用快照、沒有就依排程即時算
 
   let entries=[];
   if(ST._remarkFilterOn){
@@ -10125,25 +10249,7 @@ function exportResultsCSV(allClasses){
   const classF=allClasses?'':(document.getElementById('result-class')?.value||'');
   // ★ Bug5 修正：優先從已存檔快照取得 entries（與 renderResults 邏輯一致）
   //   避免重新整理後 SCH_STATE 被重設導致 getScheduleEntries 回傳空陣列
-  const snap=DB.savedScheduleSnapshot||{};
-  const hasSnap=Object.values(snap).some(arr=>arr&&arr.length>0);
-  let allSched=[];
-  if(hasSnap){
-    Object.entries(snap).forEach(([snapRoomId,snaps])=>{
-      const room=DB.rooms.find(r=>r.id===snapRoomId);
-      (snaps||[]).forEach(e=>allSched.push({
-        ...e,
-        roomId:snapRoomId,
-        roomName:e.roomName||(room?.name||snapRoomId),
-      }));
-    });
-    allSched.sort((a,b)=>{
-      const ri=DB.rooms.findIndex(r=>r.id===a.roomId)-DB.rooms.findIndex(r=>r.id===b.roomId);
-      return ri!==0?ri:(a.order||0)-(b.order||0);
-    });
-  } else {
-    allSched=getScheduleEntries();
-  }
+  let allSched=_allPublishedSched(); // ★ 每個考場：有快照用快照、沒有就依排程即時算
   let entries=allSched;
   if(roomId)entries=entries.filter(e=>e.roomId===roomId);
   if(classF)entries=entries.filter(e=>e.class===classF);
@@ -10739,16 +10845,7 @@ function _buildSummaryRows(classFilter){
   });
 
   // 為了拿術科總成績，需要從 schedule snapshot 找 entryKey
-  const snap=DB.savedScheduleSnapshot||{};
-  const hasSnap=Object.values(snap).some(arr=>arr&&arr.length>0);
-  let allSched=[];
-  if(hasSnap){
-    Object.entries(snap).forEach(([snapRoomId,snaps])=>{
-      (snaps||[]).forEach(e=>allSched.push({...e,roomId:snapRoomId}));
-    });
-  } else {
-    allSched=getScheduleEntries();
-  }
+  let allSched=_allPublishedSched();
   const examScoreMap={};
   allSched.forEach(e=>{
     const entryKey=e.studentId+'_'+e.type;
@@ -11243,29 +11340,7 @@ function renderTeaJuryComments(){
 }
 window.renderTeaJuryComments=renderTeaJuryComments;
 function _buildAdminResultsData(roomIdFilter,classFFilter){
-  const snap=DB.savedScheduleSnapshot||{};
-  const hasSnap=Object.values(snap).some(arr=>arr&&arr.length>0);
-  let allSched=[];
-  if(hasSnap){
-    Object.entries(snap).forEach(([snapRoomId,snaps])=>{
-      const room=DB.rooms.find(r=>r.id===snapRoomId);
-      (snaps||[]).forEach(e=>allSched.push({...e,roomId:snapRoomId,roomName:e.roomName||(room?.name||snapRoomId)}));
-    });
-    // ★ 補上「沒存快照但有評分資料」的考場
-    const snapRoomIds=new Set(Object.keys(snap).filter(k=>snap[k]&&snap[k].length));
-    const scoredRoomIds=Object.keys(DB.juryScores||{}).filter(rid=>Object.keys(DB.juryScores[rid]||{}).length>0);
-    const missing=scoredRoomIds.filter(rid=>!snapRoomIds.has(rid));
-    if(missing.length){
-      const liveAll=getScheduleEntries();
-      missing.forEach(rid=>liveAll.filter(e=>e.roomId===rid).forEach(e=>allSched.push(e)));
-    }
-    allSched.sort((a,b)=>{
-      const ri=DB.rooms.findIndex(r=>r.id===a.roomId)-DB.rooms.findIndex(r=>r.id===b.roomId);
-      return ri!==0?ri:(a.order||0)-(b.order||0);
-    });
-  } else {
-    allSched=getScheduleEntries();
-  }
+  let allSched=_allPublishedSched(); // ★ 每個考場：有快照用快照、沒有就依排程即時算
   let entries=allSched;
   if(roomIdFilter)entries=entries.filter(e=>e.roomId===roomIdFilter);
   if(classFFilter)entries=entries.filter(e=>e.class===classFFilter);
@@ -11870,7 +11945,7 @@ function teaSchSelectRoom(roomId,btn){
         else{_infoDiv.style.display='none';}
       } else {_infoDiv.style.display='none';}
     } else {
-      const _activeRooms=_hasSnap2?DB.rooms.filter(r=>(_snap2[r.id]||[]).length>0):DB.rooms;
+      const _activeRooms=DB.rooms.filter(r=>_publishedRoomEntries(r.id).length>0);
       const lines=_activeRooms.map(r=>{const dt=_fmtRoomDatetime(r);return dt?('<strong>'+escHtml(r.name)+'</strong>　'+escHtml(dt)+(r.location?'　📍 '+escHtml(r.location):'')):'';}).filter(Boolean);
       if(lines.length){_infoText.innerHTML=lines.join('<br>');_infoDiv.style.display='block';}
       else{_infoDiv.style.display='none';}
@@ -11881,36 +11956,22 @@ function teaSchSelectRoom(roomId,btn){
 
   // ★ Bug2 修正：優先使用已存檔的排程快照，讓各考場篩選正確反映管理員設定的排程
   const snap=DB.savedScheduleSnapshot||{};
-  const hasSnap=Object.values(snap).some(arr=>arr&&arr.length>0);
   let entries=[];
-  if(hasSnap){
-    if(roomId){
-      // 單一考場：直接取該考場快照，依序號排序
-      entries=(snap[roomId]||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
-      entries.forEach((e,i)=>{
-        const room=DB.rooms.find(r=>r.id===roomId);
-        e._roomName=e.roomName||room?.name||roomId;
-        e._roomLoc=e.roomLocation||room?.location||'';
-        e._displayOrder=e.order||i+1;
-      });
-    } else {
-      // 全部考場：依考場順序合併，每個考場序號獨立
-      DB.rooms.forEach(r=>{
-        (snap[r.id]||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0)).forEach(e=>{
-          entries.push({...e,_roomName:e.roomName||r.name,_roomLoc:e.roomLocation||r.location||'',_displayOrder:e.order||0});
-        });
-      });
-      // 未在任何 DB.rooms 的快照也補上
-      Object.keys(snap).forEach(rid=>{
-        if(DB.rooms.find(r=>r.id===rid))return;
-        (snap[rid]||[]).forEach(e=>{entries.push({...e,_roomName:e.roomName||rid,_roomLoc:e.roomLocation||'',_displayOrder:e.order||0});});
-      });
-    }
+  // ★ 每個考場：有快照用快照；沒有快照就依「考試排程」即時計算（順序與內容同排程）
+  if(roomId){
+    const room=DB.rooms.find(r=>r.id===roomId);
+    entries=_publishedRoomEntries(roomId).sort((a,b)=>(a.order||0)-(b.order||0));
+    entries.forEach((e,i)=>{e._roomName=e.roomName||room?.name||roomId;e._roomLoc=e.roomLocation||room?.location||'';e._displayOrder=e.order||i+1;});
   } else {
-    // 快照不存在時 fallback 到記憶體排程
-    entries=getScheduleEntries();
-    if(roomId)entries=entries.filter(e=>e.roomId===roomId);
-    entries.forEach(e=>{e._roomName=e.roomName;e._roomLoc=e.roomLocation||'';e._displayOrder=e.order||0;});
+    DB.rooms.forEach(r=>{
+      _publishedRoomEntries(r.id).sort((a,b)=>(a.order||0)-(b.order||0)).forEach(e=>{
+        entries.push({...e,_roomName:e.roomName||r.name,_roomLoc:e.roomLocation||r.location||'',_displayOrder:e.order||0});
+      });
+    });
+    Object.keys(snap).forEach(rid=>{
+      if(DB.rooms.find(r=>r.id===rid))return;
+      (snap[rid]||[]).forEach(e=>{entries.push({...e,_roomName:e.roomName||rid,_roomLoc:e.roomLocation||'',_displayOrder:e.order||0});});
+    });
   }
 
   tbody.innerHTML=entries.map(e=>{
@@ -11923,8 +11984,8 @@ function teaSchSelectRoom(roomId,btn){
     <td style="color:var(--ink);font-weight:600">${escHtml(e.name)}${_dqBadgeHtml(e.studentId,e.type)}</td>
     <td style="color:var(--ink)">${escHtml(e.instName)}</td>
     <td>${typeBadge(e.type)}</td>
-    <td style="font-size:12px;color:var(--ink)">${ac?escHtml(ac)+' — <em>'+escHtml(at)+'</em>':'—'}</td>
-    <td style="font-size:12px;color:var(--ink)">${fc?escHtml(fc)+' — <em>'+escHtml(ft)+'</em>':'—'}</td>
+    <td style="font-size:12px;color:var(--ink)">${_pieceCellHtml(ac,at)||'—'}</td>
+    <td style="font-size:12px;color:var(--ink)">${_freeCellHtml(e,fc,ft)}</td>
   </tr>`;}).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;font-family:\'DM Mono\',monospace;font-size:12px">查無資料（請確認管理員已存檔排程）</td></tr>';
 }
 window.teaSchSelectRoom=teaSchSelectRoom;
@@ -13721,7 +13782,7 @@ Object.keys(_fnMap).forEach(function(name){ window[name] = _fnMap[name]; });
 
 // ★ 版本標記：畫面右下角顯示小字，方便確認瀏覽器載入的是不是最新的 app.js（若還是舊版會顯示不同或沒有）
 (function(){
-  const V='2026-11-25-c';window.APP_VERSION=V;
+  const V='2026-11-25-d';window.APP_VERSION=V;
   try{
     const el=document.createElement('div');
     el.id='app-version-tag';el.textContent='程式版本 '+V;
