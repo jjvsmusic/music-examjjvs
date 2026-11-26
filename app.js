@@ -1987,12 +1987,13 @@ function aprFindMatchingRules(stu,type,instId,catId){
 
 // 學生端：套用規則並渲染建議區
 function aprApply(type){
-  const box=document.getElementById('r-'+type+'-apr');
+  const _p=type==='elective'?'r-elec':'r-'+type; // ★ 選修的欄位 id 是 r-elec-*
+  const box=document.getElementById(_p+'-apr');
   if(!box)return;
   const stu=ST.user;if(!stu||stu.role!=='student'){box.innerHTML='';return;}
-  const catId=document.getElementById('r-'+type+'-cat')?.value||'';
-  const instId=document.getElementById('r-'+type+'-inst')?.value||'';
-  if(!instId){box.innerHTML='';return;}
+  const catId=document.getElementById(_p+'-cat')?.value||'';
+  const instId=document.getElementById(_p+'-inst')?.value||'';
+  if(!instId||document.getElementById(_p+'-noassigned')?.checked){box.innerHTML='';return;}
   const rules=aprFindMatchingRules(stu,type,instId,catId);
   const allPieces=[];const seen=new Set();
   rules.forEach(r=>{
@@ -2004,8 +2005,8 @@ function aprApply(type){
     });
   });
   if(!allPieces.length){box.innerHTML='';return;}
-  const acEl=document.getElementById('r-'+type+'-ac');
-  const atEl=document.getElementById('r-'+type+'-at');
+  const acEl=document.getElementById(_p+'-ac');
+  const atEl=document.getElementById(_p+'-at');
   const curAc=acEl?.value||'';
   const curAt=atEl?.value||'';
   const html=`<div class="apr-suggest-card">
@@ -2028,10 +2029,11 @@ function aprApply(type){
 window.aprApply=aprApply;
 
 function aprPick(type,idx){
-  const box=document.getElementById('r-'+type+'-apr');
+  const _p=type==='elective'?'r-elec':'r-'+type;
+  const box=document.getElementById(_p+'-apr');
   const p=box?._pieces?.[idx];if(!p)return;
-  const acEl=document.getElementById('r-'+type+'-ac');
-  const atEl=document.getElementById('r-'+type+'-at');
+  const acEl=document.getElementById(_p+'-ac');
+  const atEl=document.getElementById(_p+'-at');
   if(acEl)acEl.value=p.composer||'';
   if(atEl)atEl.value=p.title||'';
   aprApply(type);
@@ -2039,8 +2041,9 @@ function aprPick(type,idx){
 window.aprPick=aprPick;
 
 function aprClear(type){
-  const acEl=document.getElementById('r-'+type+'-ac');
-  const atEl=document.getElementById('r-'+type+'-at');
+  const _p=type==='elective'?'r-elec':'r-'+type;
+  const acEl=document.getElementById(_p+'-ac');
+  const atEl=document.getElementById(_p+'-at');
   if(acEl)acEl.value='';
   if(atEl)atEl.value='';
   aprApply(type);
@@ -2310,26 +2313,78 @@ function repExtraSet(k,i,f,v){const x=_repExtrasState()[k][i];if(x)x[f]=v;}
 window.repExtraAdd=repExtraAdd;window.repExtraDel=repExtraDel;window.repExtraSet=repExtraSet;
 window._repExtraEnsureUI=_repExtraEnsureUI;
 
+// ════════════════════════════════════════════════
+// ★ 「不需指定曲（無）」：部分學生沒有指定曲，勾選後直接帶入，不必填指定曲
+// ════════════════════════════════════════════════
+const _NO_ASSIGNED='不需指定曲（無）';
+function _repNoAssigned(k){return !!document.getElementById('r-'+_REP_PREFIX[k]+'-noassigned')?.checked;}
+// 回傳 [指定曲作曲家, 指定曲曲目]
+function _repAssigned(k){
+  const p=_REP_PREFIX[k];
+  if(_repNoAssigned(k))return [_NO_ASSIGNED,''];
+  return [document.getElementById('r-'+p+'-ac')?.value||'',document.getElementById('r-'+p+'-at')?.value||''];
+}
+function _repAssignedText(k){
+  if(_repNoAssigned(k))return _NO_ASSIGNED;
+  const [a,t]=_repAssigned(k);return (a||'—')+' — '+(t||'—');
+}
+function repNoAssigned(k,on){
+  const p=_REP_PREFIX[k];
+  const ac=document.getElementById('r-'+p+'-ac'),at=document.getElementById('r-'+p+'-at');
+  const apr=document.getElementById('r-'+p+'-apr');
+  if(!ac||!at)return;
+  if(on){
+    ac.dataset.prev=ac.value;at.dataset.prev=at.value;
+    ac.value=_NO_ASSIGNED;at.value='';ac.disabled=true;at.disabled=true;
+    if(apr)apr.innerHTML='';
+  }else{
+    ac.disabled=false;at.disabled=false;
+    ac.value=(ac.value===_NO_ASSIGNED)?(ac.dataset.prev||''):ac.value;at.value=at.dataset.prev||'';
+    try{aprApply(k);}catch(e){}
+  }
+}
+window.repNoAssigned=repNoAssigned;
+// 依輸入框內容同步勾選狀態（載入既有資料、修改填報時）
+function _repNoAssignedSync(){
+  ['major','minor','elective'].forEach(k=>{
+    const p=_REP_PREFIX[k];const cb=document.getElementById('r-'+p+'-noassigned');if(!cb)return;
+    const ac=document.getElementById('r-'+p+'-ac'),at=document.getElementById('r-'+p+'-at');
+    if(ac&&ac.value===_NO_ASSIGNED&&!cb.checked){cb.checked=true;ac.disabled=true;if(at){at.value='';at.disabled=true;}const apr=document.getElementById('r-'+p+'-apr');if(apr)apr.innerHTML='';}
+  });
+}
+function _repNoAssignedEnsureUI(){
+  ['major','minor','elective'].forEach(k=>{
+    const p=_REP_PREFIX[k];
+    if(document.getElementById('r-'+p+'-noassigned'))return;
+    const ac=document.getElementById('r-'+p+'-ac');if(!ac)return;
+    const row=ac.closest('.fr');if(!row)return;
+    row.insertAdjacentHTML('beforebegin',`<label style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-size:12px;cursor:pointer;color:var(--ink)">
+      <input type="checkbox" id="r-${p}-noassigned" style="width:15px;height:15px" onchange="repNoAssigned('${k}',this.checked)">
+      <span>此修別<strong>不需指定曲（無）</strong>——勾選後免填指定曲</span></label>`);
+  });
+  _repNoAssignedSync();
+}
+window._repNoAssignedSync=_repNoAssignedSync;
+
 function previewRep(){
   const majorInst=document.getElementById('r-major-inst').value;
   if(!majorInst){showToast('請選擇主修樂器','err');return;}
-  const majorAC=document.getElementById('r-major-ac').value;
-  const majorAT=document.getElementById('r-major-at').value;
-  if(!majorAC||!majorAT){showToast('請填寫主修指定曲作曲家及曲目','err');return;}
+  const [majorAC,majorAT]=_repAssigned('major');
+  if(!_repNoAssigned('major')&&(!majorAC||!majorAT)){showToast('請填寫主修指定曲作曲家及曲目；若沒有指定曲，請勾選「不需指定曲（無）」','err');return;}
   const minorInst=document.getElementById('r-minor-inst').value;
   const hasElec=document.getElementById('r-elec-tog').checked;
   const elecInst=hasElec?document.getElementById('r-elec-inst').value:'';
   const sections=[];
   sections.push({header:'主修 · '+iname(majorInst),rows:[
-    {lbl:'指定曲',val:(document.getElementById('r-major-ac').value||'—')+' — '+(document.getElementById('r-major-at').value||'—')},
+    {lbl:'指定曲',val:escHtml(_repAssignedText('major'))},
     {lbl:'自選曲',val:(document.getElementById('r-major-fc').value||'—')+' — '+(document.getElementById('r-major-ft').value||'—')},
   ]});
   if(minorInst)sections.push({header:'副修 · '+iname(minorInst),rows:[
-    {lbl:'指定曲',val:(document.getElementById('r-minor-ac').value||'—')+' — '+(document.getElementById('r-minor-at').value||'—')},
+    {lbl:'指定曲',val:escHtml(_repAssignedText('minor'))},
     {lbl:'自選曲',val:(document.getElementById('r-minor-fc').value||'—')+' — '+(document.getElementById('r-minor-ft').value||'—')},
   ]});
   if(hasElec&&elecInst)sections.push({header:'選修 · '+iname(elecInst),rows:[
-    {lbl:'指定曲',val:(document.getElementById('r-elec-ac').value||'—')+' — '+(document.getElementById('r-elec-at').value||'—')},
+    {lbl:'指定曲',val:escHtml(_repAssignedText('elective'))},
     {lbl:'自選曲',val:(document.getElementById('r-elec-fc').value||'—')+' — '+(document.getElementById('r-elec-ft').value||'—')},
   ]});
   { // ★ 額外曲目也列入核對
@@ -2406,6 +2461,7 @@ function renderRepDoneInfo(){
         <span style="font-family:Cormorant Garamond,serif;font-size:18px">${s.icon}</span>
         <span style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase">${s.label}</span>
         <span style="font-size:13px;font-weight:600;color:var(--paper)">${s.inst}</span>
+        <button type="button" class="btn btn-o btn-xs" style="margin-left:auto;background:var(--paper)" onclick="repAddFromDone('${{'主修':'major','副修':'minor','選修加考':'elective'}[s.label]}')">＋ 新增曲目</button>
       </div>
       <div style="background:var(--white)">
         ${s.rows.map(r=>`
@@ -2424,11 +2480,21 @@ function renderRepDoneInfo(){
 }
 window.renderRepDoneInfo=renderRepDoneInfo;
 
+// ★ 在「已送出」的完成頁直接新增曲目：自動切回填報表單並加一組空白輸入
+function repAddFromDone(k){
+  editRep();
+  repExtraAdd(k);
+  const box=document.getElementById('r-'+_REP_PREFIX[k]+'-extra');
+  const inputs=box?box.querySelectorAll('input'):[];
+  if(inputs.length){const last=inputs[inputs.length-3];if(last){last.focus();try{last.scrollIntoView({block:'center'});}catch(e){}}}
+}
+window.repAddFromDone=repAddFromDone;
+
 function backToRepForm(){document.getElementById('rep-form-area').style.display='block';document.getElementById('rep-preview').style.display='none';}
 function editRep(){
   _repExtrasState(true);
   ['major','minor','elective'].forEach(k=>{const b=document.getElementById('r-'+_REP_PREFIX[k]+'-extra');if(b)b.dataset.ready='';});
-  _repExtraEnsureUI();
+  _repExtraEnsureUI();_repNoAssignedEnsureUI();
   document.getElementById('rep-done-card').style.display='none';
   document.getElementById('rep-form-area').style.display='block';
   // 預填回原本資料
@@ -2485,6 +2551,7 @@ function editRep(){
       }
     });
   }
+  _repNoAssignedSync(); // ★ 已選「不需指定曲（無）」者，勾選狀態還原
 }
 function submitRep(){
   // ★ 修正 #E2：防重複送出
@@ -2516,22 +2583,20 @@ function submitRep(){
   }
   // Save ALL rep fields in one atomic write
   u.major=majorInst;
-  u.major_ac=document.getElementById('r-major-ac').value;
-  u.major_at=document.getElementById('r-major-at').value;
+  { const [_a,_t]=_repAssigned('major');u.major_ac=_a;u.major_at=_t; }
   u.major_fc=document.getElementById('r-major-fc').value;
   u.major_ft=document.getElementById('r-major-ft').value;
   const minorInst=document.getElementById('r-minor-inst').value;
   u.minor=minorInst||null;
-  u.minor_ac=minorInst?document.getElementById('r-minor-ac').value:'';
-  u.minor_at=minorInst?document.getElementById('r-minor-at').value:'';
+  u.minor_ac=minorInst?_repAssigned('minor')[0]:'';
+  u.minor_at=minorInst?_repAssigned('minor')[1]:'';
   u.minor_fc=minorInst?document.getElementById('r-minor-fc').value:'';
   u.minor_ft=minorInst?document.getElementById('r-minor-ft').value:'';
   const hasElec=document.getElementById('r-elec-tog').checked;
   const elecInst=hasElec?document.getElementById('r-elec-inst').value:'';
   u.elective=elecInst||null;
-  u.elec_ac=elecInst?document.getElementById('r-elec-ac').value:'';
-  u.elec_ac=elecInst?document.getElementById('r-elec-ac').value:'';
-  u.elec_at=elecInst?document.getElementById('r-elec-at').value:'';
+  u.elec_ac=elecInst?_repAssigned('elective')[0]:'';
+  u.elec_at=elecInst?_repAssigned('elective')[1]:'';
   u.elec_fc=elecInst?document.getElementById('r-elec-fc').value:'';
   u.elec_ft=elecInst?document.getElementById('r-elec-ft').value:'';
   // ★ 需求1：偵測學生填報的樂器是否與管理員原設定不同，若有差異則寫入通知供管理員查看
@@ -2617,6 +2682,7 @@ function renderRepPage(){
   // ★ 確保 ST.user 是最新的 DB.users 物件（防止背景更新後引用失效）
   const _fresh=DB.users.find(u=>u.id===ST.user.id);if(_fresh)ST.user=_fresh;
   _repExtraEnsureUI(); // ★ 「新增曲目」按鈕與已填的額外曲目
+  _repNoAssignedEnsureUI(); // ★ 「不需指定曲（無）」選項
   if(ST.user.repDone){
     document.getElementById('rep-done-card').style.display='block';
     document.getElementById('rep-form-area').style.display='none';
@@ -13782,7 +13848,7 @@ Object.keys(_fnMap).forEach(function(name){ window[name] = _fnMap[name]; });
 
 // ★ 版本標記：畫面右下角顯示小字，方便確認瀏覽器載入的是不是最新的 app.js（若還是舊版會顯示不同或沒有）
 (function(){
-  const V='2026-11-25-d';window.APP_VERSION=V;
+  const V='2026-11-25-e';window.APP_VERSION=V;
   try{
     const el=document.createElement('div');
     el.id='app-version-tag';el.textContent='程式版本 '+V;
