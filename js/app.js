@@ -3242,7 +3242,7 @@ function clearLookup(){const n=document.getElementById('lookup-name');if(n)n.val
 // ST._teaViewAll=true 時，admin 顯示全部學生；false 時依 teacherStudents 篩選
 // ★ 目前登入教師是否「負責」某學生的某修別（交叉比對 + 人工指定）
 function _teaOwnsType(s,k){
-  if(ST.role==='admin'&&(ST._teaViewAll||!(DB.teacherStudents[ST.user?.id]||[]).length))return true;
+  if(ST.role==='admin'&&(ST._teaViewAll||!_teaMyStudentIds(ST.user?.id).length))return true;
   if(!s[k])return false;
   const info=_resolveTeacherForType(s.id,s[k],k);
   if(info.confidence==='override-none')return false;
@@ -3251,15 +3251,52 @@ function _teaOwnsType(s,k){
 function _teaVisibleTypes(s){
   return ['major','minor','elective'].filter(k=>s[k]&&_teaOwnsType(s,k));
 }
+// ════════════════════════════════════════════════
+// ★ 教師自行新增學生到「我的名單」
+//   存在教師自己的使用者文件：users.selfStudents = { 學生ID: ['major','minor',...] }
+//   （教師本來就能寫自己的使用者文件；後台看得到，也可調整）
+// ════════════════════════════════════════════════
+function _selfStudentsOf(tid){
+  const u=DB.users.find(x=>x.id===tid);const m=u&&u.selfStudents;
+  return (m&&typeof m==='object'&&!Array.isArray(m))?m:{};
+}
+function _teaMyStudentIds(tid){
+  return [...new Set([...(DB.teacherStudents[tid]||[]),...Object.keys(_selfStudentsOf(tid))])];
+}
+function _persistSelfStudents(u){
+  fbSet('users',u.id,{selfStudents:u.selfStudents||{}});
+  if(ST.user&&ST.user.id===u.id)ST.user.selfStudents=u.selfStudents;
+}
+function teaSelfAdd(sid,types){
+  const me=DB.users.find(u=>u.id===ST.user?.id);if(!me)return false;
+  const stu=DB.users.find(u=>u.id===sid&&u.role==='student');if(!stu)return false;
+  if(!me.selfStudents||typeof me.selfStudents!=='object'||Array.isArray(me.selfStudents))me.selfStudents={};
+  const arr=Array.isArray(me.selfStudents[sid])?me.selfStudents[sid]:(me.selfStudents[sid]=[]);
+  (Array.isArray(types)?types:[types]).forEach(t=>{if(stu[t]&&!arr.includes(t))arr.push(t);});
+  _persistSelfStudents(me);
+  return true;
+}
+function teaSelfRemove(sid,type){
+  const me=DB.users.find(u=>u.id===ST.user?.id);if(!me||!me.selfStudents||!Array.isArray(me.selfStudents[sid]))return;
+  const stu=DB.users.find(u=>u.id===sid);
+  if(!confirm('確定將「'+(stu?stu.name:'')+'」的'+typeName(type)+'移出您的名單？\n（已填寫的評量不會被刪除）'))return;
+  me.selfStudents[sid]=me.selfStudents[sid].filter(t=>t!==type);
+  if(!me.selfStudents[sid].length)delete me.selfStudents[sid];
+  _persistSelfStudents(me);
+  renderTeaTable();
+  showToast('已移出名單','warn');
+}
+window.teaSelfAdd=teaSelfAdd;window.teaSelfRemove=teaSelfRemove;
+
 function getMyStudents(){
   const tid=ST.user?.id;
   if(ST.role==='admin'){
     if(ST._teaViewAll)return students(); // 全部模式
-    const ids=DB.teacherStudents[tid]||[];
+    const ids=_teaMyStudentIds(tid);
     if(!ids.length)return students(); // 若尚未設定指導學生，顯示全部
     return students().filter(s=>ids.includes(s.id));
   }
-  const ids=DB.teacherStudents[tid]||[];
+  const ids=_teaMyStudentIds(tid);
   return students().filter(s=>ids.includes(s.id));
 }
 
@@ -3296,9 +3333,9 @@ function renderTeaTable(){
     const isAdminMine=ST.role==='admin'&&!ST._teaViewAll;
     ob.innerHTML=`<div style="padding:16px;background:var(--cream);border-radius:var(--r);text-align:center">
       <div style="font-family:\'DM Mono\',monospace;font-size:11px;color:var(--muted);margin-bottom:12px">
-        ${isAdminMine?'您目前在「我的學生」模式，尚未設定指導學生。可切換至「全部學生」，或至後台教師名單設定指導學生。':'目前尚無指派給您的學生。您可以自行搜尋並開始填寫評量，或等候管理員指派。'}
+        ${isAdminMine?'您目前在「我的學生」模式，尚未設定指導學生。可切換至「全部學生」，或至後台教師名單設定指導學生。':'目前尚無指派給您的學生。您可以自行搜尋並加入名單，或等候管理員指派。'}
       </div>
-      <button class="btn btn-p btn-sm" onclick="openTeaSelfAddPanel()">🔍 搜尋學生填寫評量</button>
+      <button class="btn btn-p btn-sm" onclick="openTeaSelfAddPanel()">＋ 搜尋並新增學生</button>
     </div>`;
     return;
   }
@@ -3319,9 +3356,11 @@ function renderTeaTable(){
               onchange="teaInlineToggle('${s.id}','${k}',this.checked)">
             <span style="font-family:DM Mono,monospace;font-size:9px;letter-spacing:1px;color:${done?'var(--sage)':'var(--muted)'}">${typeName(k)}</span>
             <strong style="font-size:13px">${iname(s[k])}</strong>
+            ${(_selfStudentsOf(ST.user?.id)[s.id]||[]).includes(k)?'<span class="badge b-minor" style="font-size:9px">自行新增</span>':''}
             ${done?`<span style="font-family:DM Mono,monospace;font-size:15px;font-weight:700;${scoreColor}">${t.score}</span>`:`<span style="font-family:DM Mono,monospace;font-size:11px;color:var(--border)">未填</span>`}
           </label>
           ${done?`<button class="btn btn-s btn-xs" onclick="teaInlineEdit('${s.id}','${k}')">修改</button>`:''}
+          ${(_selfStudentsOf(ST.user?.id)[s.id]||[]).includes(k)?`<button class="btn btn-o btn-xs" onclick="teaSelfRemove('${s.id}','${k}')" title="只是移出名單，已填的評量不會刪除">移出名單</button>`:''}
         </div>
         <div id="tea-inline-form-${s.id}-${k}" style="display:none;margin-top:10px;padding:12px;background:var(--cream);border-radius:var(--r)">
           <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
@@ -3458,19 +3497,19 @@ function openTeaSelfAddPanel(){
   let panel=document.getElementById('tea-self-add-overlay');
   if(!panel){
     panel=document.createElement('div');panel.id='tea-self-add-overlay';panel.className='overlay';
-    panel.innerHTML=`<div class="modal" style="width:520px">
-      <h2 class="modal-t">🔍 搜尋學生開始填寫</h2>
-      <p style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted);margin-bottom:12px;line-height:1.7">
-        搜尋並選擇學生後即可直接填寫評量。此操作不會永久指派給您。
+    panel.innerHTML=`<div class="modal" style="width:560px">
+      <h2 class="modal-t">＋ 新增學生到我的名單</h2>
+      <p style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:12px;line-height:1.8">
+        名單漏掉學生時，可在此搜尋並加入。加入後會<strong>固定出現在您的「平時評量」</strong>，不必每次重找；管理員也看得到。已填的評量不會因為移出名單而刪除。
       </p>
       <div style="display:flex;gap:8px;margin-bottom:8px">
-        <input type="text" id="tsa-search" placeholder="輸入學生姓名或班級…" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:14px;outline:none" oninput="tsaSearch()">
+        <input type="text" id="tsa-search" placeholder="輸入學生姓名、帳號或班級…" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:14px;outline:none" oninput="tsaSearch()">
         <select id="tsa-class" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;outline:none" onchange="tsaSearch()">
           <option value="">全部班級</option>
-          ${DB.classes.map(c=>`<option value="${c}">${c}</option>`).join('')}
+          ${DB.classes.map(c=>`<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('')}
         </select>
       </div>
-      <div id="tsa-results" style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r)"></div>
+      <div id="tsa-results" style="max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r)"></div>
       <div class="modal-ft">
         <button class="btn btn-s" onclick="closeOverlay('tea-self-add-overlay')">關閉</button>
       </div>
@@ -3485,27 +3524,40 @@ function openTeaSelfAddPanel(){
 window.openTeaSelfAddPanel=openTeaSelfAddPanel;
 
 function tsaSearch(){
-  const q=(document.getElementById('tsa-search')?.value||''). trim();
-  const cls=document.getElementById('tsa-class')?.value||'';  const res=document.getElementById('tsa-results');if(!res)return;
-  const stus=students().filter(s=>(!q||s.name.includes(q)||s.account.includes(q))&&(!cls||s.class===cls))
+  const q=(document.getElementById('tsa-search')?.value||'').trim();
+  const cls=document.getElementById('tsa-class')?.value||'';const res=document.getElementById('tsa-results');if(!res)return;
+  const stus=students().filter(s=>(!q||(s.name||'').includes(q)||(s.account||'').includes(q)||(s.class||'').includes(q))&&(!cls||s.class===cls))
     .sort((a,b)=>DB.classes.indexOf(a.class)-DB.classes.indexOf(b.class)||a.seat-b.seat)
     .slice(0,30);
   res.innerHTML=stus.map(s=>{
     const types=['major','minor','elective'].filter(t=>s[t]);
+    const notMine=types.filter(t=>!_teaOwnsType(s,t));
     return `<div style="padding:9px 14px;border-bottom:1px solid var(--cream)">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <strong>${s.name}</strong>
-        <span style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--muted)">${s.class}·座${s.seat}</span>
+        <strong>${escHtml(s.name)}</strong>
+        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">${escHtml(s.class)}·座${escHtml(String(s.seat))}</span>
+        ${notMine.length>1?`<button class="btn btn-o btn-xs" style="margin-left:auto" onclick="tsaAdd('${s.id}','*')">全部加入</button>`:''}
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         ${types.map(t=>{
-          const done=DB.teacherComments[s.id]?.[t];
-          return `<button class="btn ${done?'btn-g':'btn-p'} btn-xs" onclick="teaWizOpenDirect('${s.id}','${t}');closeOverlay('tea-self-add-overlay')">${typeName(t)}·${iname(s[t])}${done?' ✓':''}</button>`;
-        }).join('')}
+          if(_teaOwnsType(s,t)){
+            const done=DB.teacherComments[s.id]?.[t];
+            return `<button class="btn btn-g btn-xs" title="已在您的名單，點擊直接評量" onclick="teaWizOpenDirect('${s.id}','${t}');closeOverlay('tea-self-add-overlay')">✓ 已在名單·${typeName(t)}·${escHtml(iname(s[t]))}${done?'（已評）':''}</button>`;
+          }
+          return `<button class="btn btn-p btn-xs" onclick="tsaAdd('${s.id}','${t}')">＋ 加入 ${typeName(t)}·${escHtml(iname(s[t]))}</button>`;
+        }).join('')||'<span style="font-size:11px;color:var(--muted)">此學生尚無修別樂器</span>'}
       </div>
     </div>`;
   }).join('') || '<div style="padding:12px;color:var(--muted);font-family:\'DM Mono\',monospace;font-size:11px">查無學生</div>';
 }
+function tsaAdd(sid,t){
+  const s=DB.users.find(u=>u.id===sid);if(!s)return;
+  const types=t==='*'?['major','minor','elective'].filter(k=>s[k]&&!_teaOwnsType(s,k)):[t];
+  if(!teaSelfAdd(sid,types))return;
+  renderTeaTable();tsaSearch();
+  showToast('已將「'+s.name+'」加入您的名單 ✓','ok');
+}
+window.tsaAdd=tsaAdd;
 window.tsaSearch=tsaSearch;
 
 function teaWizStart(){
@@ -7268,7 +7320,8 @@ function renderAdminTeachers(){
       DB.teacherStudents[t.id]=validStuIds;
       fbSet('teacherStudents',t.id,{list:validStuIds});
     }
-    const myStus=validStuIds.map(sid=>DB.users.find(u=>u.id===sid)?.name||'').filter(Boolean).join('、')||'尚未設定';
+    const _selfIds=Object.keys(_selfStudentsOf(t.id)).filter(sid=>!validStuIds.includes(sid)&&DB.users.find(u=>u.id===sid));
+    const myStus=(validStuIds.map(sid=>DB.users.find(u=>u.id===sid)?.name||'').filter(Boolean).join('、')||'尚未設定')+(_selfIds.length?`<div style="font-size:10px;color:var(--steel);margin-top:2px">＋老師自行新增 ${_selfIds.length} 位：${_selfIds.map(sid=>escHtml(DB.users.find(u=>u.id===sid).name)).join('、')}</div>`:'');
     return `<tr>
     <td style="text-align:center"><input type="checkbox" class="tea-chk" data-id="${t.id}" onchange="updateBulkBar('teacher')" style="cursor:pointer;width:14px;height:14px"></td>
     <td><strong>${t.name}</strong></td>
@@ -7304,7 +7357,7 @@ function _teaRoomsCellHtml(t){
   return '<span class="badge b-major" style="font-size:9px" title="依專長／考場大項自動比對">自動</span> '+r.rooms.map(x=>escHtml(x.name||x.id)).join('、');
 }
 function _teaTypeRows(t){
-  const ids=(DB.teacherStudents[t.id]||[]).filter(sid=>DB.users.find(u=>u.id===sid));
+  const ids=_teaMyStudentIds(t.id).filter(sid=>DB.users.find(u=>u.id===sid));
   const stus=ids.map(sid=>DB.users.find(u=>u.id===sid))
     .sort((a,b)=>DB.classes.indexOf(a.class)-DB.classes.indexOf(b.class)||(a.seat||0)-(b.seat||0));
   const rows=[];
@@ -7333,6 +7386,7 @@ function _renderTeaScopeModal(tid){
   const confBadge=c=>({
     'override':'<span style="font-size:9px;color:var(--steel)">人工指定</span>',
     'unique':'<span style="font-size:9px;color:var(--sage)">自動比對</span>',
+    'self':'<span style="font-size:9px;color:var(--steel)">老師自行新增</span>',
     'multi':'<span style="font-size:9px;color:var(--gold)">⚠ 多人待確認</span>',
     'none':'<span style="font-size:9px;color:var(--rust)">無法判定</span>',
     'override-none':'<span style="font-size:9px;color:var(--rust)">人工：無指導老師</span>'}[c]||'');
@@ -7402,6 +7456,12 @@ async function saveTeaScope(tid){
     const cb=tr.querySelector('.ts-type');if(!cb)continue;
     const was=cb.dataset.was==='1';if(cb.checked===was)continue;
     const sid=tr.dataset.sid,k=tr.dataset.k,s=DB.users.find(u=>u.id===sid);if(!s)continue;
+    // 取消勾選時，若是老師自行新增的，先從老師的自行新增名單移除（否則會被自動補回）
+    if(!cb.checked&&Array.isArray((t.selfStudents||{})[sid])&&t.selfStudents[sid].includes(k)){
+      t.selfStudents[sid]=t.selfStudents[sid].filter(x=>x!==k);
+      if(!t.selfStudents[sid].length)delete t.selfStudents[sid];
+      fbSet('users',t.id,{selfStudents:t.selfStudents});
+    }
     const info=_resolveTeacherForType(sid,s[k],k);
     let names=info.names.slice();
     if(cb.checked){if(!names.includes(t.name))names.push(t.name);}
@@ -10597,7 +10657,7 @@ window.openReportCardModal=openReportCardModal;
 // ★ 交叉比對：判斷某學生某修別的指導老師
 //   邏輯：在「指導這位學生的老師」中，找專長樂器符合該修別樂器的老師
 //   人工指定（teacherTypeOverrides）優先；回傳 {names:[...], confidence:'override'|'unique'|'multi'|'none'|'override-none'}
-function _resolveTeacherForType(studentId, instId, type){
+function _resolveTeacherForTypeBase(studentId, instId, type){
   // ① 人工指定優先
   if(type){
     const ov=DB.teacherTypeOverrides?.[studentId+'_'+type];
@@ -10635,6 +10695,18 @@ function _resolveTeacherForType(studentId, instId, type){
   if(teacherObjs.length>1)return {names:teacherObjs.map(t=>t.name), confidence:'multi'};
 
   return {names:[], confidence:'none'};
+}
+// ★ 加上「老師自行新增」：只要老師把這位學生的這個修別加進自己的名單，就算他負責（可與其他老師並存）
+function _resolveTeacherForType(studentId, instId, type){
+  const base=_resolveTeacherForTypeBase(studentId,instId,type);
+  if(!type)return base;
+  const selfNames=[];
+  DB.users.forEach(u=>{
+    const m=u.selfStudents;
+    if(m&&typeof m==='object'&&Array.isArray(m[studentId])&&m[studentId].includes(type)&&!base.names.includes(u.name))selfNames.push(u.name);
+  });
+  if(!selfNames.length)return base;
+  return {names:[...base.names,...selfNames],confidence:base.names.length?base.confidence:'self',selfNames};
 }
 window._resolveTeacherForType=_resolveTeacherForType;
 
@@ -13848,7 +13920,7 @@ Object.keys(_fnMap).forEach(function(name){ window[name] = _fnMap[name]; });
 
 // ★ 版本標記：畫面右下角顯示小字，方便確認瀏覽器載入的是不是最新的 app.js（若還是舊版會顯示不同或沒有）
 (function(){
-  const V='2026-11-25-e';window.APP_VERSION=V;
+  const V='2026-11-25-f';window.APP_VERSION=V;
   try{
     const el=document.createElement('div');
     el.id='app-version-tag';el.textContent='程式版本 '+V;
