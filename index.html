@@ -668,6 +668,7 @@
               <div class="fg" style="margin:0;min-width:100px">
                 <select id="tea-class" onchange="renderTeaTable()" style="padding:4px 8px;border:1px solid var(--border);background:var(--paper);border-radius:var(--r);font-size:12px;outline:none"><option value="">全部班級</option></select>
               </div>
+              <button class="btn btn-p btn-sm" onclick="openTeaSelfAddPanel()" title="名單漏掉學生時，可自行搜尋並加入我的名單">＋ 新增學生</button>
               <button class="btn btn-b btn-sm" onclick="exportTeaOverviewCSV()">↓ 匯出本班 CSV</button>
               <button class="btn btn-s btn-sm" onclick="exportTeaOverviewCSV(true)">↓ 全班匯出</button>
               <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">
@@ -675,9 +676,9 @@
               </span>
             </div>
           </div>
-          <div class="prog" style="margin-bottom:6px"><div class="prog-f" id="tea-prog" style="width:0%"></div></div>
-          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:12px;letter-spacing:1px">
-            ℹ 每位學生在主修／副修／選修中<strong style="color:var(--sage)">任填一項即算完成</strong>，不必每樣都填
+          <div class="prog" style="margin-bottom:10px"><div class="prog-f" id="tea-prog" style="width:0%"></div></div>
+          <div style="margin-bottom:12px;padding:9px 12px;background:var(--cream);border-left:3px solid var(--gold);font-size:12px;line-height:1.8;color:var(--ink)">
+            📌 <strong>溫馨提醒：</strong>評量時除了給予分數，也請一併<strong>填寫評語</strong>；全部填寫完成後，請務必至上方「<strong>期末考評分報名</strong>」頁籤，勾選是否參與期末考評分。
           </div>
           <div id="tea-overview-body"></div>
         </div>
