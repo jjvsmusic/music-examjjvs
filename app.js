@@ -3312,6 +3312,63 @@ function setTeaView(viewAll){
 window.setTeaView=setTeaView;
 
 // ── 總覽表格 ──
+// ════════════════════════════════════════════════
+// ★ 建議扣考：老師在評語時勾選並寫原因 → 管理員審核（同意＝直接扣考並寫備註；不同意＝寫說明）→ 結果回到老師介面
+//   存放在 pendingApprovals（老師本來就能寫入），kind:'disq'，id = dq_學生ID_修別
+// ════════════════════════════════════════════════
+const _tdqId=(sid,type)=>'dq_'+sid+'_'+type;
+function _tdqRec(sid,type){return (DB.pendingApprovals||{})[_tdqId(sid,type)]||null;}
+function _tdqEsc(x){return escHtml(x||'');}
+// 老師名單每個修別下方的狀態說明
+function _tdqStatusLine(sid,type){
+  const r=_tdqRec(sid,type);if(!r||r.kind!=='disq')return '';
+  const box=(bg,bd,html)=>`<div style="margin:6px 14px 0;padding:7px 10px;background:${bg};border-left:3px solid ${bd};font-size:12px;line-height:1.7;color:var(--ink)">${html}</div>`;
+  const mine=`<div style="font-size:11px;color:var(--muted)">您的建議理由：${_tdqEsc(r.reason)}</div>`;
+  if(r.status==='pending')return box('#fff7e6','var(--gold)',`🚫 <strong>已建議扣考・待管理員審核</strong><br>${mine}`);
+  if(r.status==='approved')return box('#fdecea','var(--rust)',`🚫 <strong>管理員已同意扣考</strong>，此學生已列為扣考。<br>管理員備註：${_tdqEsc(r.reviewReason)}<br>${mine}`);
+  if(r.status==='rejected')return box('#eef3ee','var(--sage)',`✗ <strong>管理員不同意扣考</strong><br>管理員說明：${_tdqEsc(r.reviewReason)}<br>${mine}`);
+  if(r.status==='cancelled')return box('var(--cream)','var(--border)',`↺ <strong>原同意之扣考已由管理員取消</strong><br>${r.reviewReason?'原備註：'+_tdqEsc(r.reviewReason)+'<br>':''}${mine}`);
+  return '';
+}
+// 評語表單中的「建議扣考」區塊（idp：'ti' 名單內表單、'tw' 逐位精靈）
+function _tdqBlockHtml(sid,type,idp){
+  const r=_tdqRec(sid,type);
+  if(r&&r.kind==='disq'&&r.status==='approved')return ''; // 已扣考，不再重複建議
+  const pending=!!(r&&r.kind==='disq'&&r.status==='pending');
+  const chk=`${idp}-dq-chk-${sid}-${type}`,rs=`${idp}-dq-reason-${sid}-${type}`;
+  return `<div style="margin-top:10px;padding:10px 12px;border:1px dashed var(--rust);border-radius:var(--r);background:var(--white)">
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--rust);font-weight:600">
+      <input type="checkbox" id="${chk}" ${pending?'checked':''} style="width:15px;height:15px;accent-color:var(--rust)" onchange="document.getElementById('${rs}').style.display=this.checked?'block':'none'">
+      🚫 建議扣考此學生（需管理員審核）</label>
+    <textarea id="${rs}" placeholder="請寫明建議扣考的原因（必填）" style="display:${pending?'block':'none'};width:100%;min-height:56px;margin-top:8px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:Noto Serif TC,serif;font-size:13px;line-height:1.7;resize:vertical;outline:none">${pending?_tdqEsc(r.reason):''}</textarea>
+    <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6">送出後由管理員審核；同意會直接列為扣考，不同意也會把管理員的說明顯示在這裡。${(r&&r.status==='rejected')?'（上次未獲同意，可重新建議）':''}</div>
+  </div>`;
+}
+// 讀取表單（儲存前驗證）
+function _tdqRead(sid,type,idp){
+  const chk=document.getElementById(`${idp}-dq-chk-${sid}-${type}`);
+  if(!chk)return {skip:true};
+  const reason=(document.getElementById(`${idp}-dq-reason-${sid}-${type}`)?.value||'').trim();
+  if(chk.checked&&!reason)return {error:'勾選「建議扣考」時，請填寫原因'};
+  return {checked:chk.checked,reason};
+}
+// 儲存結果
+function _tdqCommit(sid,type,dq){
+  if(!dq||dq.skip||dq.error)return;
+  const id=_tdqId(sid,type);const rec=_tdqRec(sid,type);
+  if(dq.checked){
+    if(rec&&rec.kind==='disq'&&rec.status==='pending'&&rec.reason===dq.reason)return;
+    const nr={kind:'disq',sid,scoreType:type,reason:dq.reason,status:'pending',
+      submittedBy:ST.user?.id||'',submittedByName:ST.user?.name||'',submittedAt:new Date().toISOString(),
+      reviewedAt:'',reviewedBy:'',reviewedByName:'',reviewReason:''};
+    DB.pendingApprovals[id]=nr;fbSet('pendingApprovals',id,nr);
+    showToast('已送出扣考建議，待管理員審核','warn');
+  } else if(rec&&rec.kind==='disq'&&rec.status==='pending'){
+    delete DB.pendingApprovals[id];fbDelete('pendingApprovals',id);
+    showToast('已撤回扣考建議','ok');
+  }
+}
+
 function renderTeaTable(){
   // ★ 管理員顯示切換按鈕
   const toggleEl=document.getElementById('tea-view-toggle');
@@ -3362,6 +3419,7 @@ function renderTeaTable(){
           ${done?`<button class="btn btn-s btn-xs" onclick="teaInlineEdit('${s.id}','${k}')">修改</button>`:''}
           ${(_selfStudentsOf(ST.user?.id)[s.id]||[]).includes(k)?`<button class="btn btn-o btn-xs" onclick="teaSelfRemove('${s.id}','${k}')" title="只是移出名單，已填的評量不會刪除">移出名單</button>`:''}
         </div>
+        ${_tdqStatusLine(s.id,k)}
         <div id="tea-inline-form-${s.id}-${k}" style="display:none;margin-top:10px;padding:12px;background:var(--cream);border-radius:var(--r)">
           <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
             <div style="flex:0 0 120px">
@@ -3376,6 +3434,7 @@ function renderTeaTable(){
               <textarea id="ti-comment-${s.id}-${k}" style="width:100%;min-height:64px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:Noto Serif TC,serif;font-size:13px;line-height:1.7;resize:vertical;outline:none;background:var(--white)" placeholder="填寫評語...">${t?.comment??''}</textarea>
             </div>
           </div>
+          ${_tdqBlockHtml(s.id,k,'ti')}
           <div style="display:flex;gap:7px;margin-top:8px">
             <button class="btn btn-g btn-sm" onclick="teaInlineSave('${s.id}','${k}')">✓ 儲存</button>
             <button class="btn btn-s btn-sm" onclick="document.getElementById('tea-inline-form-${s.id}-${k}').style.display='none'">取消</button>
@@ -3438,6 +3497,8 @@ function teaInlineSave(sid,type){
   // ★ 分數上限 99 分
   if(score>99){showToast('分數上限為 99 分','err');return;}
   if(score<0){showToast('分數不可為負','err');return;}
+  const _dq=_tdqRead(sid,type,'ti'); // ★ 建議扣考：勾選時原因必填
+  if(_dq.error){showToast(_dq.error,'err');return;}
   if(!DB.teacherComments[sid])DB.teacherComments[sid]={};
   // ★ 記錄填寫此評語的老師（供成績單顯示指導老師用）
   {const _a=ST.user&&ST.user.role==='teacher'?ST.user:null;
@@ -3452,6 +3513,7 @@ function teaInlineSave(sid,type){
     fbSet('users',s.id,s);
   }
   fbSet('teacherComments',sid,{...DB.teacherComments[sid]});
+  _tdqCommit(sid,type,_dq);
   showToast('已儲存 ✓','ok');
   renderTeaTable();
   setTimeout(teaCheckAllDone, 200);
@@ -3701,6 +3763,12 @@ function teaWizPickStu(){
 }
 window.teaWizPickStu=teaWizPickStu;
 
+// ★ 逐位精靈的「建議扣考」區塊（兩個入口共用）
+function _tdqWizRender(sid,type){
+  let box=document.getElementById('tea-wiz-dq');
+  if(!box){const ta=document.getElementById('tea-wiz-comment');if(!ta)return;box=document.createElement('div');box.id='tea-wiz-dq';(ta.closest('.fg')||ta.parentElement).insertAdjacentElement('afterend',box);}
+  box.innerHTML=_tdqStatusLine(sid,type).replace('margin:6px 14px 0','margin:6px 0 0')+_tdqBlockHtml(sid,type,'tw');
+}
 function teaWizPickType(type){
   TWZ.type=type;
   const s=DB.users.find(u=>u.id===TWZ.sid);if(!s)return;
@@ -3718,6 +3786,7 @@ function teaWizPickType(type){
     (s[fcKey]?`<div style="font-size:11px;color:var(--muted)">🎼 自選：${s[fcKey]||''} — <em>${s[ftKey]||''}</em></div>`:'');
   document.getElementById('tea-wiz-score').value=existing.score||'';
   document.getElementById('tea-wiz-comment').value=existing.comment||'';
+  _tdqWizRender(TWZ.sid,type); // ★ 建議扣考區塊（逐位精靈）
   teaWizShowStep(4);
 }
 window.teaWizPickType=teaWizPickType;
@@ -3734,6 +3803,8 @@ function teaWizSave(){
   // ★ 分數上限 99 分
   if(score>99){showToast('分數上限為 99 分','err');return;}
   if(score<0){showToast('分數不可為負','err');return;}
+  const _dq=_tdqRead(sid,type,'tw'); // ★ 建議扣考：勾選時原因必填
+  if(_dq.error){showToast(_dq.error,'err');return;}
   // ★ 分數立刻生效寫入（不擋）
   if(!DB.teacherComments[sid])DB.teacherComments[sid]={};
   // ★ 記錄填寫此評語的老師（供成績單顯示指導老師用）
@@ -3748,6 +3819,7 @@ function teaWizSave(){
     fbSet('users',s.id,s);
   }
   fbSet('teacherComments',sid,{...DB.teacherComments[sid]});
+  _tdqCommit(sid,type,_dq);
   renderTeaTable();
   // ★ 90分（含）以上：要求教師填寫理由（背景送入審核佇列，分數已生效不擋）
   //   管理員自己改不需審核
@@ -3883,6 +3955,7 @@ function teaWizOpenDirect(sid,type){
     `<strong>${s.name}</strong> <span style="color:var(--muted);font-size:12px">${s.class}·座${s.seat}</span> — ${typeName(type)} · ${iname(s[type])}`;
   document.getElementById('tea-wiz-score').value=existing.score||'';
   document.getElementById('tea-wiz-comment').value=existing.comment||'';
+  _tdqWizRender(sid,type);
   [1,2,3].forEach(i=>{
     document.getElementById('tea-s'+i).style.display='none';
     const el=document.getElementById('tstep-'+i);if(el){el.classList.remove('on');el.classList.add('done');}
@@ -6429,6 +6502,10 @@ window.saveDisq=saveDisq;
 function removeDisq(entryKey){
   delete DB.disqualified[entryKey];
   fbDelete('disqualified',entryKey);
+  { // ★ 若此扣考來自老師建議，把狀態改為「已取消」讓老師看得到
+    const _id='dq_'+entryKey,_r=DB.pendingApprovals?.[_id];
+    if(_r&&_r.kind==='disq'&&_r.status==='approved'){_r.status='cancelled';fbSet('pendingApprovals',_id,_r);}
+  }
   renderDisqList();renderSchedule();
   showToast('已取消扣考','ok');
 }
@@ -7647,6 +7724,7 @@ function _deleteUserCascade(id){
     });
     // disqualified
     if(DB.disqualified){Object.keys(DB.disqualified).forEach(k=>{if(k.startsWith(id+'_')){delete DB.disqualified[k];fbDelete('disqualified',k);}});}
+    Object.keys(DB.pendingApprovals||{}).forEach(k=>{if(k.startsWith('dq_'+id+'_')){delete DB.pendingApprovals[k];fbDelete('pendingApprovals',k);}});
     // blackSign
     Object.keys(DB.blackSign||{}).forEach(roomId=>{if(DB.blackSign[roomId]?.[id+'_major']||DB.blackSign[roomId]?.[id+'_minor']||DB.blackSign[roomId]?.[id+'_elective']){['major','minor','elective'].forEach(t=>{delete (DB.blackSign[roomId]||{})[id+'_'+t];});fbSet('blackSign',roomId,{...DB.blackSign[roomId]});}});
   }
@@ -12882,18 +12960,105 @@ async function fixOverHardCapScores(){
 }
 window.fixOverHardCapScores=fixOverHardCapScores;
 
+// ════════════════════════════════════════════════
+// ★ 管理員：扣考建議審核
+// ════════════════════════════════════════════════
+let _dqReviewCtx=null;
+function openDqReview(id,action){
+  const rec=DB.pendingApprovals?.[id];
+  if(!rec||rec.kind!=='disq'){showToast('找不到此建議','err');return;}
+  if(rec.status!=='pending'){showToast('此建議已處理','warn');return;}
+  _dqReviewCtx={id,action};
+  const st=DB.users.find(u=>u.id===rec.sid);
+  let modal=document.getElementById('dq-review-modal');
+  if(!modal){modal=document.createElement('div');modal.className='overlay';modal.id='dq-review-modal';document.body.appendChild(modal);}
+  const ok=action==='approve';
+  modal.innerHTML=`<div class="modal" style="max-width:480px">
+    <div class="modal-h"><span>${ok?'🚫 同意扣考':'✗ 不同意扣考'}</span><button class="modal-x" onclick="closeOverlay('dq-review-modal')">✕</button></div>
+    <div style="padding:2px 2px 8px">
+      <div style="font-size:13px;margin-bottom:8px"><strong>${_tdqEsc(st?st.name:rec.sid)}</strong>（${_tdqEsc(st?st.class+'·座'+st.seat:'')}）${typeName(rec.scoreType)}${st&&st[rec.scoreType]?'·'+_tdqEsc(iname(st[rec.scoreType])):''}</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:10px;padding:8px 10px;background:var(--cream);border-radius:var(--r)">${_tdqEsc(rec.submittedByName||'老師')} 的建議理由：${_tdqEsc(rec.reason)}</div>
+      <label style="font-size:12px;font-weight:700">${ok?'扣考備註原因（必填；會寫入扣考紀錄，並顯示給老師）':'不同意的原因（必填；會顯示給老師）'}</label>
+      <textarea id="dq-review-reason" style="width:100%;min-height:80px;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:Noto Serif TC,serif;font-size:13px;line-height:1.7;resize:vertical;outline:none" placeholder="${ok?'例如：缺席多次且未請假，經確認同意扣考':'例如：已與學生確認，同意給予補交機會'}"></textarea>
+      <div id="dq-review-err" style="color:var(--rust);font-size:12px;min-height:16px;margin-top:4px"></div>
+    </div>
+    <div class="modal-ft"><button class="btn btn-s" onclick="closeOverlay('dq-review-modal')">取消</button>
+      <button class="btn ${ok?'btn-d':'btn-g'}" onclick="submitDqReview()">${ok?'確認扣考':'確認不同意'}</button></div>
+  </div>`;
+  openOverlay('dq-review-modal');
+  setTimeout(()=>document.getElementById('dq-review-reason')?.focus(),150);
+}
+function submitDqReview(){
+  const ctx=_dqReviewCtx;if(!ctx)return;
+  const rec=DB.pendingApprovals?.[ctx.id];if(!rec||rec.status!=='pending'){closeOverlay('dq-review-modal');return;}
+  const reason=(document.getElementById('dq-review-reason')?.value||'').trim();
+  if(!reason){document.getElementById('dq-review-err').textContent=ctx.action==='approve'?'請填寫扣考備註原因':'請填寫不同意的原因';return;}
+  rec.status=ctx.action==='approve'?'approved':'rejected';
+  rec.reviewReason=reason;
+  rec.reviewedAt=new Date().toISOString();
+  rec.reviewedBy=ST.user?.id||'admin';
+  rec.reviewedByName=ST.user?.name||'管理員';
+  fbSet('pendingApprovals',ctx.id,rec);
+  if(ctx.action==='approve'){
+    // ★ 直接連動扣考：寫入既有的扣考名單（原因＝管理員備註；備註欄附上老師的建議理由）
+    const entryKey=rec.sid+'_'+rec.scoreType;
+    const dq={reason,note:'老師（'+(rec.submittedByName||'')+'）建議：'+(rec.reason||'')};
+    DB.disqualified[entryKey]=dq;
+    fbSet('disqualified',entryKey,dq);
+    try{renderDisqList();}catch(e){}
+    try{renderSchedule();}catch(e){}
+  }
+  closeOverlay('dq-review-modal');_dqReviewCtx=null;
+  showToast(ctx.action==='approve'?'已同意，該生已列為扣考 ✓':'已回覆不同意，老師將看到說明','ok');
+  renderPendingApprovalsPage();
+}
+function deleteDqRecord(id){
+  if(!confirm('確定刪除此紀錄？（僅刪除審核紀錄，不會取消已設定的扣考）'))return;
+  delete DB.pendingApprovals[id];fbDelete('pendingApprovals',id);renderPendingApprovalsPage();
+}
+window.openDqReview=openDqReview;window.submitDqReview=submitDqReview;window.deleteDqRecord=deleteDqRecord;
+function _dqCardsHtml(){
+  const fmt=iso=>{if(!iso)return '';try{return new Date(iso).toLocaleString('zh-TW',{hour12:false});}catch(e){return iso;}};
+  const all=Object.entries(DB.pendingApprovals||{}).filter(([id,r])=>r&&r.kind==='disq');
+  const pending=all.filter(([id,r])=>r.status==='pending').sort((a,b)=>(a[1].submittedAt||'').localeCompare(b[1].submittedAt||''));
+  const handled=all.filter(([id,r])=>r.status!=='pending').sort((a,b)=>(b[1].reviewedAt||'').localeCompare(a[1].reviewedAt||''));
+  const card=([id,r])=>{
+    const st=DB.users.find(u=>u.id===r.sid);
+    const stat={pending:'<span class="appr-st appr-pending">⏳ 待審核</span>',approved:'<span class="appr-st appr-no">🚫 已同意扣考</span>',rejected:'<span class="appr-st appr-ok">✗ 不同意</span>',cancelled:'<span class="appr-st">↺ 扣考已取消</span>'}[r.status]||'';
+    return `<div class="appr-card ${r.status}">
+      <div class="appr-head"><div><span class="appr-type">建議扣考</span><strong class="appr-stu">${_tdqEsc(st?`${st.name}（${st.class}·座${st.seat}）`:r.sid)}</strong></div></div>
+      <div class="appr-detail">修別：${typeName(r.scoreType)}${st&&st[r.scoreType]?'（'+_tdqEsc(iname(st[r.scoreType]))+'）':''}</div>
+      <div class="appr-reason"><span class="appr-reason-l">老師建議理由：</span>${_tdqEsc(r.reason)}</div>
+      <div class="appr-meta">建議老師：${_tdqEsc(r.submittedByName||r.submittedBy||'-')} ／ ${fmt(r.submittedAt)}</div>
+      ${r.status!=='pending'?`<div class="appr-review">${stat} <span class="appr-meta">由 ${_tdqEsc(r.reviewedByName||'-')} 於 ${fmt(r.reviewedAt)}</span></div><div class="appr-reason"><span class="appr-reason-l">管理員${r.status==='approved'?'備註':'說明'}：</span>${_tdqEsc(r.reviewReason)}</div>`:`<div class="appr-review">${stat}</div>`}
+      <div class="appr-acts">${r.status==='pending'
+        ?`<button class="btn btn-d btn-sm" onclick="openDqReview('${id}','approve')">🚫 同意扣考（填備註）</button> <button class="btn btn-g btn-sm" onclick="openDqReview('${id}','reject')">✗ 不同意（填原因）</button>`
+        :`<button class="btn btn-s btn-sm" onclick="deleteDqRecord('${id}')">🗑 刪除紀錄</button>`}</div>
+    </div>`;
+  };
+  return {pendingCount:pending.length,html:`
+    <div class="card" style="margin-bottom:18px;border-left:3px solid var(--rust)">
+      <div class="card-t">🚫 扣考建議審核 — 待審核（${pending.length}）</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.7">老師在評語時勾選「建議扣考」會列在這裡。<strong>同意</strong>：請填備註原因，系統會直接把該生該修別列為扣考；<strong>不同意</strong>：請說明原因。兩種結果都會顯示在老師的介面。</p>
+      <div class="appr-list">${pending.length?pending.map(card).join(''):'<div class="appr-empty">目前沒有待審核的扣考建議</div>'}</div>
+      ${handled.length?`<div style="margin-top:14px;font-size:12px;font-weight:700;color:var(--muted)">已處理（${handled.length}）</div><div class="appr-list">${handled.map(card).join('')}</div>`:''}
+    </div>`};
+}
+
 // 渲染管理員審核頁
 function renderPendingApprovalsPage(){
   const tab=document.getElementById('at-approvals');
   if(!tab)return;
-  const all=Object.entries(DB.pendingApprovals||{});
+  const all=Object.entries(DB.pendingApprovals||{}).filter(([id,r])=>r&&r.kind!=='disq'); // 扣考建議另列
+  const _dqUi=_dqCardsHtml();
   const pending=all.filter(([id,r])=>r.status==='pending');
   const handled=all.filter(([id,r])=>r.status!=='pending').sort((a,b)=>(b[1].reviewedAt||'').localeCompare(a[1].reviewedAt||''));
   // 更新 tab 標籤上的待審數量
   const tabBtn=document.getElementById('admin-tab-approvals');
   if(tabBtn){
-    const badge=pending.length>0?` <span class="approval-badge">${pending.length}</span>`:'';
-    tabBtn.innerHTML='📋 分數審核'+badge;
+    const _n=pending.length+_dqUi.pendingCount;
+    const badge=_n>0?` <span class="approval-badge">${_n}</span>`:'';
+    tabBtn.innerHTML='📋 審核（分數／扣考）'+badge;
   }
   const fmtTime=iso=>{if(!iso)return '';try{const d=new Date(iso);return d.toLocaleString('zh-TW',{hour12:false});}catch(e){return iso;}};
   // 建立分頁內容
@@ -12935,7 +13100,7 @@ function renderPendingApprovalsPage(){
   const handledHTML=handled.length
     ? handled.map(renderRow).join('')
     : '<div class="appr-empty">尚無已處理紀錄</div>';
-  tab.innerHTML=`
+  tab.innerHTML=_dqUi.html+`
     <div class="card">
       <div class="card-t">📋 分數審核 — 待審核（${pending.length}）</div>
       <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">超過軟上限的分數會在此列出由您事後審核：<br>• <strong>現場評分</strong>超過該生年級上限（高一 ${DB.config.scoreCaps?.[1]??85} / 高二 ${DB.config.scoreCaps?.[2]??87} / 高三 ${DB.config.scoreCaps?.[3]??89} 分）→ 暫以年級上限計分，待審核。<br>• <strong>平時成績</strong>達 90 分（含）以上 → 分數已生效，列此事後審核。<br>同意 → 採用原分數；不同意 → 自動改為該項上限。<br>另外，所有分數一律不得超過 <strong>${DB.config.hardCap||95}</strong> 分（硬上限，輸入時直接擋下，不會進入審核）。<br><span style="color:var(--orange);font-size:12px">※ 教師與評審不會收到審核結果通知，請在所有評分結束後再統一處理。</span></p>
@@ -13920,7 +14085,7 @@ Object.keys(_fnMap).forEach(function(name){ window[name] = _fnMap[name]; });
 
 // ★ 版本標記：畫面右下角顯示小字，方便確認瀏覽器載入的是不是最新的 app.js（若還是舊版會顯示不同或沒有）
 (function(){
-  const V='2026-11-25-f';window.APP_VERSION=V;
+  const V='2026-11-25-g';window.APP_VERSION=V;
   try{
     const el=document.createElement('div');
     el.id='app-version-tag';el.textContent='程式版本 '+V;
